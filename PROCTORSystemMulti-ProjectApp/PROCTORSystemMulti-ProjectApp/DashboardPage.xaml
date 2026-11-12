@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:ci="clr-namespace:PROCTORSystemMulti_ProjectApp.ClassInsight"
+             x:Class="PROCTORSystemMulti_ProjectApp.DashboardPage"
+             x:DataType="ci:DashboardViewModel"
+             Title="ClassInsight">
+
+    <Grid RowDefinitions="Auto,Auto,*" Padding="16" RowSpacing="12">
+
+        <!-- Connect bar -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <Entry Grid.Column="0"
+                   Placeholder="Join code (from the server console)"
+                   Text="{Binding JoinCode}"
+                   IsEnabled="{Binding NotConnected}" />
+            <Button Grid.Column="1"
+                    Text="Connect"
+                    Command="{Binding ConnectCommand}"
+                    IsVisible="{Binding NotConnected}" />
+            <Label Grid.Column="2"
+                   VerticalOptions="Center"
+                   FontAttributes="Bold"
+                   Text="{Binding StudentCount, StringFormat='{0} online'}"
+                   IsVisible="{Binding IsConnected}" />
+        </Grid>
+
+        <!-- Status line -->
+        <Label Grid.Row="1" Text="{Binding Status}" FontSize="13" TextColor="Gray" />
+
+        <!-- Live roster grid -->
+        <CollectionView Grid.Row="2" ItemsSource="{Binding Students}">
+            <CollectionView.ItemsLayout>
+                <GridItemsLayout Orientation="Vertical" Span="3"
+                                 HorizontalItemSpacing="12" VerticalItemSpacing="12" />
+            </CollectionView.ItemsLayout>
+            <CollectionView.EmptyView>
+                <Label Text="No students connected yet."
+                       HorizontalOptions="Center" VerticalOptions="Center" TextColor="Gray" />
+            </CollectionView.EmptyView>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="ci:StudentTile">
+                    <Border Stroke="#DDDDDD" StrokeThickness="1" Padding="10">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="10" />
+                        </Border.StrokeShape>
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="{Binding Header}" FontAttributes="Bold"
+                                   LineBreakMode="TailTruncation" />
+
+                            <!-- Screen placeholder (WebRTC video arrives in the next slice) -->
+                            <Border BackgroundColor="#111111" HeightRequest="110">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="6" />
+                                </Border.StrokeShape>
+                                <Label Text="Live screen — WebRTC next" TextColor="#AAAAAA"
+                                       FontSize="11" HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+
+                            <Label Text="{Binding StateText}" TextColor="{Binding StateColor}"
+                                   FontSize="12" FontAttributes="Bold" />
+
+                            <HorizontalStackLayout Spacing="12">
+                                <Label Text="{Binding CpuText}" FontSize="12" />
+                                <Label Text="{Binding MemoryText}" FontSize="12" />
+                            </HorizontalStackLayout>
+
+                            <Label Text="{Binding BandwidthText}" FontSize="12" TextColor="#555555" />
+                            <Label Text="{Binding ForegroundText}" FontSize="11" TextColor="#888888"
+                                   LineBreakMode="TailTruncation" />
+                        </VerticalStackLayout>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>

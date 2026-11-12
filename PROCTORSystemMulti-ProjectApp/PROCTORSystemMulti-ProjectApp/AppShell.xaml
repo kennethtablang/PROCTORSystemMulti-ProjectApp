@@ -8,6 +8,11 @@
     Title="PROCTORSystemMulti_ProjectApp">
 
     <ShellContent
+        Title="Dashboard"
+        ContentTemplate="{DataTemplate local:DashboardPage}"
+        Route="Dashboard" />
+
+    <ShellContent
         Title="Home"
         ContentTemplate="{DataTemplate local:MainPage}"
         Route="MainPage" />

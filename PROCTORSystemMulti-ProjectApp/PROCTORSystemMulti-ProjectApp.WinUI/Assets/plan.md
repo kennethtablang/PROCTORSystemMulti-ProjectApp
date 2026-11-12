@@ -24,6 +24,7 @@ to the delivery phase in §9.
 **Status markers** on each requirement track delivery against the current build:
 
 - ✅ **done** — implemented and verified in the code today.
+- 🟡 **built, runtime-pending** — code complete and compiles, not yet verified at runtime.
 - ⬜ **not started** — planned for a later phase (or not yet verifiable end-to-end).
 
 A trailing *(italic note)* explains any requirement that is partly built.
@@ -108,7 +109,7 @@ authorized to manage, under the institution's acceptable-use and privacy policy
 | `ClassInsight.Shared`   | .NET 10 class library    | Wire contracts + protocol constants shared by all components   | ✅ Built |
 | `ClassInsight.Server`   | ASP.NET Core (SignalR)   | Roster, WebRTC signalling relay, telemetry fan-out, discovery  | ✅ Built |
 | `ClassInsight.Agent`    | .NET 10 Windows app      | Discovery + registration + 1 Hz telemetry built; WebRTC H.264 sender pending | 🟡 In progress |
-| `PROCTORSystemMulti-ProjectApp` | .NET MAUI app (WinUI/Droid/Mac/iOS heads) | **Teacher app:** discovery client, live grid, focus view, processes/bandwidth | ⬜ Planned |
+| `PROCTORSystemMulti-ProjectApp` | .NET MAUI app (WinUI/Droid/Mac/iOS heads) | **Teacher app:** discovery + connect + live roster grid with telemetry built (WinUI head compiles); focus view + WebRTC pending | 🟡 In progress |
 | `ClassInsight.Tests`    | xUnit test project       | Unit + integration tests across components                     | ⬜ Planned |
 
 > The teacher app is a **separate MAUI solution** (`PROCTORSystemMulti-ProjectApp`, MAUI
@@ -194,7 +195,7 @@ version is carried in every message so mismatched clients can be rejected cleanl
 
 ## 6. Functional Requirements (SRS)
 
-*Status: ✅ done · ⬜ not started. See §0 for the legend.*
+*Status: ✅ done · 🟡 built, runtime-pending · ⬜ not started. See §0 for the legend.*
 
 ### 6.1 Discovery & connectivity — `FR-DISC`
 
@@ -204,8 +205,9 @@ version is carried in every message so mismatched clients can be rejected cleanl
   listening clients can latch on without probing.
 - ✅ **FR-DISC-03 [P1]** A student agent **shall** discover the server and connect
   automatically on launch, with no manual configuration and no user interaction.
-- ⬜ **FR-DISC-04 [P2]** A teacher app **shall** discover available server(s)/room(s) and
-  connect; if multiple rooms respond it **shall** let the teacher choose.
+- 🟡 **FR-DISC-04 [P2]** A teacher app **shall** discover available server(s)/room(s) and
+  connect; if multiple rooms respond it **shall** let the teacher choose. *(Discover +
+  connect built in the MAUI app; multi-room selection pending; GUI not yet run.)*
 - ⬜ **FR-DISC-05 [P1]** Clients **shall** automatically re-discover and reconnect after a
   network drop or server restart, restoring their roster entry.
 - ⬜ **FR-DISC-06 [P0]** The server **shall** reject clients whose protocol version does
@@ -248,9 +250,9 @@ version is carried in every message so mismatched clients can be rejected cleanl
 
 ### 6.4 Telemetry: processes & bandwidth — `FR-TEL`
 
-- ⬜ **FR-TEL-01 [P3]** The dashboard **shall** show each student's live CPU and memory.
-- ⬜ **FR-TEL-02 [P3]** The system **shall** display each student's **live bandwidth**
-  (upload/download bytes per second) in real time.
+- 🟡 **FR-TEL-01 [P3]** The dashboard **shall** show each student's live CPU and memory. *(On tiles; GUI not yet run.)*
+- 🟡 **FR-TEL-02 [P3]** The system **shall** display each student's **live bandwidth**
+  (upload/download bytes per second) in real time. *(On tiles; GUI not yet run.)*
 - ⬜ **FR-TEL-03 [P3]** The system **shall** display each student's running processes
   (name, PID, CPU, memory) and refresh them live.
 - ⬜ **FR-TEL-04 [P3]** Telemetry **shall** update for all registered students regardless
@@ -260,14 +262,14 @@ version is carried in every message so mismatched clients can be rejected cleanl
 
 ### 6.5 Teacher dashboard & views — `FR-TEACH`
 
-- ⬜ **FR-TEACH-01 [P2]** The dashboard **shall** show a live grid of student tiles, one
-  per connected student, updating as students join/leave in real time.
+- 🟡 **FR-TEACH-01 [P2]** The dashboard **shall** show a live grid of student tiles, one
+  per connected student, updating as students join/leave in real time. *(Built; GUI not yet run.)*
 - ⬜ **FR-TEACH-02 [P2]** Selecting a tile **shall** open a focus view with a larger,
   higher-quality live stream of that student.
 - ⬜ **FR-TEACH-03 [P2]** The app **shall** provide a navbar to switch views
   (Dashboard, Processes, Bandwidth, and — later — classroom control).
-- ⬜ **FR-TEACH-04 [P2]** Each tile **shall** show student identity (machine/user) and
-  connection/stream state (Online, Streaming, Idle, Offline).
+- 🟡 **FR-TEACH-04 [P2]** Each tile **shall** show student identity (machine/user) and
+  connection/stream state (Online, Streaming, Idle, Offline). *(Built; GUI not yet run.)*
 - ⬜ **FR-TEACH-05 [P2]** The app **shall** run natively on Windows, macOS, iOS, and
   Android from the single **.NET MAUI** codebase (`PROCTORSystemMulti-ProjectApp`).
 - ⬜ **FR-TEACH-06 [P3]** The app **should** let the teacher sort/filter students and
@@ -428,7 +430,7 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
 | ----- | ---- | ---------------- | ------------- |
 | **P0 — Foundations** ✅ | Contracts, server, discovery | `Shared` contracts; SignalR hub (roster, signalling relay, telemetry fan-out); UDP discovery; security hardening (pair-gating, optional teacher code, no CORS) | Server builds & runs; discovery verified end-to-end |
 | **P1 — Student agent MVP** 🟡 | Agent registers, streams one screen, reports telemetry | `ClassInsight.Agent`: discovery client ✅, `RegisterStudent` ✅, 1 Hz telemetry ✅, WebRTC H.264 sender ⬜, auto-start ⬜ | A real Windows PC appears in the roster (✅) and streams its screen on request (⬜) |
-| **P2 — Teacher app MVP** | Live grid + focus view | Teacher app on `PROCTORSystemMulti-ProjectApp` (MAUI): discovery client, roster grid, WebRTC receiver, focus view, state badges | A teacher on any of the 4 platforms sees live student screens in a grid |
+| **P2 — Teacher app MVP** 🟡 | Live grid + focus view | Teacher app on `PROCTORSystemMulti-ProjectApp` (MAUI): discovery client ✅, roster grid + telemetry 🟡 (built, not yet run), WebRTC receiver ⬜, focus view ⬜, state badges 🟡 | A teacher on any of the 4 platforms sees live student screens in a grid |
 | **P3 — Telemetry views** | Processes & bandwidth UI | Processes view, live bandwidth view/graphs, foreground app; quality switching | Teacher can inspect any student's processes and live bandwidth |
 | **P4 — Hardening** | Production readiness | Reconnection robustness, multi-monitor, TURN/relay fallback, multi-room, agent packaging (MSI/service), signing | Stable 40-student room; agent deployable by IT via installer |
 | **P5 — Classroom control (future)** | Interactive control | Blank/lock, broadcast, messaging, remote launch, optional remote control, web policy | Per-feature acceptance; monitoring indicators in place |

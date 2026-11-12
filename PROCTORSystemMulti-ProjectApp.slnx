@@ -1,0 +1,15 @@
+<Solution>
+  <Project Path="PROCTORSystemMulti-ProjectApp/PROCTORSystemMulti-ProjectApp.Droid/PROCTORSystemMulti-ProjectApp.Droid.csproj">
+    <Deploy />
+  </Project>
+  <Project Path="PROCTORSystemMulti-ProjectApp/PROCTORSystemMulti-ProjectApp.iOS/PROCTORSystemMulti-ProjectApp.iOS.csproj">
+    <Deploy />
+  </Project>
+  <Project Path="PROCTORSystemMulti-ProjectApp/PROCTORSystemMulti-ProjectApp.Mac/PROCTORSystemMulti-ProjectApp.Mac.csproj">
+    <Deploy />
+  </Project>
+  <Project Path="PROCTORSystemMulti-ProjectApp/PROCTORSystemMulti-ProjectApp.WinUI/PROCTORSystemMulti-ProjectApp.WinUI.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="PROCTORSystemMulti-ProjectApp/PROCTORSystemMulti-ProjectApp/PROCTORSystemMulti-ProjectApp.csproj" />
+</Solution>

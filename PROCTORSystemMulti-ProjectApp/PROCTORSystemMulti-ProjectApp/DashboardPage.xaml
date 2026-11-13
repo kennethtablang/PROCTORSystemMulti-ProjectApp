@@ -4,7 +4,7 @@
              xmlns:ci="clr-namespace:PROCTORSystemMulti_ProjectApp.ClassInsight"
              x:Class="PROCTORSystemMulti_ProjectApp.DashboardPage"
              x:DataType="ci:DashboardViewModel"
-             Title="ClassInsight">
+             Title="Dashboard">
 
     <Grid RowDefinitions="Auto,Auto,*" Padding="16" RowSpacing="12">
 
@@ -31,7 +31,7 @@
 
         <!-- Live roster grid -->
         <CollectionView Grid.Row="2" ItemsSource="{Binding Students}"
-                        SelectionMode="Single" SelectionChanged="OnStudentSelected">
+                        SelectionMode="None">
             <CollectionView.ItemsLayout>
                 <GridItemsLayout Orientation="Vertical" Span="3"
                                  HorizontalItemSpacing="12" VerticalItemSpacing="12" />
@@ -46,6 +46,9 @@
                         <Border.StrokeShape>
                             <RoundRectangle CornerRadius="10" />
                         </Border.StrokeShape>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnTileTapped" />
+                        </Border.GestureRecognizers>
                         <VerticalStackLayout Spacing="6">
                             <Label Text="{Binding Header}" FontAttributes="Bold"
                                    LineBreakMode="TailTruncation" />

@@ -20,12 +20,12 @@ public partial class DashboardPage : ContentPage
         await _vm.AutoConnectAsync();
     }
 
-    private async void OnStudentSelected(object? sender, SelectionChangedEventArgs e)
+    // A tile opens the focus view only on an explicit tap. (We deliberately don't use
+    // CollectionView selection for this: on WinUI the list auto-selects its first item when the
+    // window gains focus, which would pop open a student's full screen with no click.)
+    private async void OnTileTapped(object? sender, TappedEventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is not StudentTile tile) return;
-
-        // Clear selection so the same tile can be reopened later.
-        if (sender is CollectionView cv) cv.SelectedItem = null;
+        if ((sender as BindableObject)?.BindingContext is not StudentTile tile) return;
 
         if (!_vm.Client.IsConnected)
         {

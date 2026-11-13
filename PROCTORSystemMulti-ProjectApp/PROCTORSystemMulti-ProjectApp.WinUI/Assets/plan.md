@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.8 (draft)
+**Version:** 0.9 (draft)
 **Last updated:** 2026-11-13
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -298,9 +298,9 @@ version is carried in every message so mismatched clients can be rejected cleanl
 - ✅ **FR-TEACH-01 [P2]** The dashboard **shall** show a live grid of student tiles, one
   per connected student, updating as students join/leave in real time. *(**GUI-verified**: the
   live roster rendered the connected student ("1 online", KEIKATSUNO · kenne) across the views,
-  fed by the shared VM's observable `Students` collection. Observed UX quirk: on WinUI the
-  dashboard CollectionView auto-advances into the focus view when the window first takes focus —
-  tracked for the usability pass.)*
+  fed by the shared VM's observable `Students` collection. A tile now opens the focus view on an
+  explicit tap (TapGestureRecognizer), not CollectionView selection, so the window gaining focus
+  no longer pops a student's screen open.)*
 - ✅ **FR-TEACH-02 [P2]** Selecting a tile **shall** open a focus view with a larger,
   higher-quality live stream of that student. *(**GUI-verified**: the focus view rendered the
   student's live desktop on the SkiaSharp canvas (real VP8/WebRTC frames, P2P) next to the live
@@ -548,6 +548,18 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.9 — 2026-11-13**
+  - **Custom window chrome (title bar) + usability pass.** Replaced the default OS title bar with
+    integrated app chrome via MAUI's `Window.TitleBar`: a dark branded bar carrying the purple
+    "ClassInsight" wordmark, keeping the native minimize/maximize/close buttons and the drag/resize
+    behaviour, so the app reads like a real product rather than a default-chrome window.
+    **GUI-verified** on screen. Renamed the Dashboard page title to "Dashboard" (the window bar
+    now carries the app name) to drop the duplicate wordmark.
+  - **Fixed the focus-view auto-open quirk.** The dashboard tile now opens the focus view on an
+    explicit tap (`TapGestureRecognizer`) instead of `CollectionView` selection, so WinUI
+    auto-selecting the first item when the window gains focus no longer pops a student's screen
+    open unbidden.
 
 - **0.8 — 2026-11-13**
   - **End-to-end GUI verification — the whole teacher app, running, with live data.** Launched

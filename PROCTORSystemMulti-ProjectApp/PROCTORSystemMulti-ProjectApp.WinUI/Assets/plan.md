@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.2 (draft)
+**Version:** 0.6 (draft)
 **Last updated:** 2026-11-13
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -222,8 +222,12 @@ version is carried in every message so mismatched clients can be rejected cleanl
 
 - ✅ **FR-AGENT-01 [P1]** The agent **shall** register with machine name, machine id,
   signed-in user, OS version, IP, screen resolution, and agent version.
-- ⬜ **FR-AGENT-02 [P1]** The agent **shall** run on Windows as a background process that
-  starts automatically (boot/login) without student action.
+- ✅ **FR-AGENT-02 [P1]** The agent **shall** run on Windows as a background process that
+  starts automatically (boot/login) without student action. *(Same exe now hosts as a Windows
+  service via `AddWindowsService`/`UseWindowsService`; `deploy/Install-Agent.ps1` registers it
+  `Automatic`, `LocalSystem`, with restart-on-failure. Console mode unchanged for dev — the
+  service wiring is a no-op unless the SCM launched it. Under the SCM, diagnostics go to the
+  Windows Event Log.)*
 - 🟡 **FR-AGENT-03 [P1]** The agent **shall** capture the primary display continuously for
   streaming when requested. *(GDI `ScreenCapture` → scaled BGRA → VP8 encode loop built in
   `ScreenStreamSender`, driven on connect; runtime-pending.)*
@@ -233,8 +237,11 @@ version is carried in every message so mismatched clients can be rejected cleanl
   bandwidth, and top processes on a fixed cadence.
 - ✅ **FR-AGENT-06 [P3]** The agent **shall** report the foreground application/window
   title; it **may** report the active browser URL. *(Title done; browser URL not yet.)*
-- ⬜ **FR-AGENT-07 [P4]** The agent **should** resist casual termination by a standard
+- 🟡 **FR-AGENT-07 [P4]** The agent **should** resist casual termination by a standard
   student user (e.g. run as a service / restart on exit) within the lab trust model.
+  *(Running as a `LocalSystem` service means a standard student can't stop it without admin;
+  `sc failure` configures restart-on-failure (5s/5s/10s). Full verification on a locked-down
+  student account still pending.)*
 - 🟡 **FR-AGENT-08 [P1]** The agent **shall** serve multiple concurrent teacher viewers of
   the same screen, or explicitly define and enforce a supported viewer limit. *(Agent keeps
   one `ScreenStreamSender` per watching teacher, keyed by teacher connection id; runtime-pending.)*
@@ -535,6 +542,20 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.6 — 2026-11-13**
+  - **Agent as an auto-start Windows service (FR-AGENT-02 → ✅).** The agent executable now
+    hosts under the Windows Service Control Manager (`Microsoft.Extensions.Hosting.WindowsServices`:
+    `AddWindowsService` + Event Log sink when running as a service), while remaining a normal
+    `dotnet run` console app for development — the service wiring is a no-op unless the SCM
+    launched the process. Added `deploy/Install-Agent.ps1` / `Uninstall-Agent.ps1` / `README.md`:
+    install registers `ClassInsightAgent` as `Automatic` start under `LocalSystem` with
+    restart-on-failure, so a managed lab PC auto-joins the classroom at boot with no student
+    action and no per-machine config (discovery finds the server). Agent builds 0/0; console
+    startup verified ("ClassInsight agent starting on …").
+  - **Casual-termination resistance (FR-AGENT-07 → 🟡).** Falls out of the above: a
+    `LocalSystem` service can't be stopped by a standard student without admin, and `sc failure`
+    restarts it on exit. Full verification on a locked-down account still pending.
 
 - **0.5 — 2026-11-13**
   - **Protocol-version gate (FR-DISC-06 → ✅).** `StudentInfo`/`TeacherInfo` now carry a

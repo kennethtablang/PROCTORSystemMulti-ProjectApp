@@ -220,7 +220,11 @@ version is carried in every message so mismatched clients can be rejected cleanl
   entry, and a `Closed`/`ConnectionLost` path falls back to full re-discovery. Verified: with
   the server down, launching the teacher left it searching, then it connected on its own when
   the server came up ("Teacher joined"); and restarting the server under a connected teacher
-  had both the student and teacher rejoin automatically.)*
+  had both the student and teacher rejoin automatically. **Security:** on first connect the
+  teacher pins the server endpoint (host+port+room) and an automatic reconnect only re-attaches
+  to that same endpoint, so a rogue server appearing on the LAN after a drop can't harvest the
+  join code — the restart test confirms a legitimately restarted server (new ServerId) still
+  matches and reconnects. Full signed-discovery/TLS pinning remains NFR-SEC-06.)*
 - ✅ **FR-DISC-06 [P0]** The server **shall** reject clients whose protocol version does
   not match its own. *(**Runtime-verified**: `StudentInfo`/`TeacherInfo` carry a
   `ProtocolVersion` defaulting to the shared `Protocol.Version` the client compiles

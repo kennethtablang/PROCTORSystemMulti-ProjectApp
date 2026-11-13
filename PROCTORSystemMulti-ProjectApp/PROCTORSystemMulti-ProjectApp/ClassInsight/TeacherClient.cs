@@ -20,6 +20,12 @@ public sealed class TeacherClient : IAsyncDisposable
     // our roster entry (FR-DISC-05). Null until we've registered at least once.
     private TeacherInfo? _registration;
 
+    // The server we first bound to. On an automatic reconnect we only re-attach to this same
+    // endpoint (host+port+room), so a rogue server that appears on the LAN after the real one
+    // drops can't harvest our join code. Matched on host/port/room (not ServerId, which is a
+    // fresh GUID each server start) so a legitimate server restart still reconnects.
+    private DiscoveryResponse? _pinnedServer;
+
     // Distinguishes a drop we caused (disconnect/dispose/failed attempt) from a real network or
     // server-restart drop, so only the latter triggers re-discovery.
     private volatile bool _intentionalClose;
@@ -52,7 +58,20 @@ public sealed class TeacherClient : IAsyncDisposable
         var discovery = new LanDiscoveryClient("teacher");
         DiscoveryResponse? server = null;
         for (var i = 0; i < 5 && server is null && !ct.IsCancellationRequested; i++)
-            server = await discovery.FindServerAsync(TimeSpan.FromSeconds(3), ct);
+        {
+            var found = await discovery.FindServerAsync(TimeSpan.FromSeconds(3), ct);
+            if (found is null) continue;
+
+            // Once we've bound to a server, an automatic reconnect must re-attach to that same
+            // endpoint only — never hand the (possibly set) join code to a different server that
+            // answered discovery, which could be a rogue that popped up after the real one dropped.
+            if (_pinnedServer is not null && !SameEndpoint(_pinnedServer, found))
+            {
+                Status?.Invoke($"Ignoring unknown server \"{found.RoomName}\" ({found.Host}); waiting for \"{_pinnedServer.RoomName}\".");
+                continue;
+            }
+            server = found;
+        }
 
         if (server is null)
         {
@@ -125,7 +144,8 @@ public sealed class TeacherClient : IAsyncDisposable
         {
             await hub.StartAsync(ct);
             await hub.InvokeAsync(Protocol.ServerMethods.RegisterTeacher, info, ct);
-            _registration = info;   // remember what worked, to replay on reconnect
+            _registration = info;    // remember what worked, to replay on reconnect
+            _pinnedServer = server;  // and only reconnect to this same endpoint from now on
         }
         catch (HubException ex) when (ex.Message.Contains("Protocol version", StringComparison.OrdinalIgnoreCase))
         {
@@ -167,9 +187,17 @@ public sealed class TeacherClient : IAsyncDisposable
 
     public async Task DisconnectAsync()
     {
+        _pinnedServer = null;   // a user-initiated disconnect clears the pin; next connect is fresh
         await DisposeHubAsync();
         Status?.Invoke("Disconnected.");
     }
+
+    // Same server endpoint across a restart: host + port + room (ServerId is a fresh GUID each
+    // server start, so it can't be used to recognise a restarted server).
+    private static bool SameEndpoint(DiscoveryResponse a, DiscoveryResponse b) =>
+        string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase)
+        && a.Port == b.Port
+        && string.Equals(a.RoomName, b.RoomName, StringComparison.Ordinal);
 
     private async Task DisposeHubAsync()
     {

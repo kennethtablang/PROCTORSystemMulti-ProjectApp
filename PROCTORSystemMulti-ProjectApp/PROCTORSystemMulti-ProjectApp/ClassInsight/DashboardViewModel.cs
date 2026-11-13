@@ -18,6 +18,8 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
 {
     private readonly TeacherClient _client = new();
     private readonly Dictionary<string, StudentTile> _byConnection = new();
+    private readonly CancellationTokenSource _cts = new();
+    private bool _maintaining;
 
     public ObservableCollection<StudentTile> Students { get; } = new();
 
@@ -33,6 +35,9 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         _client.StudentLeft += id => OnUi(() => Remove(id));
         _client.StudentStateChanged += (id, st) => OnUi(() => SetState(id, st));
         _client.TelemetryUpdated += (id, t) => OnUi(() => ApplyTelemetry(id, t));
+        // The connection dropped for good (server restart / network loss): drop our roster and
+        // start re-discovering so we latch back on automatically (FR-DISC-05).
+        _client.ConnectionLost += () => OnUi(OnConnectionLost);
 
         ConnectCommand = new Command(async () => await ConnectAsync(), () => !IsBusy && !IsConnected);
     }
@@ -74,13 +79,17 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
     /// server this lands straight on the live grid; only if the server asks for a code do
     /// we show the box (NeedsJoinCode) so the teacher can type it.
     /// </summary>
-    public async Task AutoConnectAsync()
+    public Task AutoConnectAsync()
     {
-        if (_autoTried) return;
+        if (_autoTried) return Task.CompletedTask;
         _autoTried = true;
-        await ConnectAsync();
+        return MaintainConnectionAsync();
     }
 
+    /// <summary>
+    /// A single, user-initiated connect attempt — used by the Connect button once the server has
+    /// asked for a join code. Automatic retry/reconnect is handled by <see cref="MaintainConnectionAsync"/>.
+    /// </summary>
     public async Task ConnectAsync()
     {
         if (IsBusy || IsConnected) return;
@@ -91,7 +100,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
                 JoinCode?.Trim() ?? string.Empty,
                 DeviceInfo.Name ?? "Teacher",
                 DeviceInfo.Platform.ToString(),
-                CancellationToken.None);
+                _cts.Token);
 
             IsConnected = outcome == ConnectOutcome.Connected;
             // Reveal the code box only when the server actually requires one.
@@ -101,6 +110,59 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// Keeps trying to reach a classroom server until connected. Handles "the server isn't up yet"
+    /// at launch and full re-discovery after a drop (FR-DISC-05): it retries every few seconds on
+    /// NoServer/Error, and stops only once connected or when the server is waiting on the teacher
+    /// (needs a join code / incompatible version), at which point the UI takes over.
+    /// </summary>
+    private async Task MaintainConnectionAsync()
+    {
+        if (_maintaining) return;
+        _maintaining = true;
+        IsBusy = true;
+        try
+        {
+            while (!_cts.IsCancellationRequested && !IsConnected)
+            {
+                ConnectOutcome outcome;
+                try
+                {
+                    outcome = await _client.ConnectAsync(
+                        JoinCode?.Trim() ?? string.Empty,
+                        DeviceInfo.Name ?? "Teacher",
+                        DeviceInfo.Platform.ToString(),
+                        _cts.Token);
+                }
+                catch (OperationCanceledException) { break; }
+
+                IsConnected = outcome == ConnectOutcome.Connected;
+                NeedsJoinCode = outcome == ConnectOutcome.NeedsJoinCode;
+
+                // Connected, or waiting on the user — stop the automatic retry loop.
+                if (outcome is ConnectOutcome.Connected
+                            or ConnectOutcome.NeedsJoinCode
+                            or ConnectOutcome.Incompatible)
+                    break;
+
+                // NoServer / Error: the server may simply not be up yet. Wait and try again.
+                try { await Task.Delay(TimeSpan.FromSeconds(3), _cts.Token); }
+                catch (OperationCanceledException) { break; }
+            }
+        }
+        finally
+        {
+            _maintaining = false;
+            IsBusy = false;
+        }
+    }
+
+    private void OnConnectionLost()
+    {
+        IsConnected = false;
+        _ = MaintainConnectionAsync();
     }
 
     private void ReplaceRoster(RosterSnapshot roster)

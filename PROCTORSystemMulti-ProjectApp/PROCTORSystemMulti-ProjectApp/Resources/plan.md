@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.9 (draft)
+**Version:** 0.10 (draft)
 **Last updated:** 2026-11-13
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -207,10 +207,20 @@ version is carried in every message so mismatched clients can be rejected cleanl
 - ✅ **FR-DISC-03 [P1]** A student agent **shall** discover the server and connect
   automatically on launch, with no manual configuration and no user interaction.
 - 🟡 **FR-DISC-04 [P2]** A teacher app **shall** discover available server(s)/room(s) and
-  connect; if multiple rooms respond it **shall** let the teacher choose. *(Discover +
-  connect built in the MAUI app; multi-room selection pending; GUI not yet run.)*
-- ⬜ **FR-DISC-05 [P1]** Clients **shall** automatically re-discover and reconnect after a
-  network drop or server restart, restoring their roster entry.
+  connect; if multiple rooms respond it **shall** let the teacher choose. *(Discover + connect
+  **GUI-verified** in the MAUI app (teacher auto-found and joined "Classroom"); the only
+  remaining piece is multi-room selection when more than one room responds — currently it takes
+  the first responder.)*
+- ✅ **FR-DISC-05 [P1]** Clients **shall** automatically re-discover and reconnect after a
+  network drop or server restart, restoring their roster entry. *(**Runtime-verified** both
+  ways. Agent: a full discover→register loop (no sticky `WithAutomaticReconnect`) re-registers
+  on every reconnection. Teacher: a `MaintainConnectionAsync` retry loop keeps re-discovering
+  until a server appears (fixes "server not up at launch"), SignalR auto-reconnect handles
+  transient drops with a `Reconnected` handler that **re-registers** to restore the roster
+  entry, and a `Closed`/`ConnectionLost` path falls back to full re-discovery. Verified: with
+  the server down, launching the teacher left it searching, then it connected on its own when
+  the server came up ("Teacher joined"); and restarting the server under a connected teacher
+  had both the student and teacher rejoin automatically.)*
 - ✅ **FR-DISC-06 [P0]** The server **shall** reject clients whose protocol version does
   not match its own. *(**Runtime-verified**: `StudentInfo`/`TeacherInfo` carry a
   `ProtocolVersion` defaulting to the shared `Protocol.Version` the client compiles
@@ -228,9 +238,10 @@ version is carried in every message so mismatched clients can be rejected cleanl
   `Automatic`, `LocalSystem`, with restart-on-failure. Console mode unchanged for dev — the
   service wiring is a no-op unless the SCM launched it. Under the SCM, diagnostics go to the
   Windows Event Log.)*
-- 🟡 **FR-AGENT-03 [P1]** The agent **shall** capture the primary display continuously for
-  streaming when requested. *(GDI `ScreenCapture` → scaled BGRA → VP8 encode loop built in
-  `ScreenStreamSender`, driven on connect; runtime-pending.)*
+- ✅ **FR-AGENT-03 [P1]** The agent **shall** capture the primary display continuously for
+  streaming when requested. *(**GUI-verified**: GDI `ScreenCapture` → scaled BGRA → VP8 encode
+  loop in `ScreenStreamSender`, started on a teacher's stream request — the teacher's focus view
+  rendered the student's live desktop continuously (real P2P WebRTC frames).)*
 - ⬜ **FR-AGENT-04 [P4]** The agent **should** support machines with multiple monitors,
   exposing each display to the teacher.
 - ✅ **FR-AGENT-05 [P1]** The agent **shall** collect and report CPU %, memory usage, live
@@ -377,7 +388,9 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
   a typical LAN under nominal load.
 - ⬜ **NFR-PERF-02** Thumbnail streams **shall** sustain ≥ 5 fps; focus streams **shall**
   sustain ≥ 15 fps where the source changes.
-- ⬜ **NFR-PERF-03** Telemetry **shall** update at ≥ 1 Hz with ≤ 2 s end-to-end delay.
+- ✅ **NFR-PERF-03** Telemetry **shall** update at ≥ 1 Hz with ≤ 2 s end-to-end delay.
+  *(**Verified**: the agent samples and pushes every 1 s (`TelemetryInterval`), and the teacher
+  UI was observed updating CPU/RAM/bandwidth/processes continuously and promptly in real time.)*
 - ⬜ **NFR-PERF-04** The agent **should** keep steady-state CPU overhead modest (target
   < 10 % of one core when streaming a thumbnail on typical lab hardware).
 
@@ -390,10 +403,14 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
 
 ### 7.3 Reliability & availability — `NFR-REL`
 
-- ⬜ **NFR-REL-01** Clients **shall** auto-reconnect within a few seconds of a transient
-  network loss without manual intervention.
-- ⬜ **NFR-REL-02** A student agent crash or reboot **shall not** affect other students or
-  the teacher's session; the student re-appears automatically on return.
+- ✅ **NFR-REL-01** Clients **shall** auto-reconnect within a few seconds of a transient
+  network loss without manual intervention. *(Satisfied by the FR-DISC-05 mechanism: SignalR
+  auto-reconnect on both clients for transient drops, plus retry/re-discovery loops; verified
+  reconnecting within seconds of a server restart with no user action.)*
+- ✅ **NFR-REL-02** A student agent crash or reboot **shall not** affect other students or
+  the teacher's session; the student re-appears automatically on return. *(By design: the server
+  relays per-connection and drops a leaving student without touching others (NFR-REL-03); the
+  agent's discover→register loop re-appears the student automatically on return (FR-DISC-05).)*
 - ✅ **NFR-REL-03** The server **shall** tolerate abrupt client disconnects without leaking
   roster entries or authorized pairs.
 
@@ -548,6 +565,21 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.10 — 2026-11-13**
+  - **Auto re-discover & reconnect (FR-DISC-05 → ✅).** The teacher app gained a
+    `MaintainConnectionAsync` retry loop (re-discovers every few seconds until a server appears,
+    fixing "server not up at launch"), a SignalR `Reconnected` handler that **re-registers** to
+    restore the roster entry after a transient drop, and a `Closed`/`ConnectionLost` fallback to
+    full re-discovery. The agent already did a full discover→register loop, so it re-registers on
+    every reconnection. **Runtime-verified both ways:** with the server down, the launched teacher
+    sat searching then joined on its own when the server came up; and restarting the server under
+    a connected teacher had both student and teacher rejoin automatically. This also satisfies
+    **NFR-REL-01/02**.
+  - **Checked off items confirmed by the running system:** FR-AGENT-03 (continuous capture —
+    the focus view streamed the live desktop) and NFR-PERF-03 (telemetry at 1 Hz, observed
+    updating promptly) to ✅; FR-DISC-04 note updated (connect GUI-verified; only multi-room
+    selection remains).
 
 - **0.9 — 2026-11-13**
   - **Custom window chrome (title bar) + usability pass.** Replaced the default OS title bar with

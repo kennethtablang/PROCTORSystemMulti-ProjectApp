@@ -16,12 +16,24 @@ public sealed class TeacherClient : IAsyncDisposable
 {
     private HubConnection? _hub;
 
+    // The registration that last succeeded, replayed after a reconnect so the server restores
+    // our roster entry (FR-DISC-05). Null until we've registered at least once.
+    private TeacherInfo? _registration;
+
+    // Distinguishes a drop we caused (disconnect/dispose/failed attempt) from a real network or
+    // server-restart drop, so only the latter triggers re-discovery.
+    private volatile bool _intentionalClose;
+
     public event Action<RosterSnapshot>? RosterUpdated;
     public event Action<StudentSnapshot>? StudentJoined;
     public event Action<string>? StudentLeft;
     public event Action<string, StudentState>? StudentStateChanged;
     public event Action<string, TelemetrySnapshot>? TelemetryUpdated;
     public event Action<string>? Status;
+
+    /// <summary>Raised when the connection is lost for good (SignalR's auto-reconnect gave up, or
+    /// a reconnected session could no longer re-register), so the app can re-discover from scratch.</summary>
+    public event Action? ConnectionLost;
 
     public bool IsConnected => _hub?.State == HubConnectionState.Connected;
 
@@ -35,6 +47,7 @@ public sealed class TeacherClient : IAsyncDisposable
     public async Task<ConnectOutcome> ConnectAsync(string joinCode, string deviceName, string platform, CancellationToken ct)
     {
         Status?.Invoke("Searching for classroom server…");
+        _intentionalClose = false;
 
         var discovery = new LanDiscoveryClient("teacher");
         DiscoveryResponse? server = null;
@@ -49,18 +62,56 @@ public sealed class TeacherClient : IAsyncDisposable
 
         Status?.Invoke($"Connecting to \"{server.RoomName}\"…");
 
-        _hub = new HubConnectionBuilder()
+        // Make sure a previous connection is gone before building a new one.
+        await DisposeHubAsync();
+        _intentionalClose = false;
+
+        var hub = new HubConnectionBuilder()
             .WithUrl(server.HubUrl)
             .WithAutomaticReconnect()
             .Build();
+        _hub = hub;
 
-        _hub.On<RosterSnapshot>(Protocol.ClientMethods.RosterUpdated, r => RosterUpdated?.Invoke(r));
-        _hub.On<StudentSnapshot>(Protocol.ClientMethods.StudentJoined, s => StudentJoined?.Invoke(s));
-        _hub.On<string>(Protocol.ClientMethods.StudentLeft, id => StudentLeft?.Invoke(id));
-        _hub.On<string, StudentState>(Protocol.ClientMethods.StudentStateChanged,
+        hub.On<RosterSnapshot>(Protocol.ClientMethods.RosterUpdated, r => RosterUpdated?.Invoke(r));
+        hub.On<StudentSnapshot>(Protocol.ClientMethods.StudentJoined, s => StudentJoined?.Invoke(s));
+        hub.On<string>(Protocol.ClientMethods.StudentLeft, id => StudentLeft?.Invoke(id));
+        hub.On<string, StudentState>(Protocol.ClientMethods.StudentStateChanged,
             (id, st) => StudentStateChanged?.Invoke(id, st));
-        _hub.On<string, TelemetrySnapshot>(Protocol.ClientMethods.TelemetryUpdated,
+        hub.On<string, TelemetrySnapshot>(Protocol.ClientMethods.TelemetryUpdated,
             (id, t) => TelemetryUpdated?.Invoke(id, t));
+
+        // Reconnection handling (FR-DISC-05). SignalR's automatic reconnect restores the transport
+        // after a transient drop, but the server — especially one that restarted — no longer knows
+        // us, so we re-register to restore our roster entry and teacher role. If that fails, or if
+        // SignalR gives up entirely, fall back to full re-discovery.
+        hub.Reconnecting += _ =>
+        {
+            Status?.Invoke("Connection lost — reconnecting…");
+            return Task.CompletedTask;
+        };
+        hub.Reconnected += async _ =>
+        {
+            try
+            {
+                if (_registration is not null)
+                    await hub.InvokeAsync(Protocol.ServerMethods.RegisterTeacher, _registration);
+                Status?.Invoke($"Reconnected to \"{server.RoomName}\".");
+            }
+            catch
+            {
+                _intentionalClose = true;
+                ConnectionLost?.Invoke();
+            }
+        };
+        hub.Closed += _ =>
+        {
+            if (!_intentionalClose)
+            {
+                Status?.Invoke("Disconnected from server. Re-discovering…");
+                ConnectionLost?.Invoke();
+            }
+            return Task.CompletedTask;
+        };
 
         var info = new TeacherInfo
         {
@@ -72,8 +123,9 @@ public sealed class TeacherClient : IAsyncDisposable
 
         try
         {
-            await _hub.StartAsync(ct);
-            await _hub.InvokeAsync(Protocol.ServerMethods.RegisterTeacher, info, ct);
+            await hub.StartAsync(ct);
+            await hub.InvokeAsync(Protocol.ServerMethods.RegisterTeacher, info, ct);
+            _registration = info;   // remember what worked, to replay on reconnect
         }
         catch (HubException ex) when (ex.Message.Contains("Protocol version", StringComparison.OrdinalIgnoreCase))
         {
@@ -122,9 +174,11 @@ public sealed class TeacherClient : IAsyncDisposable
     private async Task DisposeHubAsync()
     {
         if (_hub is null) return;
-        try { await _hub.DisposeAsync(); }
-        catch { /* ignore */ }
+        _intentionalClose = true;   // a teardown we initiated must not kick off re-discovery
+        var hub = _hub;
         _hub = null;
+        try { await hub.DisposeAsync(); }
+        catch { /* ignore */ }
     }
 
     public async ValueTask DisposeAsync() => await DisposeHubAsync();

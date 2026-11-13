@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.7 (draft)
+**Version:** 0.8 (draft)
 **Last updated:** 2026-11-13
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -275,43 +275,45 @@ version is carried in every message so mismatched clients can be rejected cleanl
 
 ### 6.4 Telemetry: processes & bandwidth — `FR-TEL`
 
-- 🟡 **FR-TEL-01 [P3]** The dashboard **shall** show each student's live CPU and memory.
-  *(Telemetry **runtime-verified** arriving at a teacher at 1 Hz with real values —
-  CPU/memory sampled via `GetSystemTimes`/`GlobalMemoryStatusEx`; tiles bind it and the
-  WinUI head compiles, but the on-screen GUI render is not yet visually confirmed.)*
-- 🟡 **FR-TEL-02 [P3]** The system **shall** display each student's **live bandwidth**
-  (upload/download bytes per second) in real time. *(Live per-second bandwidth
-  **runtime-verified** in the telemetry stream; GUI render not yet visually confirmed.)*
-- 🟡 **FR-TEL-03 [P3]** The system **shall** display each student's running processes
-  (name, PID, CPU, memory) and refresh them live. *(The focus view now has a live detail
-  panel bound to the student tile — top processes with PID/CPU/memory, plus CPU/RAM,
-  live + session bandwidth and the foreground app — refreshed in place from the 1 Hz
-  telemetry stream. Process data is runtime-verified arriving (15 rows); WinUI head
-  compiles 0/0. On-screen render not yet visually confirmed.)*
+- ✅ **FR-TEL-01 [P3]** The dashboard **shall** show each student's live CPU and memory.
+  *(**GUI-verified** in the running WinUI app: the focus detail panel showed live "CPU 95% /
+  RAM 88%" and the Processes view "CPU 87%" for the connected student, updating in place.)*
+- ✅ **FR-TEL-02 [P3]** The system **shall** display each student's **live bandwidth**
+  (upload/download bytes per second) in real time. *(**GUI-verified**: the Bandwidth view
+  showed live ↓9.8 KB/s / ↑5.7 KB/s with activity bars; the focus panel likewise.)*
+- ✅ **FR-TEL-03 [P3]** The system **shall** display each student's running processes
+  (name, PID, CPU, memory) and refresh them live. *(**GUI-verified**: both the focus detail
+  panel and the classroom-wide Processes view rendered the live process list with real
+  names/PIDs/CPU%/memory (PROCTOR.WinUI 13.5%/280 MB, ClassInsight.Agent 12.7%, sqlservr,
+  explorer…), refreshing from the 1 Hz stream.)*
 - ✅ **FR-TEL-04 [P3]** Telemetry **shall** update for all registered students regardless
   of whether their screen is being streamed. *(Verified: telemetry fanned out to the
   teacher continuously, before and independently of any stream request.)*
-- ⬜ **FR-TEL-05 [P3]** The teacher **should** be able to see session totals (cumulative
-  bytes) in addition to the instantaneous rate.
+- ✅ **FR-TEL-05 [P3]** The teacher **should** be able to see session totals (cumulative
+  bytes) in addition to the instantaneous rate. *(**GUI-verified**: the focus panel and the
+  Bandwidth view both show "Session ↓ 1.7 GB ↑ 264.6 MB" alongside the live rate.)*
 
 ### 6.5 Teacher dashboard & views — `FR-TEACH`
 
-- 🟡 **FR-TEACH-01 [P2]** The dashboard **shall** show a live grid of student tiles, one
-  per connected student, updating as students join/leave in real time. *(Built; GUI not yet run.)*
-- 🟡 **FR-TEACH-02 [P2]** Selecting a tile **shall** open a focus view with a larger,
-  higher-quality live stream of that student. *(The receive+decode path `FocusPage`
-  depends on is **runtime-verified** (Focus stream → 1280×720 decoded frames); the
-  remaining unknown is the SkiaSharp on-screen render in the running app. A bug this
-  verification caught — setting `MaxReconstructedVideoFrameSize` before `addTrack` threw
-  an NRE — is fixed in `ScreenStreamReceiver`.)*
-- 🟡 **FR-TEACH-03 [P2]** The app **shall** provide a navbar to switch views
-  (Dashboard, Processes, Bandwidth, and — later — classroom control). *(Shell `TabBar` with
-  Dashboard/Processes/Bandwidth tabs; all three bind to one DI-singleton `DashboardViewModel`,
-  so they share a single connection and roster. `ProcessesPage` lists every student's live top
-  processes; `BandwidthPage` shows per-student live down/up rates with activity bars + session
-  totals. WinUI head builds 0/0 with compiled bindings; on-screen render still to be confirmed.)*
-- 🟡 **FR-TEACH-04 [P2]** Each tile **shall** show student identity (machine/user) and
-  connection/stream state (Online, Streaming, Idle, Offline). *(Built; GUI not yet run.)*
+- ✅ **FR-TEACH-01 [P2]** The dashboard **shall** show a live grid of student tiles, one
+  per connected student, updating as students join/leave in real time. *(**GUI-verified**: the
+  live roster rendered the connected student ("1 online", KEIKATSUNO · kenne) across the views,
+  fed by the shared VM's observable `Students` collection. Observed UX quirk: on WinUI the
+  dashboard CollectionView auto-advances into the focus view when the window first takes focus —
+  tracked for the usability pass.)*
+- ✅ **FR-TEACH-02 [P2]** Selecting a tile **shall** open a focus view with a larger,
+  higher-quality live stream of that student. *(**GUI-verified**: the focus view rendered the
+  student's live desktop on the SkiaSharp canvas (real VP8/WebRTC frames, P2P) next to the live
+  detail panel. The earlier NRE — `MaxReconstructedVideoFrameSize` set before `addTrack` — stays
+  fixed.)*
+- ✅ **FR-TEACH-03 [P2]** The app **shall** provide a navbar to switch views
+  (Dashboard, Processes, Bandwidth, and — later — classroom control). *(**GUI-verified**: the
+  Shell `TabBar` renders all three tabs and switches between them live; all bind to one
+  DI-singleton `DashboardViewModel` (single connection/roster). Processes and Bandwidth views
+  each rendered the connected student with live data.)*
+- ✅ **FR-TEACH-04 [P2]** Each tile **shall** show student identity (machine/user) and
+  connection/stream state (Online, Streaming, Idle, Offline). *(**GUI-verified**: identity
+  "KEIKATSUNO · kenne" and the "Streaming" state badge (green) rendered in the views.)*
 - ⬜ **FR-TEACH-05 [P2]** The app **shall** run natively on Windows, macOS, iOS, and
   Android from the single **.NET MAUI** codebase (`PROCTORSystemMulti-ProjectApp`).
 - ⬜ **FR-TEACH-06 [P3]** The app **should** let the teacher sort/filter students and
@@ -546,6 +548,19 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.8 — 2026-11-13**
+  - **End-to-end GUI verification — the whole teacher app, running, with live data.** Launched
+    the real WinUI app against a live server + agent (this machine as the student) and captured
+    the rendered window. Confirmed on screen: the Dashboard navbar and empty state; the focus
+    view rendering the student's **live desktop** on the SkiaSharp canvas (real VP8/WebRTC, P2P)
+    beside a live detail panel (CPU/RAM, live + session bandwidth, foreground app, top processes
+    with real PIDs); the classroom-wide **Processes** view (full live process list, "1 online");
+    and the **Bandwidth** view (live ↓/↑ rates with activity bars + session totals). Promoted to
+    ✅ on the strength of the visual confirmation: FR-TEL-01/02/03/05 and FR-TEACH-01/02/03/04.
+  - **Observed UX quirk (tracked):** on WinUI the dashboard CollectionView auto-advances into the
+    focus view when the window first gains focus (no click). To be addressed in the usability
+    pass alongside the custom title bar.
 
 - **0.7 — 2026-11-13**
   - **Navbar + classroom-wide Processes/Bandwidth views (FR-TEACH-03 → 🟡).** `AppShell` is now

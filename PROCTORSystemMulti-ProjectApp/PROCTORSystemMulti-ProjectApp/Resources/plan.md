@@ -211,8 +211,12 @@ version is carried in every message so mismatched clients can be rejected cleanl
   connect built in the MAUI app; multi-room selection pending; GUI not yet run.)*
 - ⬜ **FR-DISC-05 [P1]** Clients **shall** automatically re-discover and reconnect after a
   network drop or server restart, restoring their roster entry.
-- ⬜ **FR-DISC-06 [P0]** The server **shall** reject clients whose protocol version does
-  not match its own. *(Version is carried in every message; enforcement not yet added.)*
+- ✅ **FR-DISC-06 [P0]** The server **shall** reject clients whose protocol version does
+  not match its own. *(**Runtime-verified**: `StudentInfo`/`TeacherInfo` carry a
+  `ProtocolVersion` defaulting to the shared `Protocol.Version` the client compiles
+  against; `ClassroomHub` throws `HubException` on mismatch before any roster change. A
+  v999 client got "Protocol version mismatch: client v999, server v1"; the teacher app
+  surfaces this as `ConnectOutcome.Incompatible`, not a join-code prompt.)*
 
 ### 6.2 Student agent & monitoring — `FR-AGENT`
 
@@ -271,8 +275,12 @@ version is carried in every message so mismatched clients can be rejected cleanl
 - 🟡 **FR-TEL-02 [P3]** The system **shall** display each student's **live bandwidth**
   (upload/download bytes per second) in real time. *(Live per-second bandwidth
   **runtime-verified** in the telemetry stream; GUI render not yet visually confirmed.)*
-- ⬜ **FR-TEL-03 [P3]** The system **shall** display each student's running processes
-  (name, PID, CPU, memory) and refresh them live.
+- 🟡 **FR-TEL-03 [P3]** The system **shall** display each student's running processes
+  (name, PID, CPU, memory) and refresh them live. *(The focus view now has a live detail
+  panel bound to the student tile — top processes with PID/CPU/memory, plus CPU/RAM,
+  live + session bandwidth and the foreground app — refreshed in place from the 1 Hz
+  telemetry stream. Process data is runtime-verified arriving (15 rows); WinUI head
+  compiles 0/0. On-screen render not yet visually confirmed.)*
 - ✅ **FR-TEL-04 [P3]** Telemetry **shall** update for all registered students regardless
   of whether their screen is being streamed. *(Verified: telemetry fanned out to the
   teacher continuously, before and independently of any stream request.)*
@@ -527,6 +535,20 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.5 — 2026-11-13**
+  - **Protocol-version gate (FR-DISC-06 → ✅).** `StudentInfo`/`TeacherInfo` now carry a
+    `ProtocolVersion` that defaults to the shared `Protocol.Version` each client is built
+    against, so no client plumbing was needed; `ClassroomHub` rejects a mismatch with a
+    `HubException` before touching the roster. Runtime-verified (v999 → rejected, v1 →
+    accepted). The teacher app distinguishes this from an auth failure via a new
+    `ConnectOutcome.Incompatible` instead of wrongly prompting for a join code.
+  - **Live processes + bandwidth detail panel (FR-TEL-03 → 🟡).** `StudentTile` now
+    projects the telemetry's top processes into a `ProcessRow` list (name, PID, CPU%,
+    memory) and session-total bandwidth; `FocusPage` gained a side panel bound to the live
+    tile that shows CPU/RAM, live + session bandwidth, the foreground app and the process
+    list, all refreshing in place from the 1 Hz stream while the screen streams alongside.
+    WinUI head builds 0/0; on-screen render still to be confirmed in the running app.
 
 - **0.4 — 2026-11-13**
   - **Video + telemetry pipeline runtime-verified end-to-end.** With the server and agent

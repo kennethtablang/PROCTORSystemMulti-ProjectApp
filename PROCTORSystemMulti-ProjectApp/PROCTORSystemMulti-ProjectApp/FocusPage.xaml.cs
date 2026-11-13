@@ -29,6 +29,11 @@ public partial class FocusPage : ContentPage
         Title = tile.Header;
         HeaderLabel.Text = tile.Header;
         StatusLabel.Text = "Starting…";
+
+        // The detail panel binds to the live tile, which the dashboard keeps updating from
+        // the telemetry stream while this page is open — so CPU/RAM/bandwidth/processes
+        // refresh in place (FR-TEL-03).
+        DetailPanel.BindingContext = tile;
     }
 
     protected override async void OnAppearing()

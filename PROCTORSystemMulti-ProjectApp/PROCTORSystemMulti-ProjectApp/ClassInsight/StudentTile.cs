@@ -63,15 +63,31 @@ public sealed class StudentTile : INotifyPropertyChanged
     private string? _foreground;
     public string ForegroundText => string.IsNullOrWhiteSpace(_foreground) ? "" : _foreground!;
 
+    /// <summary>Session-total bytes, shown in the focus detail panel (FR-TEL-05 groundwork).</summary>
+    public string TotalsText => $"Session ↓ {Human(_totalDown)}  ↑ {Human(_totalUp)}";
+    private long _totalDown, _totalUp;
+
+    /// <summary>Top processes by resource use, refreshed live for the detail panel (FR-TEL-03).</summary>
+    public IReadOnlyList<ProcessRow> Processes { get; private set; } = [];
+
     public void Apply(TelemetrySnapshot t)
     {
         CpuPercent = t.System.CpuPercent;
         MemoryPercent = t.System.MemoryPercent;
         _down = t.Bandwidth.DownloadBytesPerSec;
         _up = t.Bandwidth.UploadBytesPerSec;
+        _totalDown = t.Bandwidth.TotalDownloadBytes;
+        _totalUp = t.Bandwidth.TotalUploadBytes;
         _foreground = t.ForegroundWindowTitle;
+
+        Processes = t.TopProcesses
+            .Select(p => new ProcessRow(p.Name, $"PID {p.Pid}", $"{p.CpuPercent:0.#}%", Human(p.MemoryBytes)))
+            .ToArray();
+
         Raise(nameof(BandwidthText));
+        Raise(nameof(TotalsText));
         Raise(nameof(ForegroundText));
+        Raise(nameof(Processes));
     }
 
     private static string Human(double bytes)
@@ -87,3 +103,6 @@ public sealed class StudentTile : INotifyPropertyChanged
     private void Raise([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
+
+/// <summary>One row in a student's live process list (FR-TEL-03), pre-formatted for display.</summary>
+public sealed record ProcessRow(string Name, string Pid, string Cpu, string Mem);

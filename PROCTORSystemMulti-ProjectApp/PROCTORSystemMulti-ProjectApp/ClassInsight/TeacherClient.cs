@@ -75,6 +75,14 @@ public sealed class TeacherClient : IAsyncDisposable
             await _hub.StartAsync(ct);
             await _hub.InvokeAsync(Protocol.ServerMethods.RegisterTeacher, info, ct);
         }
+        catch (HubException ex) when (ex.Message.Contains("Protocol version", StringComparison.OrdinalIgnoreCase))
+        {
+            // The server speaks a different protocol version (FR-DISC-06). This isn't an
+            // auth problem — no join code will help — so surface it as an incompatibility.
+            Status?.Invoke($"\"{server.RoomName}\" needs a matching app version. {ex.Message}");
+            await DisposeHubAsync();
+            return ConnectOutcome.Incompatible;
+        }
         catch (HubException)
         {
             // The server fails closed: it rejects the teacher role unless a valid code is
@@ -129,6 +137,8 @@ public enum ConnectOutcome
     Connected,
     /// <summary>A server was found but it requires a join code we didn't satisfy.</summary>
     NeedsJoinCode,
+    /// <summary>A server was found but it speaks an incompatible protocol version (FR-DISC-06).</summary>
+    Incompatible,
     /// <summary>No classroom server answered discovery on this network.</summary>
     NoServer,
     /// <summary>A transport/other error prevented connecting.</summary>

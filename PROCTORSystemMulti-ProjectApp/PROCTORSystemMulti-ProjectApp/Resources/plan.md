@@ -237,21 +237,24 @@ version is carried in every message so mismatched clients can be rejected cleanl
 
 ### 6.3 Screen streaming — `FR-STREAM`
 
-- 🟡 **FR-STREAM-01 [P2]** The system **shall** stream student screens as continuous
-  WebRTC H.264 video — **not** periodic screenshots. *(Teacher receiver decodes a
-  continuous WebRTC VP8 stream and paints each frame; agent currently sources a VP8
-  test pattern, so the end-to-end path is video, not screenshots. H.264 + real
-  screen-capture source is the remaining agent-side step; runtime not yet run.)*
-- ⬜ **FR-STREAM-02 [P2]** Media **shall** flow peer-to-peer; the server **shall not**
-  receive or relay video frames. *(Signalling-only relay built; media path needs the clients.)*
-- 🟡 **FR-STREAM-03 [P2]** The teacher **shall** request a stream and receive it only for
-  students; the agent **shall** respond with an SDP offer. *(Teacher `RequestStream` →
-  answers the agent's offer → ICE exchange → VP8 decode, all built in
-  `ScreenStreamReceiver`; agent offer side already built. Runtime not yet run.)*
+- ✅ **FR-STREAM-01 [P2]** The system **shall** stream student screens as continuous
+  WebRTC video — **not** periodic screenshots. *(**Runtime-verified** on 2026-11-13: a
+  headless teacher requested a Focus stream and received 47 RTP frames → 46 decoded VP8
+  frames at 1280×720 over ~15 s, sourced from the agent's **real GDI screen capture**
+  (not a test pattern). Codec is **VP8** throughout, chosen for one pure-managed codec on
+  all teacher platforms; the earlier "H.264" intent is superseded.)*
+- ✅ **FR-STREAM-02 [P2]** Media **shall** flow peer-to-peer; the server **shall not**
+  receive or relay video frames. *(Verified: frames arrived on the teacher's
+  `RTCPeerConnection` media channel; the hub relays only SDP/ICE and has no video path.)*
+- ✅ **FR-STREAM-03 [P2]** The teacher **shall** request a stream and receive it only for
+  students; the agent **shall** respond with an SDP offer. *(Verified end-to-end:
+  `RequestStream` → agent offer → teacher answer → ICE → `connected` → decoded frames,
+  only for the pair the teacher authorized.)*
 - 🟡 **FR-STREAM-04 [P3]** The system **shall** support two quality levels — thumbnail
   (grid) and focus (single student) — and switch between them on demand. *(Agent sender maps
   `StreamQuality` to resolution/fps — 640px·5fps vs 1280px·15fps — and a re-request swaps the
-  sender; runtime-pending.)*
+  sender. **Focus** verified at runtime (decoded 1280×720); thumbnail-quality and live
+  switching not yet exercised.)*
 - ✅ **FR-STREAM-05 [P2]** The server **shall** relay SDP/ICE **only** between a
   teacher↔student pair it authorized via `RequestStream` (pair-gated signalling).
 - 🟡 **FR-STREAM-06 [P3]** When a student has no remaining viewers, the agent **shall**
@@ -261,13 +264,18 @@ version is carried in every message so mismatched clients can be rejected cleanl
 
 ### 6.4 Telemetry: processes & bandwidth — `FR-TEL`
 
-- 🟡 **FR-TEL-01 [P3]** The dashboard **shall** show each student's live CPU and memory. *(On tiles; GUI not yet run.)*
+- 🟡 **FR-TEL-01 [P3]** The dashboard **shall** show each student's live CPU and memory.
+  *(Telemetry **runtime-verified** arriving at a teacher at 1 Hz with real values —
+  CPU/memory sampled via `GetSystemTimes`/`GlobalMemoryStatusEx`; tiles bind it and the
+  WinUI head compiles, but the on-screen GUI render is not yet visually confirmed.)*
 - 🟡 **FR-TEL-02 [P3]** The system **shall** display each student's **live bandwidth**
-  (upload/download bytes per second) in real time. *(On tiles; GUI not yet run.)*
+  (upload/download bytes per second) in real time. *(Live per-second bandwidth
+  **runtime-verified** in the telemetry stream; GUI render not yet visually confirmed.)*
 - ⬜ **FR-TEL-03 [P3]** The system **shall** display each student's running processes
   (name, PID, CPU, memory) and refresh them live.
-- ⬜ **FR-TEL-04 [P3]** Telemetry **shall** update for all registered students regardless
-  of whether their screen is being streamed. *(Agent push + server fan-out built; teacher UI pending.)*
+- ✅ **FR-TEL-04 [P3]** Telemetry **shall** update for all registered students regardless
+  of whether their screen is being streamed. *(Verified: telemetry fanned out to the
+  teacher continuously, before and independently of any stream request.)*
 - ⬜ **FR-TEL-05 [P3]** The teacher **should** be able to see session totals (cumulative
   bytes) in addition to the instantaneous rate.
 
@@ -276,9 +284,11 @@ version is carried in every message so mismatched clients can be rejected cleanl
 - 🟡 **FR-TEACH-01 [P2]** The dashboard **shall** show a live grid of student tiles, one
   per connected student, updating as students join/leave in real time. *(Built; GUI not yet run.)*
 - 🟡 **FR-TEACH-02 [P2]** Selecting a tile **shall** open a focus view with a larger,
-  higher-quality live stream of that student. *(Tapping a tile opens `FocusPage`, which
-  requests a `Focus`-quality stream and renders the decoded video on a SkiaSharp
-  canvas; WinUI head compiles. Runtime not yet run.)*
+  higher-quality live stream of that student. *(The receive+decode path `FocusPage`
+  depends on is **runtime-verified** (Focus stream → 1280×720 decoded frames); the
+  remaining unknown is the SkiaSharp on-screen render in the running app. A bug this
+  verification caught — setting `MaxReconstructedVideoFrameSize` before `addTrack` threw
+  an NRE — is fixed in `ScreenStreamReceiver`.)*
 - ⬜ **FR-TEACH-03 [P2]** The app **shall** provide a navbar to switch views
   (Dashboard, Processes, Bandwidth, and — later — classroom control).
 - 🟡 **FR-TEACH-04 [P2]** Each tile **shall** show student identity (machine/user) and
@@ -517,6 +527,31 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.4 — 2026-11-13**
+  - **Video + telemetry pipeline runtime-verified end-to-end.** With the server and agent
+    running, a throwaway **headless teacher** (discover → register open-mode → request a
+    Focus stream) exercised the whole path on one machine: **46 decoded VP8 frames at
+    1280×720** from the agent's real GDI screen capture, plus **1 Hz telemetry** carrying
+    real CPU, memory, live bandwidth, process counts and the foreground window title.
+    Promoted **FR-STREAM-01/02/03** and **FR-TEL-04** to ✅; strengthened the notes on
+    FR-STREAM-04, FR-TEL-01/02 and FR-TEACH-02 (data path proven; GUI render still 🟡).
+  - **Bug caught by that verification — focus view would have crashed.**
+    `ScreenStreamReceiver` set `MaxReconstructedVideoFrameSize` **before** `addTrack`,
+    which throws `NullReferenceException` (the setter dereferences the not-yet-created
+    video stream). Reordered to set it after `addTrack`; this was the reason the first
+    harness run received an offer but produced no frames.
+  - **Security hardening — decoder frame bounds.** Automated review flagged that
+    `ScreenStreamReceiver.OnVideoFrame` sized its BGRA buffer with 32-bit `w*h*4`, which a
+    hostile/buggy sender could overflow into a tiny/negative allocation and drive an
+    out-of-bounds write. Now clamps width/height to ≤ 8192 and computes sizes in 64-bit
+    before allocating (NFR-SEC, defense-in-depth).
+  - **Acknowledged, not changed — plaintext teacher-code over discovery.** The same review
+    flagged that auto-connect trusts a discovered server and (in closed mode) would send
+    the join code over `ws://` without authenticating the server. This is within the
+    documented **trusted-lab-VLAN** threat model (open mode sends no code at all) and is
+    already tracked as **NFR-SEC-06 [P4]** (pin server key / HMAC challenge) for any
+    shared-network deployment; no code change now.
 
 - **0.3 — 2026-11-13**
   - **Server + agent restored and running end-to-end.** `ClassInsight.Server` and

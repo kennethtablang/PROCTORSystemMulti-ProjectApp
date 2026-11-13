@@ -70,11 +70,14 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
             if (_disposed || _pc is not null) return;
 
             var pc = new RTCPeerConnection(null);
-            // Reassembled VP8 focus frames can be large; give the depacketiser headroom.
-            pc.MaxReconstructedVideoFrameSize = 2_000_000;
 
             // Receive-only VP8 video track that matches what the agent offers.
             pc.addTrack(new MediaStreamTrack(_decoder.SupportedFormats, MediaStreamStatusEnum.RecvOnly));
+
+            // Reassembled VP8 focus frames can be large; give the depacketiser headroom.
+            // MUST come after addTrack — the setter dereferences the video stream, which
+            // doesn't exist until a track is added (verified: NRE otherwise).
+            pc.MaxReconstructedVideoFrameSize = 2_000_000;
 
             pc.onicecandidate += candidate =>
             {
@@ -155,9 +158,15 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
         {
             var w = (int)sample.Width;
             var h = (int)sample.Height;
-            if (w <= 0 || h <= 0 || sample.Sample is null || sample.Sample.Length < w * h * 3) continue;
+            // Clamp to a sane maximum before any sizing so a hostile/buggy sender can't
+            // overflow the 32-bit size math (w*h*4) into a tiny/negative allocation and
+            // drive an out-of-bounds write, or force a huge allocation. 8192² covers 8K.
+            if (w is <= 0 or > 8192 || h is <= 0 or > 8192 || sample.Sample is null) continue;
 
-            var need = w * h * 4;
+            long pixels = (long)w * h;
+            if (sample.Sample.Length < pixels * 3) continue;
+
+            long need = pixels * 4;
             var dst = _bgra;
             if (dst is null || dst.Length < need) _bgra = dst = new byte[need];
 

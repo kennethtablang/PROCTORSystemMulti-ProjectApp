@@ -554,8 +554,10 @@ traceable to real work.
     integrated app chrome via MAUI's `Window.TitleBar`: a dark branded bar carrying the purple
     "ClassInsight" wordmark, keeping the native minimize/maximize/close buttons and the drag/resize
     behaviour, so the app reads like a real product rather than a default-chrome window.
-    **GUI-verified** on screen. Renamed the Dashboard page title to "Dashboard" (the window bar
-    now carries the app name) to drop the duplicate wordmark.
+    **GUI-verified** on screen. Also hid the Shell nav bar (`Shell.NavBarIsVisible="False"`) on the
+    three tab pages so the oversized page title no longer repeats what the active tab already says —
+    the window now reads: branded title bar, tab strip, content. (The focus view keeps its nav bar
+    for the back button.)
   - **Fixed the focus-view auto-open quirk.** The dashboard tile now opens the focus view on an
     explicit tap (`TapGestureRecognizer`) instead of `CollectionView` selection, so WinUI
     auto-selecting the first item when the window gains focus no longer pops a student's screen

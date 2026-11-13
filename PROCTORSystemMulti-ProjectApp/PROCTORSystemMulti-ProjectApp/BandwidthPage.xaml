@@ -4,6 +4,7 @@
              xmlns:ci="clr-namespace:PROCTORSystemMulti_ProjectApp.ClassInsight"
              x:Class="PROCTORSystemMulti_ProjectApp.BandwidthPage"
              x:DataType="ci:DashboardViewModel"
+             Shell.NavBarIsVisible="False"
              Title="Bandwidth">
 
     <Grid RowDefinitions="Auto,*" Padding="16" RowSpacing="12">

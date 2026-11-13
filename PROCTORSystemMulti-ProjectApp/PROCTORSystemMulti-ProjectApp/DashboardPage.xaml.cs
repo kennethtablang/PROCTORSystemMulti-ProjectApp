@@ -4,11 +4,12 @@ namespace PROCTORSystemMulti_ProjectApp;
 
 public partial class DashboardPage : ContentPage
 {
-    private readonly DashboardViewModel _vm = new();
+    private readonly DashboardViewModel _vm;
 
-    public DashboardPage()
+    public DashboardPage(DashboardViewModel vm)
     {
         InitializeComponent();
+        _vm = vm;
         BindingContext = _vm;
     }
 

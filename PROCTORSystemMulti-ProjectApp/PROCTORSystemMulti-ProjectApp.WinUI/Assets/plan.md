@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.6 (draft)
+**Version:** 0.7 (draft)
 **Last updated:** 2026-11-13
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -304,8 +304,12 @@ version is carried in every message so mismatched clients can be rejected cleanl
   remaining unknown is the SkiaSharp on-screen render in the running app. A bug this
   verification caught — setting `MaxReconstructedVideoFrameSize` before `addTrack` threw
   an NRE — is fixed in `ScreenStreamReceiver`.)*
-- ⬜ **FR-TEACH-03 [P2]** The app **shall** provide a navbar to switch views
-  (Dashboard, Processes, Bandwidth, and — later — classroom control).
+- 🟡 **FR-TEACH-03 [P2]** The app **shall** provide a navbar to switch views
+  (Dashboard, Processes, Bandwidth, and — later — classroom control). *(Shell `TabBar` with
+  Dashboard/Processes/Bandwidth tabs; all three bind to one DI-singleton `DashboardViewModel`,
+  so they share a single connection and roster. `ProcessesPage` lists every student's live top
+  processes; `BandwidthPage` shows per-student live down/up rates with activity bars + session
+  totals. WinUI head builds 0/0 with compiled bindings; on-screen render still to be confirmed.)*
 - 🟡 **FR-TEACH-04 [P2]** Each tile **shall** show student identity (machine/user) and
   connection/stream state (Online, Streaming, Idle, Offline). *(Built; GUI not yet run.)*
 - ⬜ **FR-TEACH-05 [P2]** The app **shall** run natively on Windows, macOS, iOS, and
@@ -542,6 +546,23 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.7 — 2026-11-13**
+  - **Navbar + classroom-wide Processes/Bandwidth views (FR-TEACH-03 → 🟡).** `AppShell` is now
+    a `TabBar` with Dashboard / Processes / Bandwidth tabs. The crux is a shared connection:
+    `DashboardViewModel` is a DI singleton injected into all three pages (and the focus view's
+    client), so one server link and one live roster feed every tab — no duplicate connections.
+    New `ProcessesPage` shows each student's live top processes (BindableLayout inner list to
+    avoid nested-scroll conflicts); new `BandwidthPage` shows per-student live down/up rates with
+    relative activity bars and session totals. Added `DownloadRateText`/`UploadRateText`/
+    `DownloadBarFraction`/`UploadBarFraction` to `StudentTile`. WinUI head builds 0/0 with
+    compiled bindings (so every binding path is validated); on-screen render still to be confirmed.
+  - **Agent install hardening (security review follow-ups).** The agent-as-service installer was
+    hardened in three rounds against binary-path privilege escalation: install into a protected
+    `%ProgramFiles%\ClassInsight` (ACL: Admins/SYSTEM full, Users read+execute); wipe any
+    pre-existing dir to kill planted DLLs; allowlist-based ACL/owner verification over the whole
+    tree; create the dir already holding the protected DACL (no TOCTOU window); and verify every
+    installed file against the source bundle by SHA-256. Validator/mechanics spot-checked.
 
 - **0.6 — 2026-11-13**
   - **Agent as an auto-start Windows service (FR-AGENT-02 → ✅).** The agent executable now

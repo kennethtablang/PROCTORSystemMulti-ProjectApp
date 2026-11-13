@@ -60,6 +60,16 @@ public sealed class StudentTile : INotifyPropertyChanged
     private double _down, _up;
     public string BandwidthText => $"↓ {Human(_down)}/s  ↑ {Human(_up)}/s";
 
+    /// <summary>Split rate labels for the bandwidth overview (FR-TEACH-03 / FR-TEL-03).</summary>
+    public string DownloadRateText => $"↓ {Human(_down)}/s";
+    public string UploadRateText => $"↑ {Human(_up)}/s";
+
+    // Relative activity bars for the bandwidth view. The cap is a soft reference point (1 MB/s),
+    // not a hard limit — it just keeps the bars readable; sustained high traffic pins at full.
+    private const double BarCapBytesPerSec = 1_000_000.0;
+    public double DownloadBarFraction => Math.Min(1.0, _down / BarCapBytesPerSec);
+    public double UploadBarFraction => Math.Min(1.0, _up / BarCapBytesPerSec);
+
     private string? _foreground;
     public string ForegroundText => string.IsNullOrWhiteSpace(_foreground) ? "" : _foreground!;
 
@@ -85,6 +95,10 @@ public sealed class StudentTile : INotifyPropertyChanged
             .ToArray();
 
         Raise(nameof(BandwidthText));
+        Raise(nameof(DownloadRateText));
+        Raise(nameof(UploadRateText));
+        Raise(nameof(DownloadBarFraction));
+        Raise(nameof(UploadBarFraction));
         Raise(nameof(TotalsText));
         Raise(nameof(ForegroundText));
         Raise(nameof(Processes));

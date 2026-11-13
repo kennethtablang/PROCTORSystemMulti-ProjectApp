@@ -5,16 +5,25 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:PROCTORSystemMulti_ProjectApp"
     Shell.FlyoutBehavior="Disabled"
-    Title="PROCTORSystemMulti_ProjectApp">
+    Title="ClassInsight">
 
-    <ShellContent
-        Title="Dashboard"
-        ContentTemplate="{DataTemplate local:DashboardPage}"
-        Route="Dashboard" />
+    <!-- Navbar: switch between the live views, all backed by one shared connection (FR-TEACH-03).
+         Classroom control is a later tab. -->
+    <TabBar>
+        <ShellContent
+            Title="Dashboard"
+            ContentTemplate="{DataTemplate local:DashboardPage}"
+            Route="Dashboard" />
 
-    <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage" />
+        <ShellContent
+            Title="Processes"
+            ContentTemplate="{DataTemplate local:ProcessesPage}"
+            Route="Processes" />
+
+        <ShellContent
+            Title="Bandwidth"
+            ContentTemplate="{DataTemplate local:BandwidthPage}"
+            Route="Bandwidth" />
+    </TabBar>
 
 </Shell>

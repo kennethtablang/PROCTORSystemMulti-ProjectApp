@@ -33,6 +33,16 @@
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.15" />
+
+		<!-- WebRTC receive path for the focus view. SIPSorcery is the pure-C# WebRTC
+		     stack (same one the agent sends with); SIPSorcery.VP8 is its managed VP8
+		     codec (no native binaries / PInvoke) so the teacher can decode student
+		     video identically on Windows, macOS, iOS and Android (NFR-PORT-01). -->
+		<PackageReference Include="SIPSorcery" Version="10.0.17" />
+		<PackageReference Include="SIPSorcery.VP8" Version="10.0.17" />
+
+		<!-- Cross-platform GPU surface used to blit each decoded frame (focus view). -->
+		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.4" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -11,13 +11,14 @@
         <!-- Connect bar -->
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
             <Entry Grid.Column="0"
-                   Placeholder="Join code (from the server console)"
+                   Placeholder="Join code (shown on the server console)"
                    Text="{Binding JoinCode}"
-                   IsEnabled="{Binding NotConnected}" />
+                   IsEnabled="{Binding NotConnected}"
+                   IsVisible="{Binding NeedsJoinCode}" />
             <Button Grid.Column="1"
                     Text="Connect"
                     Command="{Binding ConnectCommand}"
-                    IsVisible="{Binding NotConnected}" />
+                    IsVisible="{Binding NeedsJoinCode}" />
             <Label Grid.Column="2"
                    VerticalOptions="Center"
                    FontAttributes="Bold"
@@ -29,7 +30,8 @@
         <Label Grid.Row="1" Text="{Binding Status}" FontSize="13" TextColor="Gray" />
 
         <!-- Live roster grid -->
-        <CollectionView Grid.Row="2" ItemsSource="{Binding Students}">
+        <CollectionView Grid.Row="2" ItemsSource="{Binding Students}"
+                        SelectionMode="Single" SelectionChanged="OnStudentSelected">
             <CollectionView.ItemsLayout>
                 <GridItemsLayout Orientation="Vertical" Span="3"
                                  HorizontalItemSpacing="12" VerticalItemSpacing="12" />
@@ -53,7 +55,7 @@
                                 <Border.StrokeShape>
                                     <RoundRectangle CornerRadius="6" />
                                 </Border.StrokeShape>
-                                <Label Text="Live screen — WebRTC next" TextColor="#AAAAAA"
+                                <Label Text="Tap to view live screen" TextColor="#AAAAAA"
                                        FontSize="11" HorizontalOptions="Center" VerticalOptions="Center" />
                             </Border>
 

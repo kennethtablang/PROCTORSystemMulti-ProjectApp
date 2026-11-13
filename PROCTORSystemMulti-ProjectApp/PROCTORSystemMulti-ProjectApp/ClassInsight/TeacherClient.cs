@@ -25,7 +25,14 @@ public sealed class TeacherClient : IAsyncDisposable
 
     public bool IsConnected => _hub?.State == HubConnectionState.Connected;
 
-    public async Task<bool> ConnectAsync(string joinCode, string deviceName, string platform, CancellationToken ct)
+    /// <summary>
+    /// The live signalling connection, shared with a <see cref="ScreenStreamReceiver"/>
+    /// so the focus view's WebRTC offer/answer/ICE travels over the same hub. Null until
+    /// <see cref="ConnectAsync"/> succeeds.
+    /// </summary>
+    internal HubConnection? Hub => _hub;
+
+    public async Task<ConnectOutcome> ConnectAsync(string joinCode, string deviceName, string platform, CancellationToken ct)
     {
         Status?.Invoke("Searching for classroom server…");
 
@@ -37,7 +44,7 @@ public sealed class TeacherClient : IAsyncDisposable
         if (server is null)
         {
             Status?.Invoke("No classroom server found on this network.");
-            return false;
+            return ConnectOutcome.NoServer;
         }
 
         Status?.Invoke($"Connecting to \"{server.RoomName}\"…");
@@ -68,22 +75,26 @@ public sealed class TeacherClient : IAsyncDisposable
             await _hub.StartAsync(ct);
             await _hub.InvokeAsync(Protocol.ServerMethods.RegisterTeacher, info, ct);
         }
-        catch (HubException ex)
+        catch (HubException)
         {
-            // Most likely a bad/absent join code (server fails closed).
-            Status?.Invoke($"Rejected: {ex.Message}");
+            // The server fails closed: it rejects the teacher role unless a valid code is
+            // presented. Reaching here means this room requires a join code (we either
+            // sent none or the wrong one), so the app should prompt for it.
+            Status?.Invoke(string.IsNullOrWhiteSpace(joinCode)
+                ? $"\"{server.RoomName}\" needs a join code."
+                : "That join code was not accepted.");
             await DisposeHubAsync();
-            return false;
+            return ConnectOutcome.NeedsJoinCode;
         }
         catch (Exception ex)
         {
             Status?.Invoke($"Connection failed: {ex.Message}");
             await DisposeHubAsync();
-            return false;
+            return ConnectOutcome.Error;
         }
 
         Status?.Invoke($"Connected to \"{server.RoomName}\".");
-        return true;
+        return ConnectOutcome.Connected;
     }
 
     /// <summary>Ask the server to begin streaming a student's screen (WebRTC next slice).</summary>
@@ -109,4 +120,17 @@ public sealed class TeacherClient : IAsyncDisposable
     }
 
     public async ValueTask DisposeAsync() => await DisposeHubAsync();
+}
+
+/// <summary>Why a connect attempt ended — lets the UI stay code-free unless the server asks.</summary>
+public enum ConnectOutcome
+{
+    /// <summary>Registered as a teacher; the roster is on its way.</summary>
+    Connected,
+    /// <summary>A server was found but it requires a join code we didn't satisfy.</summary>
+    NeedsJoinCode,
+    /// <summary>No classroom server answered discovery on this network.</summary>
+    NoServer,
+    /// <summary>A transport/other error prevented connecting.</summary>
+    Error,
 }

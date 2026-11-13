@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using SkiaSharp.Views.Maui.Controls.Hosting;
 
 namespace PROCTORSystemMulti_ProjectApp
 {
@@ -8,6 +9,7 @@ namespace PROCTORSystemMulti_ProjectApp
         {
             builder
                 .UseMauiApp<App>()
+                .UseSkiaSharp() // enables SKCanvasView (focus-view live video) on every head
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");

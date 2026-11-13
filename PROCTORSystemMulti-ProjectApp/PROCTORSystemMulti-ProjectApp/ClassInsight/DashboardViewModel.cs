@@ -21,6 +21,10 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
 
     public ObservableCollection<StudentTile> Students { get; } = new();
 
+    /// <summary>The shared server link, handed to the focus view so its WebRTC stream
+    /// rides the same signalling connection.</summary>
+    public TeacherClient Client => _client;
+
     public DashboardViewModel()
     {
         _client.Status += s => OnUi(() => Status = s);
@@ -36,7 +40,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
     private string _joinCode = string.Empty;
     public string JoinCode { get => _joinCode; set { _joinCode = value; Raise(); } }
 
-    private string _status = "Enter the join code shown on the server console, then Connect.";
+    private string _status = "Looking for the classroom server…";
     public string Status { get => _status; private set { _status = value; Raise(); } }
 
     private bool _isConnected;
@@ -50,10 +54,32 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
     private bool _isBusy;
     public bool IsBusy { get => _isBusy; private set { _isBusy = value; Raise(); RefreshCommand(); } }
 
+    /// <summary>
+    /// False by default so the app "just opens and connects". It flips true only when a
+    /// server is found but rejects the no-code attempt (i.e. the room is running with a
+    /// teacher code), at which point the UI reveals the code box for manual entry.
+    /// </summary>
+    private bool _needsJoinCode;
+    public bool NeedsJoinCode { get => _needsJoinCode; private set { _needsJoinCode = value; Raise(); } }
+
     public int StudentCount => Students.Count;
     public bool HasStudents => Students.Count > 0;
 
     public ICommand ConnectCommand { get; }
+
+    private bool _autoTried;
+
+    /// <summary>
+    /// Called once when the dashboard appears: try to connect with no code. On an open
+    /// server this lands straight on the live grid; only if the server asks for a code do
+    /// we show the box (NeedsJoinCode) so the teacher can type it.
+    /// </summary>
+    public async Task AutoConnectAsync()
+    {
+        if (_autoTried) return;
+        _autoTried = true;
+        await ConnectAsync();
+    }
 
     public async Task ConnectAsync()
     {
@@ -61,12 +87,15 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            var ok = await _client.ConnectAsync(
+            var outcome = await _client.ConnectAsync(
                 JoinCode?.Trim() ?? string.Empty,
                 DeviceInfo.Name ?? "Teacher",
                 DeviceInfo.Platform.ToString(),
                 CancellationToken.None);
-            IsConnected = ok;
+
+            IsConnected = outcome == ConnectOutcome.Connected;
+            // Reveal the code box only when the server actually requires one.
+            NeedsJoinCode = outcome == ConnectOutcome.NeedsJoinCode;
         }
         finally
         {

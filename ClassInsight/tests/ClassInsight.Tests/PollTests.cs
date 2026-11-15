@@ -132,6 +132,27 @@ public class PollHubTests : IAsyncLifetime
         Assert.Equal([1, 1], r.Counts);
     }
 
+    [Fact]
+    public async Task One_connection_cannot_answer_under_several_identities()
+    {
+        await using var teacher = await _factory.ConnectAsync();
+        await teacher.RegisterTeacherAsync();
+        await using var s = await _factory.ConnectAsync();
+        await s.RegisterStudentAsync("PC", machineId: "id-1");
+        var poll = await teacher.Hub.InvokeAsync<Poll>(Protocol.ServerMethods.StartPoll, new Poll { Question = "OK?", Kind = PollKind.YesNo });
+        await s.Hub.InvokeAsync(Protocol.ServerMethods.SubmitPollAnswer, new PollAnswer { PollId = poll.Id, Choice = 0 });
+
+        // Re-registering the same connection under another id is refused...
+        await Assert.ThrowsAsync<HubException>(() => s.RegisterStudentAsync("PC", machineId: "id-2"));
+        // ...and re-registering under the same id is harmless.
+        await s.RegisterStudentAsync("PC", machineId: "id-1");
+        await s.Hub.InvokeAsync(Protocol.ServerMethods.SubmitPollAnswer, new PollAnswer { PollId = poll.Id, Choice = 1 });
+
+        var r = await WaitForResults(teacher, x => x.Counts[1] == 1);
+        Assert.Equal(1, r.Answered);
+        Assert.Equal([0, 1], r.Counts);
+    }
+
     private static async Task<PollResults> WaitForResults(Peer teacher, Func<PollResults, bool> match) =>
         (PollResults)(await teacher.WaitForAsync(Protocol.ClientMethods.PollResultsUpdated, a => match((PollResults)a[0]!)))[0]!;
 }

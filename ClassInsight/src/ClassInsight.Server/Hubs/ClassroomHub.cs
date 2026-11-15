@@ -47,6 +47,12 @@ public sealed class ClassroomHub : Hub
         if (_room.IsTeacher(Context.ConnectionId))
             throw new HubException("This connection is already registered as a teacher.");
 
+        // A connection's identity is fixed once registered: re-registering under a different
+        // install id (e.g. to answer a poll several times) is refused.
+        if (_room.TryGetStudent(Context.ConnectionId, out var already)
+            && !string.Equals(already.Info.MachineId, info.MachineId, StringComparison.Ordinal))
+            throw new HubException("This connection is already registered as a different student.");
+
         // Prefer the real socket address the server sees over whatever the agent guessed.
         var ip = Context.GetHttpContext()?.Connection.RemoteIpAddress?.ToString();
         if (!string.IsNullOrWhiteSpace(ip))

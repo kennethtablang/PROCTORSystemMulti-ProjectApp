@@ -62,6 +62,10 @@ public sealed class PollBox
             if (_poll is null || _closed) return false;
             var clean = PollLimits.CleanAnswer(_poll, answer);
             if (clean is null) return false;
+            // One answer per connection, whatever key it arrives under.
+            foreach (var stale in _answers.Where(kv => kv.Value.Connection == connectionId && kv.Key != studentKey)
+                                          .Select(kv => kv.Key).ToArray())
+                _answers.Remove(stale);
             _answers[studentKey] = (connectionId, studentName, clean);
             return true;
         }

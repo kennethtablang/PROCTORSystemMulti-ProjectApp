@@ -37,7 +37,8 @@
             <Button Text="🔓 Unlock" Clicked="OnUnlock" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="✉ Message" Clicked="OnMessage" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="🌐 Open site" Clicked="OnOpenSite" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
-            <Button Text="⏻ Power…" Clicked="OnPower" Margin="0,0,12,4" Padding="12,4" FontSize="13" />
+            <Button Text="⏻ Power…" Clicked="OnPower" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="📷 Screenshot" Clicked="OnScreenshot" Margin="0,0,12,4" Padding="12,4" FontSize="13" />
             <Label Text="{Binding LockText}" TextColor="#EF9A9A" FontAttributes="Bold" VerticalOptions="Center"
                    IsVisible="{Binding IsLocked}" Margin="0,0,0,4" />
         </FlexLayout>

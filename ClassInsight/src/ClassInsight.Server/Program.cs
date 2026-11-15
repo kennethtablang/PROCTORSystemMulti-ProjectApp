@@ -21,6 +21,7 @@ builder.Services.AddSingleton<RoomRegistry>();
 builder.Services.AddSingleton<TeacherAuthThrottle>();
 builder.Services.AddSingleton<PollBox>();
 builder.Services.AddSingleton<BroadcastState>();
+builder.Services.AddSingleton<TimerState>();
 builder.Services.AddHostedService<DiscoveryBeaconService>();
 
 var app = builder.Build();

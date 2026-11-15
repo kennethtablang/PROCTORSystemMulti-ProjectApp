@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.15 (draft)
+**Version:** 0.16 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -482,6 +482,18 @@ that loses the server unlocks and lifts everything itself.
   and who answered what, or, for an **anonymous** poll, totals plus unnamed written answers. One poll
   at a time, in memory only, closed automatically when the last teacher leaves. **Live-verified**:
   pressing "Yes" on the real student card reached the teacher as 1/1 answered, counts [1, 0].)*
+- ✅ **FR-CTRL-10 [P5]** The teacher **may** run a **lesson timer** shown on every student screen.
+  *(Optional label; students see a top-right countdown (amber in the last minute) and "Time's up!";
+  counts down from each device's own clock; late joiners included; stops when the last teacher leaves.
+  **Live-verified**: student pill "1:58 · Test timer", teacher banner with Stop.)*
+- ✅ **FR-TEACH-07** Teacher tools (**⋯ More**): **random student picker** (no repeats until everyone
+  has had a turn, optional "you've been picked" message), **snapshot all screens** (PNG per student),
+  **screenshot** one student from the focus view, and **attendance export** (CSV: computer, user, IP,
+  first/last seen, minutes online — written only on the teacher's device; formula-injection safe).
+  Files go to `Documents\ClassInsight`. *(Live-verified: CSV and PNG written, picker shown.)*
+- 🟡 **FR-SEC-08** The teacher app **may** be PIN-locked ("secure mode"): asked at launch and on
+  "Lock this app now"; only a salted PBKDF2-SHA256 hash is stored; growing delay after wrong tries.
+  *(Built; not exercised in the GUI so the teacher's own app wasn't left locked.)*
 - ✅ **FR-STREAM-07** The teacher **should** be able to choose the stream resolution. *(Focus view:
   854 / 1280 / 1600 / 1920 / native; grid: 320 / 480 / 640 px thumbnails; remembered per device.
   The agent clamps to its IT ceiling `MaxStreamWidth` (default 1920) and never upscales.
@@ -729,6 +741,11 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.16 — 2026-11-15**
+  - **Quick wins:** lesson timer (FR-CTRL-10 ✅), random picker / snapshot all / screenshot /
+    attendance CSV (FR-TEACH-07 ✅), teacher PIN lock (FR-SEC-08 🟡). Student IPs now recorded as
+    plain IPv4. Tests: 98, all passing.
 
 - **0.15 — 2026-11-15**
   - **Show my screen (FR-CTRL-02 ✅):** teacher-to-class screen broadcast (full screen or window),

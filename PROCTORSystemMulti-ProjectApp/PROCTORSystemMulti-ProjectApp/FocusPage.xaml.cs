@@ -89,6 +89,12 @@ public partial class FocusPage : ContentPage
     private async void OnPower(object? sender, EventArgs e) => await ClassActions.PowerAsync(this, _vm, Me, _tile.MachineName);
     private async void OnLowerHand(object? sender, EventArgs e) => await _vm.LowerHandAsync(_tile);
 
+    private async void OnScreenshot(object? sender, EventArgs e)
+    {
+        var path = DashboardViewModel.SaveScreenshot(_tile);
+        await DisplayAlertAsync("Screenshot", path is null ? "There's no picture yet." : $"Saved to:\n{path}", "OK");
+    }
+
     /// <summary>Side panel on wide windows; panel stacked under the video on phones (NFR-USE-03).</summary>
     private void ApplyLayout()
     {

@@ -243,6 +243,8 @@ public sealed class AgentWorker : BackgroundService
         hub.On<Poll>(Protocol.ClientMethods.PollStarted, poll => _ui?.ShowPoll(poll));
         hub.On<string>(Protocol.ClientMethods.PollClosed, id => _ui?.ClosePoll(id));
 
+        hub.On<LessonTimer>(Protocol.ClientMethods.TimerUpdated, t => _ui?.ShowTimer(t));
+
         // Teacher's screen (FR-CTRL-02).
         hub.On<BroadcastInfo>(Protocol.ClientMethods.BroadcastStarted, async info =>
         {
@@ -335,6 +337,7 @@ public sealed class AgentWorker : BackgroundService
         _ui?.Unlock();
         _ui?.ResetHand(showNotice: false);
         _ui?.ResetPoll();
+        _ui?.ShowTimer(new LessonTimer());
         _ = StopBroadcastViewerAsync();
         _enforcer.Apply(new ClassPolicy());
     }

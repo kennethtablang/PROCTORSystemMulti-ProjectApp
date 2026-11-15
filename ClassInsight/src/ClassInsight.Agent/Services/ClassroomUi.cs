@@ -53,6 +53,14 @@ internal sealed class ClassroomUi : IDisposable
     private Window? _pollWindow;
     private string? _pollId;
 
+    // Lesson timer pill.
+    private Window? _timerWindow;
+    private TextBlock? _timerText;
+    private Border? _timerPill;
+    private DispatcherTimer? _timerTick;
+    private DateTime _timerEndsUtc;
+    private string? _timerLabel;
+
     // Teacher's-screen viewer (FR-CTRL-02).
     private Window? _broadcastWindow;
     private System.Windows.Controls.Image? _broadcastImage;
@@ -242,6 +250,95 @@ internal sealed class ClassroomUi : IDisposable
         _pollWindow = null;
         _pollId = null;
     });
+
+    // ---- lesson timer --------------------------------------------------------
+
+    /// <summary>Show / update / remove the class countdown (top-right corner, click-through).</summary>
+    public void ShowTimer(Shared.Contracts.LessonTimer timer) => Post(() =>
+    {
+        if (!timer.Running || timer.RemainingSeconds <= 0)
+        {
+            CloseTimer();
+            return;
+        }
+
+        // Count down from this PC's own clock: the server sent "seconds remaining", not a time of day.
+        _timerEndsUtc = DateTime.UtcNow.AddSeconds(timer.RemainingSeconds);
+        _timerLabel = timer.Label;
+
+        if (_timerWindow is null)
+        {
+            _timerText = new TextBlock { Foreground = Brushes.White, FontSize = 16, FontWeight = FontWeights.SemiBold, Margin = new Thickness(16, 7, 16, 8) };
+            _timerPill = new Border { CornerRadius = new CornerRadius(14), Child = _timerText };
+            _timerWindow = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                AllowsTransparency = true,
+                Background = Brushes.Transparent,
+                Topmost = true,
+                ShowInTaskbar = false,
+                ShowActivated = false,
+                SizeToContent = SizeToContent.WidthAndHeight,
+                Content = _timerPill,
+                Title = "ClassInsight timer",
+            };
+            _timerWindow.SourceInitialized += (_, _) => MakeClickThrough(_timerWindow);
+            _timerWindow.SizeChanged += (_, _) => PlaceTopRight(_timerWindow);
+            _timerWindow.Show();
+            _timerTick = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+            _timerTick.Tick += (_, _) => RenderTimer();
+            _timerTick.Start();
+        }
+        RenderTimer();
+    });
+
+    private void RenderTimer()
+    {
+        if (_timerText is null || _timerPill is null) return;
+        var left = _timerEndsUtc - DateTime.UtcNow;
+        if (left <= TimeSpan.Zero)
+        {
+            CloseTimer();
+            ShowNotice("\u23f0  Time's up!" + (string.IsNullOrEmpty(_timerLabel) ? "" : $"  ({_timerLabel})"), TimeSpan.FromSeconds(6));
+            return;
+        }
+        var secs = (int)Math.Ceiling(left.TotalSeconds);
+        var clock = secs >= 3600 ? $"{secs / 3600}:{secs / 60 % 60:00}:{secs % 60:00}" : $"{secs / 60}:{secs % 60:00}";
+        _timerText.Text = string.IsNullOrEmpty(_timerLabel) ? $"\u23f1  {clock}" : $"\u23f1  {clock}  \u00b7  {_timerLabel}";
+        // Amber for the last minute.
+        _timerPill.Background = new SolidColorBrush(secs <= 60 ? Color.FromArgb(0xF0, 0xB2, 0x6A, 0x00) : Color.FromArgb(0xE6, 0x5B, 0x2C, 0x9E));
+    }
+
+    private void CloseTimer()
+    {
+        _timerTick?.Stop();
+        _timerTick = null;
+        _timerWindow?.Close();
+        _timerWindow = null;
+        _timerText = null;
+        _timerPill = null;
+    }
+
+    private static void PlaceTopRight(Window w)
+    {
+        var area = SystemParameters.WorkArea;
+        w.Left = area.Right - w.ActualWidth - 16;
+        w.Top = area.Top + 16;
+    }
+
+    private static void MakeClickThrough(Window w)
+    {
+        const int GWL_EXSTYLE = -20, WS_EX_TRANSPARENT = 0x20, WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000;
+        var hwnd = new WindowInteropHelper(w).Handle;
+        var ex = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE));
+    }
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr value);
 
     // ---- teacher's screen (broadcast viewer) ------------------------------
 

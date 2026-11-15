@@ -79,6 +79,9 @@ public static class Protocol
         public const string ReceiveBroadcastOffer = nameof(ReceiveBroadcastOffer);
         public const string ReceiveBroadcastAnswer = nameof(ReceiveBroadcastAnswer);
         public const string ReceiveBroadcastIce = nameof(ReceiveBroadcastIce);
+
+        /// <summary>Server → students and teachers: the class countdown started, changed or stopped.</summary>
+        public const string TimerUpdated = nameof(TimerUpdated);
     }
 
     /// <summary>Names of hub methods CLIENTS invoke ON the server.</summary>
@@ -126,5 +129,9 @@ public static class Protocol
         public const string SendBroadcastOffer = nameof(SendBroadcastOffer);
         public const string SendBroadcastAnswer = nameof(SendBroadcastAnswer);
         public const string SendBroadcastIce = nameof(SendBroadcastIce);
+
+        /// <summary>Teacher → server: start (or replace) / stop the class countdown.</summary>
+        public const string StartTimer = nameof(StartTimer);
+        public const string StopTimer = nameof(StopTimer);
     }
 }

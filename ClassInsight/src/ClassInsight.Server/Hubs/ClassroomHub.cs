@@ -23,6 +23,7 @@ public sealed class ClassroomHub : Hub
     private readonly TeacherAuthThrottle _throttle;
     private readonly PollBox _polls;
     private readonly BroadcastState _broadcast;
+    private readonly TimerState _timer;
     private readonly ILogger<ClassroomHub> _logger;
 
     public ClassroomHub(
@@ -31,8 +32,10 @@ public sealed class ClassroomHub : Hub
         TeacherAuthThrottle throttle,
         PollBox polls,
         BroadcastState broadcast,
+        TimerState timer,
         ILogger<ClassroomHub> logger)
     {
+        _timer = timer;
         _broadcast = broadcast;
         _polls = polls;
         _room = room;
@@ -57,7 +60,10 @@ public sealed class ClassroomHub : Hub
             throw new HubException("This connection is already registered as a different student.");
 
         // Prefer the real socket address the server sees over whatever the agent guessed.
-        var ip = Context.GetHttpContext()?.Connection.RemoteIpAddress?.ToString();
+        // (IPv4 clients arrive as IPv4-mapped IPv6, e.g. ::ffff:192.168.1.8; show them as plain IPv4.)
+        var remote = Context.GetHttpContext()?.Connection.RemoteIpAddress;
+        if (remote is { IsIPv4MappedToIPv6: true }) remote = remote.MapToIPv4();
+        var ip = remote?.ToString();
         if (!string.IsNullOrWhiteSpace(ip))
             info = info with { IpAddress = ip };
 
@@ -73,6 +79,10 @@ public sealed class ClassroomHub : Hub
         // A student who joins mid-lesson gets the room's current web/app limits straight away.
         if (!_room.Policy.IsEmpty)
             await Clients.Caller.SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
+
+        // ...the class countdown, if one is running...
+        if (_timer.Snapshot() is { Running: true } countdown)
+            await Clients.Caller.SendAsync(Protocol.ClientMethods.TimerUpdated, countdown);
 
         // ...the teacher's screen, if it's being shown to the whole class...
         if (_broadcast.AddLateJoiner(Context.ConnectionId) && _broadcast.Teacher is { } broadcaster)
@@ -127,6 +137,34 @@ public sealed class ClassroomHub : Hub
         await Clients.Caller.SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
         if (_polls.Results(_room.StudentCount) is { } results)
             await Clients.Caller.SendAsync(Protocol.ClientMethods.PollResultsUpdated, results);
+        await Clients.Caller.SendAsync(Protocol.ClientMethods.TimerUpdated, _timer.Snapshot());
+    }
+
+    // ---- lesson timer -----------------------------------------------------
+
+    /// <summary>Start (or replace) the class countdown, shown on every student screen.</summary>
+    public async Task<LessonTimer> StartTimer(TimerRequest request)
+    {
+        if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can start a timer.");
+        if (request is null || request.Seconds < TimerLimits.MinSeconds || request.Seconds > TimerLimits.MaxSeconds)
+            throw new HubException($"A timer must run between {TimerLimits.MinSeconds} seconds and {TimerLimits.MaxSeconds / 3600} hours.");
+        var label = TimerLimits.CleanLabel(request.Label);
+        _timer.Start(label, request.Seconds);
+        await PushTimerAsync();
+        return _timer.Snapshot();
+    }
+
+    public async Task StopTimer()
+    {
+        if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can stop the timer.");
+        if (_timer.Stop()) await PushTimerAsync();
+    }
+
+    private async Task PushTimerAsync()
+    {
+        var t = _timer.Snapshot();
+        await Clients.Clients(_room.StudentConnectionIds).SendAsync(Protocol.ClientMethods.TimerUpdated, t);
+        await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.TimerUpdated, t);
     }
 
     // ---- screen broadcast (FR-CTRL-02) -------------------------------------
@@ -492,6 +530,7 @@ public sealed class ClassroomHub : Hub
             if (_broadcast.Stop(id) is { } viewers)
                 await Clients.Clients(viewers).SendAsync(Protocol.ClientMethods.BroadcastStopped, id);
             if (_room.TeacherCount == 0) await ClosePollAsync();
+            if (_room.TeacherCount == 0 && _timer.Stop()) await PushTimerAsync();
             if (_room.TeacherCount == 0 && !_room.Policy.IsEmpty)
             {
                 _room.Policy = new ClassPolicy();

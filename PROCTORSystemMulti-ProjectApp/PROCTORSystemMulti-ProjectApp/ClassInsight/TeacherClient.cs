@@ -49,6 +49,7 @@ public sealed class TeacherClient : IAsyncDisposable
     public event Action<string, bool>? StudentHandChanged;
     public event Action<ClassPolicy>? PolicyUpdated;
     public event Action<PollResults>? PollResultsUpdated;
+    public event Action<LessonTimer>? TimerUpdated;
 
     /// <summary>Screen broadcast signalling (FR-CTRL-02), routed to <see cref="ScreenBroadcaster"/>.</summary>
     public event Action<SdpMessage>? BroadcastAnswerReceived;
@@ -163,6 +164,7 @@ public sealed class TeacherClient : IAsyncDisposable
         hub.On<string, bool>(Protocol.ClientMethods.StudentHandChanged, (id, raised) => StudentHandChanged?.Invoke(id, raised));
         hub.On<ClassPolicy>(Protocol.ClientMethods.PolicyUpdated, p => PolicyUpdated?.Invoke(p));
         hub.On<PollResults>(Protocol.ClientMethods.PollResultsUpdated, r => PollResultsUpdated?.Invoke(r));
+        hub.On<LessonTimer>(Protocol.ClientMethods.TimerUpdated, t => TimerUpdated?.Invoke(t));
         hub.On<SdpMessage>(Protocol.ClientMethods.ReceiveBroadcastAnswer, a => BroadcastAnswerReceived?.Invoke(a));
         hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveBroadcastIce, c => BroadcastIceReceived?.Invoke(c));
         hub.On<string>(Protocol.ClientMethods.BroadcastStudentJoined, id => BroadcastStudentJoined?.Invoke(id));
@@ -362,6 +364,20 @@ public sealed class TeacherClient : IAsyncDisposable
         var hub = _hub;
         if (hub is not { State: HubConnectionState.Connected }) return;
         await hub.InvokeAsync(Protocol.ServerMethods.StopBroadcast);
+    }
+
+    public async Task StartTimerAsync(TimerRequest request)
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try { await hub.InvokeAsync<LessonTimer>(Protocol.ServerMethods.StartTimer, request); }
+        catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
+    }
+
+    public async Task StopTimerAsync()
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try { await hub.InvokeAsync(Protocol.ServerMethods.StopTimer); }
+        catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
     }
 
     public async Task ClosePollAsync()

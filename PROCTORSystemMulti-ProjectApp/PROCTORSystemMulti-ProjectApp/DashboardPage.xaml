@@ -100,12 +100,25 @@
             <Button Text="📺 Show my screen" Clicked="OnShowScreen" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="📊 Poll" Clicked="OnPoll" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="⛔ Limits…" Clicked="OnLimits" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
-            <Button Text="⏻ Power…" Clicked="OnPowerAll" Margin="0,0,12,4" Padding="12,4" FontSize="13" />
+            <Button Text="⏻ Power…" Clicked="OnPowerAll" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="⋯ More" Clicked="OnMore" Margin="0,0,12,4" Padding="12,4" FontSize="13" />
             <Label Text="{Binding PolicySummary}" FontSize="12" TextColor="#7E57C2" VerticalOptions="Center"
                    Margin="0,0,12,4" />
             <Label Text="{Binding PollBadge}" FontSize="12" TextColor="#2E7D32" FontAttributes="Bold"
                    VerticalOptions="Center" Margin="0,0,0,4" />
         </FlexLayout>
+
+        <!-- Lesson timer running -->
+        <Border IsVisible="{Binding TimerRunning}" BackgroundColor="#EDE7F6" Stroke="#7E57C2" Padding="12,6">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="8" />
+            </Border.StrokeShape>
+            <Grid ColumnDefinitions="*,Auto">
+                <Label Text="{Binding TimerText}" TextColor="#4527A0" FontAttributes="Bold" FontSize="13" VerticalOptions="Center" />
+                <Button Grid.Column="1" Text="Stop timer" Clicked="OnStopTimer" Padding="12,2" FontSize="12"
+                        BackgroundColor="#7E57C2" TextColor="White" />
+            </Grid>
+        </Border>
 
         <!-- Screen broadcast in progress -->
         <Border IsVisible="{Binding IsBroadcasting}" BackgroundColor="#E8F5E9" Stroke="#2E7D32" Padding="12,6">

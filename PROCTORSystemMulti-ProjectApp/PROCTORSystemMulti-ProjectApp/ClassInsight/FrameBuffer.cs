@@ -66,6 +66,18 @@ public sealed class FrameBuffer
         Updated?.Invoke();
     }
 
+    /// <summary>The current frame as PNG bytes (for screenshots), or null if there's no frame yet.</summary>
+    public byte[]? EncodePng()
+    {
+        lock (_lock)
+        {
+            if (_bitmap is null) return null;
+            using var image = SKImage.FromBitmap(_bitmap);
+            using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+            return data?.ToArray();
+        }
+    }
+
     /// <summary>Draw the frame letterboxed into <paramref name="bounds"/>. Returns false if there is no frame yet.</summary>
     public bool Draw(SKCanvas canvas, SKRect bounds)
     {

@@ -17,7 +17,7 @@ namespace PROCTORSystemMulti_ProjectApp.ClassInsight;
 /// onto the UI thread. Also drives room choice (FR-DISC-04), the manual server address fallback
 /// (NFR-COMPAT-02) and the dashboard's search / sort / density controls (FR-TEACH-06).
 /// </summary>
-public sealed class DashboardViewModel : INotifyPropertyChanged
+public sealed partial class DashboardViewModel : INotifyPropertyChanged
 {
     private const string PrefRoom = "classinsight.room";
     private const string PrefServer = "classinsight.server";
@@ -72,6 +72,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         _client.StudentHandChanged += (id, raised) => OnUi(() => SetHand(id, raised));
         _client.PolicyUpdated += p => OnUi(() => Policy = p);
         _client.PollResultsUpdated += r => OnUi(() => PollResults = r);
+        _client.TimerUpdated += t => OnUi(() => OnTimerUpdated(t));
         // A restarted server has forgotten the room's limits: re-apply the ones this teacher set.
         _client.Registered += () => { if (!_lastSetPolicy.IsEmpty) _ = SetPolicyAsync(_lastSetPolicy); };
 
@@ -571,6 +572,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
 
     private void AddOrUpdate(StudentSnapshot snap, bool refresh)
     {
+        TrackJoin(snap);
         if (_byConnection.TryGetValue(snap.ConnectionId, out var existing))
         {
             existing.State = snap.State;
@@ -584,6 +586,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
 
     private void Remove(string connectionId)
     {
+        TrackLeave(connectionId);
         if (_byConnection.Remove(connectionId, out var tile))
         {
             Students.Remove(tile);

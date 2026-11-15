@@ -185,6 +185,10 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
     {
         if (_disposed || !ReferenceEquals(source, _pc)) return;
 
+        // Reject an oversized stream *before* the decoder allocates for it: a VP8 keyframe
+        // declares its size in its header, and inter frames can't change it.
+        if (!KeyframeWithinCap(frame)) return;
+
         try
         {
             // Decode the VP8 frame to BGR. DecodeVideo yields nothing until the first keyframe
@@ -208,6 +212,22 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
         {
             // A corrupt frame shouldn't kill the stream; the next keyframe recovers it.
         }
+    }
+
+    /// <summary>
+    /// VP8 keyframe header (RFC 6386 §9.1): 3-byte frame tag (bit 0 of byte 0 is 0 for a keyframe),
+    /// start code 9D 01 2A, then 14-bit width and height. Non-keyframes pass (they inherit the
+    /// already-checked keyframe size); a keyframe larger than the cap for the requested quality is
+    /// dropped, so the decoder never sizes buffers for it.
+    /// </summary>
+    private bool KeyframeWithinCap(byte[] frame)
+    {
+        if (frame.Length < 10 || (frame[0] & 0x01) != 0) return true;
+        if (frame[3] != 0x9D || frame[4] != 0x01 || frame[5] != 0x2A) return false;   // malformed keyframe
+        var w = (frame[6] | (frame[7] << 8)) & 0x3FFF;
+        var h = (frame[8] | (frame[9] << 8)) & 0x3FFF;
+        var (maxW, maxH) = Quality == StreamQuality.Focus ? (MaxFocusW, MaxFocusH) : (MaxThumbW, MaxThumbH);
+        return w > 0 && h > 0 && w <= maxW && h <= maxH;
     }
 
     internal static RTCConfiguration? BuildConfig(IReadOnlyList<IceServerConfig> servers)

@@ -53,6 +53,17 @@ internal sealed class ClassroomUi : IDisposable
     private Window? _pollWindow;
     private string? _pollId;
 
+    // Teacher's-screen viewer (FR-CTRL-02).
+    private Window? _broadcastWindow;
+    private System.Windows.Controls.Image? _broadcastImage;
+    private System.Windows.Media.Imaging.WriteableBitmap? _broadcastBitmap;
+    private TextBlock? _broadcastWaiting;
+    private DispatcherTimer? _broadcastKeeper;
+    private readonly object _frameGate = new();
+    private byte[]? _pendingFrame;
+    private int _pendingW, _pendingH;
+    private int _framePosted;
+
     public ClassroomUi(ILogger logger)
     {
         _logger = logger;
@@ -231,6 +242,109 @@ internal sealed class ClassroomUi : IDisposable
         _pollWindow = null;
         _pollId = null;
     });
+
+    // ---- teacher's screen (broadcast viewer) ------------------------------
+
+    /// <summary>Open the viewer: full screen (can't be closed) or a normal window.</summary>
+    public void ShowBroadcast(Shared.Contracts.BroadcastMode mode) => Post(() =>
+    {
+        CloseBroadcastWindow();
+
+        _broadcastImage = new System.Windows.Controls.Image { Stretch = Stretch.Uniform };
+        RenderOptions.SetBitmapScalingMode(_broadcastImage, BitmapScalingMode.HighQuality);
+        _broadcastWaiting = new TextBlock
+        {
+            Text = "Waiting for your teacher's screen\u2026",
+            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA6)),
+            FontSize = 18,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var grid = new Grid { Background = Brushes.Black };
+        grid.Children.Add(_broadcastImage);
+        grid.Children.Add(_broadcastWaiting);
+
+        var full = mode == Shared.Contracts.BroadcastMode.FullScreen;
+        var w = new Window
+        {
+            Title = "Your teacher's screen",
+            Content = grid,
+            Background = Brushes.Black,
+            ShowInTaskbar = !full,
+            Topmost = full,
+            WindowStyle = full ? WindowStyle.None : WindowStyle.SingleBorderWindow,
+            ResizeMode = full ? ResizeMode.NoResize : ResizeMode.CanResize,
+            Width = 1024,
+            Height = 600,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+        };
+        if (full)
+        {
+            var primary = DisplayEnumerator.GetDisplays()[0];
+            w.SourceInitialized += (_, _) =>
+            {
+                var hwnd = new WindowInteropHelper(w).Handle;
+                SetWindowPos(hwnd, HWND_TOPMOST, primary.Left, primary.Top, primary.Width, primary.Height, SWP_SHOWWINDOW);
+            };
+            w.Closing += (_, e) => { if (w.Tag as string != "closing") e.Cancel = true; };   // students can't close it
+            _broadcastKeeper = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _broadcastKeeper.Tick += (_, _) => { if (_broadcastWindow is { } bw) { bw.Topmost = false; bw.Topmost = true; } };
+            _broadcastKeeper.Start();
+        }
+        _broadcastWindow = w;
+        w.Show();
+        if (full) w.Activate();
+        _logger.LogInformation("Showing the teacher's screen ({Mode}).", mode);
+    });
+
+    /// <summary>A decoded frame (BGR, top-down) from the decode thread; repaints are coalesced.</summary>
+    public void ShowBroadcastFrame(int width, int height, byte[] bgr)
+    {
+        lock (_frameGate)
+        {
+            var need = width * height * 3;
+            if (_pendingFrame is null || _pendingFrame.Length != need) _pendingFrame = new byte[need];
+            Buffer.BlockCopy(bgr, 0, _pendingFrame, 0, need);
+            _pendingW = width;
+            _pendingH = height;
+        }
+        if (Interlocked.Exchange(ref _framePosted, 1) == 1) return;
+        Post(() =>
+        {
+            Interlocked.Exchange(ref _framePosted, 0);
+            if (_broadcastImage is null) return;
+            lock (_frameGate)
+            {
+                if (_pendingFrame is null) return;
+                if (_broadcastBitmap is null || _broadcastBitmap.PixelWidth != _pendingW || _broadcastBitmap.PixelHeight != _pendingH)
+                {
+                    _broadcastBitmap = new System.Windows.Media.Imaging.WriteableBitmap(_pendingW, _pendingH, 96, 96, PixelFormats.Bgr24, null);
+                    _broadcastImage.Source = _broadcastBitmap;
+                }
+                _broadcastBitmap.WritePixels(new Int32Rect(0, 0, _pendingW, _pendingH), _pendingFrame, _pendingW * 3, 0);
+            }
+            if (_broadcastWaiting is not null) _broadcastWaiting.Visibility = Visibility.Collapsed;
+        });
+    }
+
+    /// <summary>The broadcast ended (or the link to the server was lost): close the viewer.</summary>
+    public void HideBroadcast() => Post(() =>
+    {
+        if (_broadcastWindow is null) return;
+        CloseBroadcastWindow();
+        _logger.LogInformation("Teacher's screen closed.");
+    });
+
+    private void CloseBroadcastWindow()
+    {
+        _broadcastKeeper?.Stop();
+        _broadcastKeeper = null;
+        if (_broadcastWindow is { } w) { w.Tag = "closing"; w.Close(); }
+        _broadcastWindow = null;
+        _broadcastImage = null;
+        _broadcastBitmap = null;
+        _broadcastWaiting = null;
+    }
 
     // ---- lock screen -------------------------------------------------------
 

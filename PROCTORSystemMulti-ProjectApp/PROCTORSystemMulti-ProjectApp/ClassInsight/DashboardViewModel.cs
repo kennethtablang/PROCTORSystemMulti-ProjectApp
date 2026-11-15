@@ -46,9 +46,16 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
     /// <summary>All live screen streams: thumbnails for the grid, one focus stream (FR-STREAM-04).</summary>
     public StreamManager Streams { get; }
 
-    public DashboardViewModel()
+    /// <summary>Shows this teacher's screen to the class (FR-CTRL-02).</summary>
+    public ScreenBroadcaster Broadcaster { get; }
+
+    public DashboardViewModel() : this(new UnsupportedScreenSource()) { }
+
+    public DashboardViewModel(IScreenSource screen)
     {
         Streams = new StreamManager(_client, () => _snapshot);
+        Broadcaster = new ScreenBroadcaster(_client, screen);
+        Broadcaster.Changed += () => OnUi(() => { Raise(nameof(IsBroadcasting)); Raise(nameof(BroadcastText)); });
 
         _client.Status += s => OnUi(() => Status = s);
         _client.RosterUpdated += r => OnUi(() => ReplaceRoster(r));
@@ -173,6 +180,14 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
             return "Limits: " + string.Join(" · ", parts);
         }
     }
+
+    // ---- screen broadcast ----------------------------------------------------
+
+    public bool IsBroadcasting => Broadcaster.IsActive;
+
+    public string BroadcastText => Broadcaster.IsActive
+        ? $"📺 Showing your screen ({(Broadcaster.Mode == BroadcastMode.FullScreen ? "full screen" : "in a window")}) · {Broadcaster.Viewers} watching"
+        : "";
 
     // ---- polls -------------------------------------------------------------
 

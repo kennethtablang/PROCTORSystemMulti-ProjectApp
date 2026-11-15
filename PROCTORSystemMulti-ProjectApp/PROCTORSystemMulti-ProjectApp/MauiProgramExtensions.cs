@@ -21,7 +21,10 @@ namespace PROCTORSystemMulti_ProjectApp
             // connection and a single live roster, so the Dashboard, Processes and Bandwidth
             // views all show the same students updating together. MAUI resolves Shell content
             // pages through this container, so the singleton is injected into each page.
-            builder.Services.AddSingleton<DashboardViewModel>();
+            // Screen capture for "show my screen" (FR-CTRL-02): heads that support it register their own
+            // IScreenSource after this (the last registration wins); the rest get the unsupported stub.
+            builder.Services.AddSingleton<IScreenSource, UnsupportedScreenSource>();
+            builder.Services.AddSingleton<DashboardViewModel>(sp => new DashboardViewModel(sp.GetRequiredService<IScreenSource>()));
             builder.Services.AddTransient<DashboardPage>();
             builder.Services.AddTransient<ProcessesPage>();
             builder.Services.AddTransient<BandwidthPage>();

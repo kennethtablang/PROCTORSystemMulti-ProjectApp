@@ -50,6 +50,7 @@ public sealed class AgentWorker : BackgroundService
     private readonly ClassroomUi? _ui;
     private readonly PolicyEnforcer _enforcer;
     private volatile HubConnection? _hub;
+    private BroadcastReceiver? _broadcast;
 
     private IReadOnlyList<IceServerConfig> _iceServers = [];
 
@@ -241,6 +242,24 @@ public sealed class AgentWorker : BackgroundService
         hub.On(Protocol.ClientMethods.HandLowered, () => _ui?.ResetHand(showNotice: true));
         hub.On<Poll>(Protocol.ClientMethods.PollStarted, poll => _ui?.ShowPoll(poll));
         hub.On<string>(Protocol.ClientMethods.PollClosed, id => _ui?.ClosePoll(id));
+
+        // Teacher's screen (FR-CTRL-02).
+        hub.On<BroadcastInfo>(Protocol.ClientMethods.BroadcastStarted, async info =>
+        {
+            if (_ui is null) return;
+            await StopBroadcastViewerAsync();
+            _broadcast = new BroadcastReceiver(hub, info.TeacherConnectionId, _ui, _iceServers, _loggerFactory.CreateLogger<BroadcastReceiver>());
+            _ui.ShowBroadcast(info.Mode);
+        });
+        hub.On<SdpMessage>(Protocol.ClientMethods.ReceiveBroadcastOffer, async offer =>
+        {
+            if (_broadcast is { } b) await b.HandleOfferAsync(offer);
+        });
+        hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveBroadcastIce, c => _broadcast?.HandleIce(c));
+        hub.On<string>(Protocol.ClientMethods.BroadcastStopped, async teacher =>
+        {
+            if (_broadcast is { } b && b.Teacher == teacher) await StopBroadcastViewerAsync();
+        });
     }
 
     /// <summary>Carry out a teacher's command (already validated by the server; checked again here).</summary>
@@ -282,6 +301,14 @@ public sealed class AgentWorker : BackgroundService
         }
     }
 
+    private async Task StopBroadcastViewerAsync()
+    {
+        var b = _broadcast;
+        _broadcast = null;
+        if (b is not null) await b.DisposeAsync();
+        _ui?.HideBroadcast();
+    }
+
     private async Task SendPollAnswerAsync(PollAnswer answer)
     {
         var hub = _hub;
@@ -308,6 +335,7 @@ public sealed class AgentWorker : BackgroundService
         _ui?.Unlock();
         _ui?.ResetHand(showNotice: false);
         _ui?.ResetPoll();
+        _ = StopBroadcastViewerAsync();
         _enforcer.Apply(new ClassPolicy());
     }
 

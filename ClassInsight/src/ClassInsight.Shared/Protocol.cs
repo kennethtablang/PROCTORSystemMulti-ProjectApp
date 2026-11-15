@@ -70,6 +70,15 @@ public static class Protocol
         public const string PollStarted = nameof(PollStarted);
         public const string PollClosed = nameof(PollClosed);
         public const string PollResultsUpdated = nameof(PollResultsUpdated);
+
+        // Screen broadcast (teacher → students). Separate from the student-view signalling above:
+        // here the teacher is the media sender/offerer and the student answers.
+        public const string BroadcastStarted = nameof(BroadcastStarted);
+        public const string BroadcastStopped = nameof(BroadcastStopped);
+        public const string BroadcastStudentJoined = nameof(BroadcastStudentJoined);
+        public const string ReceiveBroadcastOffer = nameof(ReceiveBroadcastOffer);
+        public const string ReceiveBroadcastAnswer = nameof(ReceiveBroadcastAnswer);
+        public const string ReceiveBroadcastIce = nameof(ReceiveBroadcastIce);
     }
 
     /// <summary>Names of hub methods CLIENTS invoke ON the server.</summary>
@@ -110,5 +119,12 @@ public static class Protocol
 
         /// <summary>Student → server: answer (or change the answer to) the open poll.</summary>
         public const string SubmitPollAnswer = nameof(SubmitPollAnswer);
+
+        /// <summary>Teacher → server: start showing my screen; returns the students to connect to.</summary>
+        public const string StartBroadcast = nameof(StartBroadcast);
+        public const string StopBroadcast = nameof(StopBroadcast);
+        public const string SendBroadcastOffer = nameof(SendBroadcastOffer);
+        public const string SendBroadcastAnswer = nameof(SendBroadcastAnswer);
+        public const string SendBroadcastIce = nameof(SendBroadcastIce);
     }
 }

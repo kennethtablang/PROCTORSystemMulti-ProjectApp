@@ -9,6 +9,9 @@
             builder
                 .UseSharedMauiApp();
 
+            // Windows can capture the teacher's screen for "show my screen" (FR-CTRL-02).
+            builder.Services.AddSingleton<PROCTORSystemMulti_ProjectApp.ClassInsight.IScreenSource, WindowsScreenSource>();
+
             return builder.Build();
         }
     }

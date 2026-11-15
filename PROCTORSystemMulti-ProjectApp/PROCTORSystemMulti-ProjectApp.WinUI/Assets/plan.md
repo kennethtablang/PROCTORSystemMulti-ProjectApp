@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.14 (draft)
+**Version:** 0.15 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -447,7 +447,15 @@ that loses the server unlocks and lifts everything itself.
   your teacher" cover on every display + low-level keyboard hook; 2 h auto-release; Ctrl+Alt+Del
   always works. **Live-verified** lock → unlock; lock badge on tiles; teacher-crash auto-unlock
   integration-tested.)*
-- ⬜ **FR-CTRL-02 [P5]** The teacher **may** broadcast their own screen to students.
+- ✅ **FR-CTRL-02 [P5]** The teacher **may** broadcast their own screen to students. *("📺 Show my
+  screen": **full screen** (students can't close it, kept on top) or **in a window**. The teacher is
+  the WebRTC sender — one peer per student, each frame captured and VP8-encoded once (1280 px, 10 fps)
+  and sent to all; media stays peer-to-peer (AD-4) and DTLS-SRTP encrypted. Broadcast signalling is
+  pair-gated like viewing (only the broadcasting teacher ↔ its students); whole-class broadcasts
+  include late joiners; a new broadcast replaces another teacher's; the viewer closes when the
+  teacher stops or disconnects, or the agent loses the server. Teacher capture is **Windows-only**
+  for now (other heads say so). **Live-verified**: WinUI teacher → real agent, "1 watching", the
+  student window showed the teacher's screen live; Stop closed it.)*
 - ✅ **FR-CTRL-03 [P5]** The teacher **may** send a message to one or all students. *(Centred
   card with OK; live-verified delivery.)*
 - ✅ **FR-CTRL-04 [P5]** The teacher **may** remotely launch a URL/app on student machines.
@@ -721,6 +729,11 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.15 — 2026-11-15**
+  - **Show my screen (FR-CTRL-02 ✅):** teacher-to-class screen broadcast (full screen or window),
+    encode-once/send-to-all over peer-to-peer WebRTC, pair-gated signalling, late joiners,
+    stop-on-disconnect. Windows teacher capture; live-verified. Tests: 94, all passing.
 
 - **0.14 — 2026-11-15**
   - **Polls / voting (FR-CTRL-09 ✅):** teacher "📊 Poll" page with live results; student answer

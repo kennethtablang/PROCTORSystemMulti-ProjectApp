@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ClassInsight.Shared.Contracts;
 using PROCTORSystemMulti_ProjectApp.ClassInsight;
 
 namespace PROCTORSystemMulti_ProjectApp;
@@ -51,6 +52,22 @@ public partial class DashboardPage : ContentPage
     private async void OnOpenSiteAll(object? sender, EventArgs e) => await ClassActions.OpenSiteAsync(this, _vm, null, "the whole class");
     private async void OnPowerAll(object? sender, EventArgs e) => await ClassActions.PowerAsync(this, _vm, null, "every student PC");
     private async void OnLimits(object? sender, EventArgs e) => await Navigation.PushModalAsync(new LimitsPage(_vm));
+    private async void OnShowScreen(object? sender, EventArgs e)
+    {
+        if (!_vm.Broadcaster.IsSupported)
+        {
+            await DisplayAlertAsync("Not available here", "Showing your screen is available on the Windows teacher app.", "OK");
+            return;
+        }
+        const string full = "Full screen (students can't close it)", window = "In a window";
+        var choice = await DisplayActionSheetAsync("Show your screen to the whole class", "Cancel", null, full, window);
+        if (choice != full && choice != window) return;
+        var error = await _vm.Broadcaster.StartAsync(choice == full ? BroadcastMode.FullScreen : BroadcastMode.Window);
+        if (error is not null) await DisplayAlertAsync("Couldn't show your screen", error, "OK");
+    }
+
+    private async void OnStopShowScreen(object? sender, EventArgs e) => await _vm.Broadcaster.StopAsync();
+
     private async void OnPoll(object? sender, EventArgs e) => await Navigation.PushModalAsync(new PollPage(_vm));
 
     // A tile opens the focus view only on an explicit tap. (We deliberately don't use

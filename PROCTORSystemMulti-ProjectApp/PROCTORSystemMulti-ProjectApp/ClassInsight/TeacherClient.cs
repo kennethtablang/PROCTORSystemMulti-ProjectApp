@@ -50,6 +50,11 @@ public sealed class TeacherClient : IAsyncDisposable
     public event Action<ClassPolicy>? PolicyUpdated;
     public event Action<PollResults>? PollResultsUpdated;
 
+    /// <summary>Screen broadcast signalling (FR-CTRL-02), routed to <see cref="ScreenBroadcaster"/>.</summary>
+    public event Action<SdpMessage>? BroadcastAnswerReceived;
+    public event Action<IceCandidateMessage>? BroadcastIceReceived;
+    public event Action<string>? BroadcastStudentJoined;
+
     /// <summary>WebRTC signalling relayed from a student, routed by <see cref="StreamManager"/>.</summary>
     public event Action<SdpMessage>? OfferReceived;
     public event Action<IceCandidateMessage>? IceCandidateReceived;
@@ -158,6 +163,9 @@ public sealed class TeacherClient : IAsyncDisposable
         hub.On<string, bool>(Protocol.ClientMethods.StudentHandChanged, (id, raised) => StudentHandChanged?.Invoke(id, raised));
         hub.On<ClassPolicy>(Protocol.ClientMethods.PolicyUpdated, p => PolicyUpdated?.Invoke(p));
         hub.On<PollResults>(Protocol.ClientMethods.PollResultsUpdated, r => PollResultsUpdated?.Invoke(r));
+        hub.On<SdpMessage>(Protocol.ClientMethods.ReceiveBroadcastAnswer, a => BroadcastAnswerReceived?.Invoke(a));
+        hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveBroadcastIce, c => BroadcastIceReceived?.Invoke(c));
+        hub.On<string>(Protocol.ClientMethods.BroadcastStudentJoined, id => BroadcastStudentJoined?.Invoke(id));
         hub.On<SdpMessage>(Protocol.ClientMethods.ReceiveOffer, o => OfferReceived?.Invoke(o));
         hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveIceCandidate, c => IceCandidateReceived?.Invoke(c));
 
@@ -339,6 +347,21 @@ public sealed class TeacherClient : IAsyncDisposable
         var hub = _hub ?? throw new InvalidOperationException("Not connected.");
         try { return await hub.InvokeAsync<Poll>(Protocol.ServerMethods.StartPoll, poll); }
         catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
+    }
+
+    /// <summary>Start showing this screen; returns the students to connect to.</summary>
+    public async Task<IReadOnlyList<string>> StartBroadcastAsync(BroadcastRequest request)
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try { return await hub.InvokeAsync<IReadOnlyList<string>>(Protocol.ServerMethods.StartBroadcast, request); }
+        catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
+    }
+
+    public async Task StopBroadcastAsync()
+    {
+        var hub = _hub;
+        if (hub is not { State: HubConnectionState.Connected }) return;
+        await hub.InvokeAsync(Protocol.ServerMethods.StopBroadcast);
     }
 
     public async Task ClosePollAsync()

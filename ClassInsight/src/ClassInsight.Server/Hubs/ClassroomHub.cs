@@ -22,6 +22,7 @@ public sealed class ClassroomHub : Hub
     private readonly ServerIdentity _identity;
     private readonly TeacherAuthThrottle _throttle;
     private readonly PollBox _polls;
+    private readonly BroadcastState _broadcast;
     private readonly ILogger<ClassroomHub> _logger;
 
     public ClassroomHub(
@@ -29,8 +30,10 @@ public sealed class ClassroomHub : Hub
         ServerIdentity identity,
         TeacherAuthThrottle throttle,
         PollBox polls,
+        BroadcastState broadcast,
         ILogger<ClassroomHub> logger)
     {
+        _broadcast = broadcast;
         _polls = polls;
         _room = room;
         _identity = identity;
@@ -70,6 +73,14 @@ public sealed class ClassroomHub : Hub
         // A student who joins mid-lesson gets the room's current web/app limits straight away.
         if (!_room.Policy.IsEmpty)
             await Clients.Caller.SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
+
+        // ...the teacher's screen, if it's being shown to the whole class...
+        if (_broadcast.AddLateJoiner(Context.ConnectionId) && _broadcast.Teacher is { } broadcaster)
+        {
+            await Clients.Caller.SendAsync(Protocol.ClientMethods.BroadcastStarted,
+                new BroadcastInfo { TeacherConnectionId = broadcaster, Mode = _broadcast.Mode });
+            await Clients.Client(broadcaster).SendAsync(Protocol.ClientMethods.BroadcastStudentJoined, Context.ConnectionId);
+        }
 
         // ...and the open poll, if there is one.
         if (_polls.Open is { } poll)
@@ -116,6 +127,69 @@ public sealed class ClassroomHub : Hub
         await Clients.Caller.SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
         if (_polls.Results(_room.StudentCount) is { } results)
             await Clients.Caller.SendAsync(Protocol.ClientMethods.PollResultsUpdated, results);
+    }
+
+    // ---- screen broadcast (FR-CTRL-02) -------------------------------------
+
+    /// <summary>
+    /// Start showing the caller's screen to the given students (empty = whole class, including
+    /// students who join later). Replaces any other teacher's broadcast. Returns the students the
+    /// teacher should now connect to (it sends each an offer; media then flows peer-to-peer).
+    /// </summary>
+    public async Task<IReadOnlyList<string>> StartBroadcast(BroadcastRequest request)
+    {
+        var teacher = Context.ConnectionId;
+        if (!_room.IsTeacher(teacher)) throw new HubException("Only teachers can show their screen.");
+        if (request is null || !Enum.IsDefined(request.Mode)) throw new HubException("Unknown broadcast mode.");
+
+        var wholeClass = request.Targets is null || request.Targets.Count == 0;
+        var targets = ResolveTargets(request.Targets);
+        var (previousTeacher, previousTargets) = _broadcast.Start(teacher, request.Mode, wholeClass, targets);
+        if (previousTeacher is not null)
+            await Clients.Clients(previousTargets).SendAsync(Protocol.ClientMethods.BroadcastStopped, previousTeacher);
+
+        await Clients.Clients(targets).SendAsync(Protocol.ClientMethods.BroadcastStarted,
+            new BroadcastInfo { TeacherConnectionId = teacher, Mode = request.Mode });
+        _logger.LogInformation("Teacher {Teacher} is showing their screen ({Mode}) to {Count} student(s).", teacher, request.Mode, targets.Count);
+        return targets;
+    }
+
+    /// <summary>Stop showing the caller's screen; every viewer closes.</summary>
+    public async Task StopBroadcast()
+    {
+        if (_broadcast.Stop(Context.ConnectionId) is { } targets)
+            await Clients.Clients(targets).SendAsync(Protocol.ClientMethods.BroadcastStopped, Context.ConnectionId);
+    }
+
+    /// <summary>Broadcasting teacher → one of its target students: the SDP offer.</summary>
+    public Task SendBroadcastOffer(SdpMessage message)
+    {
+        var teacher = Context.ConnectionId;
+        if (message is null || string.IsNullOrEmpty(message.TargetConnectionId) || !_broadcast.IsPair(teacher, message.TargetConnectionId))
+            return Dropped("broadcast offer", message?.TargetConnectionId ?? "");
+        return Clients.Client(message.TargetConnectionId).SendAsync(Protocol.ClientMethods.ReceiveBroadcastOffer,
+            message with { FromConnectionId = teacher, Type = "offer" });
+    }
+
+    /// <summary>Target student → the broadcasting teacher: the SDP answer.</summary>
+    public Task SendBroadcastAnswer(SdpMessage message)
+    {
+        var student = Context.ConnectionId;
+        if (message is null || string.IsNullOrEmpty(message.TargetConnectionId) || !_broadcast.IsPair(message.TargetConnectionId, student))
+            return Dropped("broadcast answer", message?.TargetConnectionId ?? "");
+        return Clients.Client(message.TargetConnectionId).SendAsync(Protocol.ClientMethods.ReceiveBroadcastAnswer,
+            message with { FromConnectionId = student, Type = "answer" });
+    }
+
+    /// <summary>ICE for a broadcast peer, either direction, only within the broadcast.</summary>
+    public Task SendBroadcastIce(IceCandidateMessage message)
+    {
+        var from = Context.ConnectionId;
+        var target = message?.TargetConnectionId;
+        if (message is null || string.IsNullOrEmpty(target)) return Task.CompletedTask;
+        var allowed = _broadcast.IsPair(from, target) || _broadcast.IsPair(target, from);
+        if (!allowed) return Dropped("broadcast ICE", target);
+        return Clients.Client(target).SendAsync(Protocol.ClientMethods.ReceiveBroadcastIce, message with { FromConnectionId = from });
     }
 
     // ---- polls ------------------------------------------------------------
@@ -397,6 +471,7 @@ public sealed class ClassroomHub : Hub
             await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentLeft, id);
             await BroadcastRosterToTeachers();
             _polls.RemoveConnection(id);
+            _broadcast.RemoveStudent(id);
             if (_polls.Open is not null) await PushPollResultsAsync();
         }
         else if (_room.RemoveTeacher(id, out var watched, out var unlocked))
@@ -412,6 +487,10 @@ public sealed class ClassroomHub : Hub
                 await Clients.Client(s).SendAsync(Protocol.ClientMethods.CommandReceived, id, unlock);
                 await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentLockChanged, s, false);
             }
+            // A broadcasting teacher that leaves stops the broadcast: no student is left staring at
+            // a frozen full-screen viewer.
+            if (_broadcast.Stop(id) is { } viewers)
+                await Clients.Clients(viewers).SendAsync(Protocol.ClientMethods.BroadcastStopped, id);
             if (_room.TeacherCount == 0) await ClosePollAsync();
             if (_room.TeacherCount == 0 && !_room.Policy.IsEmpty)
             {

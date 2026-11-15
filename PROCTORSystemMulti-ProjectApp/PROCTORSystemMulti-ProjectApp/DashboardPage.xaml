@@ -97,6 +97,7 @@
             <Button Text="🔓 Unlock" Clicked="OnUnlockAll" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="✉ Message" Clicked="OnMessageAll" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="🌐 Open site" Clicked="OnOpenSiteAll" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="📺 Show my screen" Clicked="OnShowScreen" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="📊 Poll" Clicked="OnPoll" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="⛔ Limits…" Clicked="OnLimits" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="⏻ Power…" Clicked="OnPowerAll" Margin="0,0,12,4" Padding="12,4" FontSize="13" />
@@ -105,6 +106,19 @@
             <Label Text="{Binding PollBadge}" FontSize="12" TextColor="#2E7D32" FontAttributes="Bold"
                    VerticalOptions="Center" Margin="0,0,0,4" />
         </FlexLayout>
+
+        <!-- Screen broadcast in progress -->
+        <Border IsVisible="{Binding IsBroadcasting}" BackgroundColor="#E8F5E9" Stroke="#2E7D32" Padding="12,6">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="8" />
+            </Border.StrokeShape>
+            <Grid ColumnDefinitions="*,Auto">
+                <Label Text="{Binding BroadcastText}" TextColor="#1B5E20" FontAttributes="Bold" FontSize="13"
+                       VerticalOptions="Center" />
+                <Button Grid.Column="1" Text="Stop showing" Clicked="OnStopShowScreen" Padding="12,2" FontSize="12"
+                        BackgroundColor="#2E7D32" TextColor="White" />
+            </Grid>
+        </Border>
 
         <!-- Raised hands (students asking for help) — their tiles also float to the top. -->
         <Border IsVisible="{Binding HasRaisedHands}" BackgroundColor="#FFF4D6" Stroke="#F9A825" Padding="12,6">

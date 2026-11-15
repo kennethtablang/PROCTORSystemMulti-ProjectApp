@@ -83,6 +83,12 @@ public sealed class Peer : IAsyncDisposable
         Record<Poll>(Protocol.ClientMethods.PollStarted);
         Record<string>(Protocol.ClientMethods.PollClosed);
         Record<PollResults>(Protocol.ClientMethods.PollResultsUpdated);
+        Record<BroadcastInfo>(Protocol.ClientMethods.BroadcastStarted);
+        Record<string>(Protocol.ClientMethods.BroadcastStopped);
+        Record<string>(Protocol.ClientMethods.BroadcastStudentJoined);
+        Record<SdpMessage>(Protocol.ClientMethods.ReceiveBroadcastOffer);
+        Record<SdpMessage>(Protocol.ClientMethods.ReceiveBroadcastAnswer);
+        Record<IceCandidateMessage>(Protocol.ClientMethods.ReceiveBroadcastIce);
         Hub.On(Protocol.ClientMethods.HandLowered, () => Push(Protocol.ClientMethods.HandLowered));
     }
 

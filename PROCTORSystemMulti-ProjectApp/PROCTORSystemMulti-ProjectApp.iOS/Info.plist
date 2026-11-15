@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -36,6 +36,18 @@
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
+    <!-- ClassInsight finds the classroom server by UDP broadcast on the local network and talks to
+         it (and to student PCs over WebRTC) directly on the LAN. iOS asks the teacher for consent
+         with this message (local network privacy). -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>ClassInsight connects to the classroom server and student computers on this network to show live student screens.</string>
+    <!-- The hub is plain http/ws to a LAN IP; ATS does not apply to IP literals, and this covers
+         .local / unqualified host names typed as a manual server address. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
     <key>XSAppIconAssets</key>
     <string>Assets.xcassets/AppIcon.appiconset</string>
 </dict>

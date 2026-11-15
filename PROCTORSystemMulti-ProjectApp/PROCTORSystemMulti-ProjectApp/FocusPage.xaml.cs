@@ -1,134 +1,88 @@
-using System.Runtime.InteropServices;
-using ClassInsight.Shared.Contracts;
 using PROCTORSystemMulti_ProjectApp.ClassInsight;
-using SkiaSharp;
-using SkiaSharp.Views.Maui;
 
 namespace PROCTORSystemMulti_ProjectApp;
 
 /// <summary>
-/// Focus view: a single student's screen streamed live over WebRTC and painted with
-/// SkiaSharp. Owns a <see cref="ScreenStreamReceiver"/> for the lifetime of the page and
-/// tears it down on navigation away so the agent can stop encoding (FR-STREAM-06).
+/// Focus view (FR-TEACH-02): one student's screen at focus quality, live, beside their telemetry.
+/// The stream itself is owned by the shared <see cref="StreamManager"/>: appearing asks it to
+/// upgrade this student to <c>Focus</c> (on the chosen display), leaving hands the student back
+/// to thumbnail/none, so the agent only encodes what is on screen (FR-STREAM-04/06).
 /// </summary>
 public partial class FocusPage : ContentPage
 {
+    private const double NarrowWidth = 760;
+
     private readonly StudentTile _tile;
-    private readonly TeacherClient _client;
+    private readonly DashboardViewModel _vm;
+    private int _display;
+    private bool? _narrow;
 
-    private readonly object _frameLock = new();
-    private SKBitmap? _bitmap;         // latest frame, owned by the UI
-    private ScreenStreamReceiver? _receiver;
-
-    public FocusPage(StudentTile tile, TeacherClient client)
+    public FocusPage(StudentTile tile, DashboardViewModel vm)
     {
         InitializeComponent();
         _tile = tile;
-        _client = client;
+        _vm = vm;
 
         Title = tile.Header;
-        HeaderLabel.Text = tile.Header;
-        StatusLabel.Text = "Starting…";
+        // Everything on the page binds to the live tile, which the dashboard keeps updating from
+        // the telemetry stream, and whose frame buffer the focus stream paints into.
+        BindingContext = tile;
+        if (tile.HasMultipleDisplays) DisplayPicker.SelectedIndex = 0;
 
-        // The detail panel binds to the live tile, which the dashboard keeps updating from
-        // the telemetry stream while this page is open — so CPU/RAM/bandwidth/processes
-        // refresh in place (FR-TEL-03).
-        DetailPanel.BindingContext = tile;
+        SizeChanged += (_, _) => ApplyLayout();
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
-
-        var hub = _client.Hub;
-        if (hub is null)
+        if (!_vm.Client.IsConnected)
         {
-            StatusLabel.Text = "Not connected to a server.";
+            _tile.StreamStatus = "Not connected to a server.";
             return;
         }
-
-        var receiver = new ScreenStreamReceiver(hub, _tile.ConnectionId, StreamQuality.Focus);
-        receiver.Status += OnStatus;
-        receiver.FrameDecoded += OnFrameDecoded;
-        _receiver = receiver;
-
-        try
-        {
-            await receiver.StartAsync(CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            OnStatus($"Could not start stream: {ex.Message}");
-        }
+        _vm.Streams.SetFocus(_tile.ConnectionId, _display);
     }
 
-    protected override async void OnDisappearing()
+    protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        await TeardownAsync();
+        _vm.Streams.SetFocus(null);
+    }
+
+    private void OnDisplayChanged(object? sender, EventArgs e)
+    {
+        if (DisplayPicker.SelectedIndex < 0 || DisplayPicker.SelectedIndex == _display) return;
+        _display = DisplayPicker.SelectedIndex;
+        _vm.Streams.SetFocus(_tile.ConnectionId, _display);
     }
 
     private async void OnStopClicked(object? sender, EventArgs e) => await Navigation.PopAsync();
 
-    private async Task TeardownAsync()
+    /// <summary>Side panel on wide windows; panel stacked under the video on phones (NFR-USE-03).</summary>
+    private void ApplyLayout()
     {
-        var receiver = _receiver;
-        _receiver = null;
-        if (receiver is not null)
+        if (Width <= 0) return;
+        var narrow = Width < NarrowWidth;
+        if (narrow == _narrow) return;
+        _narrow = narrow;
+
+        if (narrow)
         {
-            receiver.Status -= OnStatus;
-            receiver.FrameDecoded -= OnFrameDecoded;
-            await receiver.DisposeAsync();
+            Grid.SetRow(DetailPanel, 2);
+            Grid.SetColumn(DetailPanel, 0);
+            Grid.SetColumnSpan(DetailPanel, 2);
+            DetailPanel.WidthRequest = -1;
+            DetailPanel.HeightRequest = 300;
+            Grid.SetColumnSpan(VideoArea, 2);
         }
-
-        lock (_frameLock)
+        else
         {
-            _bitmap?.Dispose();
-            _bitmap = null;
-        }
-    }
-
-    private void OnStatus(string status) =>
-        MainThread.BeginInvokeOnMainThread(() => StatusLabel.Text = status);
-
-    private void OnFrameDecoded(DecodedFrame frame)
-    {
-        // Runs on a WebRTC thread; frame.Bgra is a reused buffer, so copy it into our own
-        // SKBitmap immediately, then ask the canvas to repaint on the UI thread.
-        lock (_frameLock)
-        {
-            if (_bitmap is null || _bitmap.Width != frame.Width || _bitmap.Height != frame.Height)
-            {
-                _bitmap?.Dispose();
-                _bitmap = new SKBitmap(new SKImageInfo(frame.Width, frame.Height,
-                    SKColorType.Bgra8888, SKAlphaType.Opaque));
-            }
-
-            var pixels = _bitmap.GetPixels();
-            var bytes = frame.Width * frame.Height * 4;
-            Marshal.Copy(frame.Bgra, 0, pixels, bytes);
-        }
-
-        MainThread.BeginInvokeOnMainThread(() => Canvas.InvalidateSurface());
-    }
-
-    private void OnPaintSurface(object? sender, SKPaintSurfaceEventArgs e)
-    {
-        var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColors.Black);
-
-        lock (_frameLock)
-        {
-            if (_bitmap is null) return;
-
-            // Letterbox the frame into the surface, preserving aspect ratio.
-            var info = e.Info;
-            float scale = Math.Min((float)info.Width / _bitmap.Width, (float)info.Height / _bitmap.Height);
-            float w = _bitmap.Width * scale, h = _bitmap.Height * scale;
-            float x = (info.Width - w) / 2f, y = (info.Height - h) / 2f;
-
-            using var paint = new SKPaint { IsAntialias = true };
-            canvas.DrawBitmap(_bitmap, new SKRect(x, y, x + w, y + h), paint);
+            Grid.SetRow(DetailPanel, 1);
+            Grid.SetColumn(DetailPanel, 1);
+            Grid.SetColumnSpan(DetailPanel, 1);
+            DetailPanel.WidthRequest = 340;
+            DetailPanel.HeightRequest = -1;
+            Grid.SetColumnSpan(VideoArea, 1);
         }
     }
 }

@@ -1,13 +1,16 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using ClassInsight.Shared.Contracts;
+using DisplayInfo = ClassInsight.Shared.Contracts.DisplayInfo;
 using Microsoft.Maui.Graphics;
 
 namespace PROCTORSystemMulti_ProjectApp.ClassInsight;
 
 /// <summary>
-/// One student tile in the dashboard grid. Holds live telemetry and state for a single
-/// connected student and raises change notifications so the bound UI updates in place.
+/// One student tile in the dashboard grid. Holds live telemetry, state and the latest video
+/// frame for a single connected student and raises change notifications so the bound UI updates
+/// in place. Change notifications are raised on the UI thread (the view model marshals telemetry
+/// there); <see cref="Frame"/> is written from the decode thread and has its own event.
 /// </summary>
 public sealed class StudentTile : INotifyPropertyChanged
 {
@@ -16,13 +19,61 @@ public sealed class StudentTile : INotifyPropertyChanged
         ConnectionId = snap.ConnectionId;
         MachineName = string.IsNullOrWhiteSpace(snap.MachineName) ? "(unknown)" : snap.MachineName;
         UserName = snap.UserName;
+        Displays = snap.Displays.Count > 0
+            ? snap.Displays
+            : [new DisplayInfo { Index = 0, Width = snap.ScreenWidth, Height = snap.ScreenHeight, IsPrimary = true }];
         _state = snap.State;
         if (snap.LastTelemetry is { } t) Apply(t);
+
+        // Flip HasVideo when the first frame lands / the stream is cleared. Updated fires per
+        // frame on the decode thread, so only dispatch to the UI thread on an actual change.
+        Frame.Updated += () =>
+        {
+            var has = Frame.HasFrame;
+            if (has == _hasVideoSeen) return;
+            _hasVideoSeen = has;
+            Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() => HasVideo = has);
+        };
     }
+
+    private volatile bool _hasVideoSeen;
 
     public string ConnectionId { get; }
     public string MachineName { get; }
     public string? UserName { get; }
+
+    /// <summary>The student's displays, primary first (FR-AGENT-04).</summary>
+    public IReadOnlyList<DisplayInfo> Displays { get; }
+    public bool HasMultipleDisplays => Displays.Count > 1;
+
+    /// <summary>Picker labels for <see cref="Displays"/>.</summary>
+    public IReadOnlyList<string> DisplayLabels => Displays
+        .Select(d => $"Display {d.Index + 1}{(d.IsPrimary ? " (primary)" : "")} · {d.Width}×{d.Height}")
+        .ToArray();
+
+    /// <summary>Latest decoded screen frame — what the thumbnail and the focus view paint.</summary>
+    public FrameBuffer Frame { get; } = new();
+
+    private string _streamStatus = "";
+    /// <summary>Viewer-side stream status ("Connecting…", "Live", "Connection failed."…).</summary>
+    public string StreamStatus
+    {
+        get => _streamStatus;
+        set { if (_streamStatus != value) { _streamStatus = value; Raise(); Raise(nameof(PlaceholderText)); } }
+    }
+
+    private bool _hasVideo;
+    /// <summary>True once a frame has arrived for the current stream; drives the placeholder overlay.</summary>
+    public bool HasVideo
+    {
+        get => _hasVideo;
+        private set { if (_hasVideo != value) { _hasVideo = value; Raise(); Raise(nameof(PlaceholderText)); } }
+    }
+
+    public string PlaceholderText => HasVideo ? "" : string.IsNullOrEmpty(_streamStatus) ? "Tap to view live screen" : _streamStatus;
+
+    /// <summary>Live upload+download rate, used for sorting by bandwidth (FR-TEACH-06).</summary>
+    public double TotalRate => _down + _up;
 
     public string Header => string.IsNullOrWhiteSpace(UserName) ? MachineName : $"{MachineName} · {UserName}";
 
@@ -73,7 +124,12 @@ public sealed class StudentTile : INotifyPropertyChanged
     private string? _foreground;
     public string ForegroundText => string.IsNullOrWhiteSpace(_foreground) ? "" : _foreground!;
 
-    /// <summary>Session-total bytes, shown in the focus detail panel (FR-TEL-05 groundwork).</summary>
+    private string? _activeHost;
+    /// <summary>Host of the foreground browser tab, if the agent reports it (FR-AGENT-06).</summary>
+    public string ActiveHostText => string.IsNullOrWhiteSpace(_activeHost) ? "" : $"🌐 {_activeHost}";
+    public bool HasActiveHost => !string.IsNullOrWhiteSpace(_activeHost);
+
+    /// <summary>Session-total bytes, shown in the focus detail panel and bandwidth view (FR-TEL-05).</summary>
     public string TotalsText => $"Session ↓ {Human(_totalDown)}  ↑ {Human(_totalUp)}";
     private long _totalDown, _totalUp;
 
@@ -89,6 +145,7 @@ public sealed class StudentTile : INotifyPropertyChanged
         _totalDown = t.Bandwidth.TotalDownloadBytes;
         _totalUp = t.Bandwidth.TotalUploadBytes;
         _foreground = t.ForegroundWindowTitle;
+        _activeHost = t.ActiveUrl;
 
         Processes = t.TopProcesses
             .Select(p => new ProcessRow(p.Name, $"PID {p.Pid}", $"{p.CpuPercent:0.#}%", Human(p.MemoryBytes)))
@@ -101,6 +158,9 @@ public sealed class StudentTile : INotifyPropertyChanged
         Raise(nameof(UploadBarFraction));
         Raise(nameof(TotalsText));
         Raise(nameof(ForegroundText));
+        Raise(nameof(ActiveHostText));
+        Raise(nameof(HasActiveHost));
+        Raise(nameof(TotalRate));
         Raise(nameof(Processes));
     }
 

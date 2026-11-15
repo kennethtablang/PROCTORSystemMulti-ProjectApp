@@ -7,38 +7,95 @@
              Shell.NavBarIsVisible="False"
              Title="Dashboard">
 
-    <Grid RowDefinitions="Auto,Auto,*" Padding="16" RowSpacing="12">
+    <Grid RowDefinitions="Auto,*" Padding="16" RowSpacing="10">
 
-        <!-- Connect bar -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+      <!-- Header panels stack without leaving gaps for the ones that are hidden. -->
+      <VerticalStackLayout Grid.Row="0" Spacing="10">
+
+        <!-- Join code: revealed only when the room requires one (FR-SEC-02, §8). -->
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding NeedsJoinCode}">
             <Entry Grid.Column="0"
                    Placeholder="Join code (shown on the server console)"
                    Text="{Binding JoinCode}"
-                   IsEnabled="{Binding NotConnected}"
-                   IsVisible="{Binding NeedsJoinCode}" />
-            <Button Grid.Column="1"
-                    Text="Connect"
-                    Command="{Binding ConnectCommand}"
-                    IsVisible="{Binding NeedsJoinCode}" />
-            <Label Grid.Column="2"
-                   VerticalOptions="Center"
-                   FontAttributes="Bold"
-                   Text="{Binding StudentCount, StringFormat='{0} online'}"
-                   IsVisible="{Binding IsConnected}" />
+                   ReturnCommand="{Binding ConnectCommand}" />
+            <Button Grid.Column="1" Text="Connect" Command="{Binding ConnectCommand}" />
         </Grid>
 
-        <!-- Status line -->
-        <Label Grid.Row="1" Text="{Binding Status}" FontSize="13" TextColor="Gray" />
+        <!-- Room chooser: several classrooms answered discovery (FR-DISC-04). -->
+        <VerticalStackLayout Spacing="8" IsVisible="{Binding NeedsRoomChoice}">
+            <Label Text="Several classrooms are on this network. Choose yours:" FontAttributes="Bold" />
+            <FlexLayout BindableLayout.ItemsSource="{Binding Rooms}" Wrap="Wrap" JustifyContent="Start">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="ci:RoomOption">
+                        <Border Stroke="#B794F6" StrokeThickness="1" Padding="14,10" Margin="0,0,8,8">
+                            <Border.StrokeShape>
+                                <RoundRectangle CornerRadius="10" />
+                            </Border.StrokeShape>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer
+                                    Command="{Binding SelectRoomCommand, Source={RelativeSource AncestorType={x:Type ci:DashboardViewModel}}, x:DataType=ci:DashboardViewModel}"
+                                    CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="{Binding Title}" FontAttributes="Bold" />
+                                <Label Text="{Binding Detail}" FontSize="11" TextColor="Gray" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </FlexLayout>
+        </VerticalStackLayout>
 
-        <!-- Live roster grid -->
-        <CollectionView Grid.Row="2" ItemsSource="{Binding Students}"
-                        SelectionMode="None">
+        <!-- Manual server address: fallback when broadcast discovery is blocked (NFR-COMPAT-02). -->
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding ShowManualEntry}">
+            <Entry Grid.Column="0"
+                   Placeholder="Server not found automatically? Enter its address, e.g. 192.168.1.20:5080"
+                   Text="{Binding ManualAddress}"
+                   ReturnCommand="{Binding ConnectManualCommand}" />
+            <Button Grid.Column="1" Text="Connect" Command="{Binding ConnectManualCommand}" />
+        </Grid>
+
+        <!-- Status + view controls: search, sort, density (FR-TEACH-06). -->
+        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="8" ColumnSpacing="8">
+            <HorizontalStackLayout Grid.Row="0" Grid.Column="0" Spacing="10">
+                <ActivityIndicator IsRunning="{Binding IsSearching}" IsVisible="{Binding IsSearching}"
+                                   HeightRequest="16" WidthRequest="16" />
+                <Label Text="{Binding Status}" FontSize="13" TextColor="Gray" VerticalOptions="Center"
+                       LineBreakMode="TailTruncation" />
+            </HorizontalStackLayout>
+            <HorizontalStackLayout Grid.Row="0" Grid.Column="1" Spacing="10" IsVisible="{Binding IsConnected}">
+                <Label Text="{Binding VisibleCountText}" FontAttributes="Bold" VerticalOptions="Center" />
+                <Button Text="Switch room" Command="{Binding SwitchRoomCommand}" Padding="10,4"
+                        FontSize="12" BackgroundColor="Transparent" TextColor="#7E57C2" BorderColor="#B794F6"
+                        BorderWidth="1" />
+            </HorizontalStackLayout>
+
+            <FlexLayout Grid.Row="1" Grid.ColumnSpan="2" Wrap="Wrap" AlignItems="Center"
+                        IsVisible="{Binding HasStudents}">
+                <SearchBar Placeholder="Search name, user, app or site" Text="{Binding SearchText}"
+                           WidthRequest="280" Margin="0,0,12,4" />
+                <HorizontalStackLayout Spacing="6" Margin="0,0,12,4">
+                    <Label Text="Sort" VerticalOptions="Center" FontSize="13" />
+                    <Picker ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex}" WidthRequest="130" />
+                </HorizontalStackLayout>
+                <HorizontalStackLayout Spacing="6" Margin="0,0,0,4">
+                    <Button Text="−" Command="{Binding FewerColumnsCommand}" WidthRequest="36" Padding="0" />
+                    <Label Text="{Binding ColumnsText}" VerticalOptions="Center" FontSize="13" />
+                    <Button Text="+" Command="{Binding MoreColumnsCommand}" WidthRequest="36" Padding="0" />
+                </HorizontalStackLayout>
+            </FlexLayout>
+        </Grid>
+
+      </VerticalStackLayout>
+
+        <!-- Live roster grid: every tile streams a thumbnail while this tab is visible (FR-STREAM-04). -->
+        <CollectionView x:Name="TileGrid" Grid.Row="1" ItemsSource="{Binding VisibleStudents}" SelectionMode="None">
             <CollectionView.ItemsLayout>
                 <GridItemsLayout Orientation="Vertical" Span="3"
                                  HorizontalItemSpacing="12" VerticalItemSpacing="12" />
             </CollectionView.ItemsLayout>
             <CollectionView.EmptyView>
-                <Label Text="No students connected yet."
+                <Label Text="{Binding EmptyText}"
                        HorizontalOptions="Center" VerticalOptions="Center" TextColor="Gray" />
             </CollectionView.EmptyView>
             <CollectionView.ItemTemplate>
@@ -51,20 +108,19 @@
                             <TapGestureRecognizer Tapped="OnTileTapped" />
                         </Border.GestureRecognizers>
                         <VerticalStackLayout Spacing="6">
-                            <Label Text="{Binding Header}" FontAttributes="Bold"
-                                   LineBreakMode="TailTruncation" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Grid.Column="0" Text="{Binding Header}" FontAttributes="Bold"
+                                       LineBreakMode="TailTruncation" />
+                                <Label Grid.Column="1" Text="{Binding StateText}" TextColor="{Binding StateColor}"
+                                       FontSize="11" FontAttributes="Bold" VerticalOptions="Center" />
+                            </Grid>
 
-                            <!-- Screen placeholder (WebRTC video arrives in the next slice) -->
-                            <Border BackgroundColor="#111111" HeightRequest="110">
-                                <Border.StrokeShape>
-                                    <RoundRectangle CornerRadius="6" />
-                                </Border.StrokeShape>
-                                <Label Text="Tap to view live screen" TextColor="#AAAAAA"
-                                       FontSize="11" HorizontalOptions="Center" VerticalOptions="Center" />
-                            </Border>
-
-                            <Label Text="{Binding StateText}" TextColor="{Binding StateColor}"
-                                   FontSize="12" FontAttributes="Bold" />
+                            <!-- Live thumbnail -->
+                            <Grid HeightRequest="140">
+                                <ci:LiveScreenView Source="{Binding Frame}" />
+                                <Label Text="{Binding PlaceholderText}" TextColor="#AAAAAA" FontSize="11"
+                                       HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True" />
+                            </Grid>
 
                             <HorizontalStackLayout Spacing="12">
                                 <Label Text="{Binding CpuText}" FontSize="12" />
@@ -74,6 +130,8 @@
                             <Label Text="{Binding BandwidthText}" FontSize="12" TextColor="#555555" />
                             <Label Text="{Binding ForegroundText}" FontSize="11" TextColor="#888888"
                                    LineBreakMode="TailTruncation" />
+                            <Label Text="{Binding ActiveHostText}" FontSize="11" TextColor="#7E57C2"
+                                   LineBreakMode="TailTruncation" IsVisible="{Binding HasActiveHost}" />
                         </VerticalStackLayout>
                     </Border>
                 </DataTemplate>

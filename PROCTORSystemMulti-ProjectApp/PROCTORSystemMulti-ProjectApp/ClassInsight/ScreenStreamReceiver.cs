@@ -1,6 +1,5 @@
 using ClassInsight.Shared;
 using ClassInsight.Shared.Contracts;
-using Microsoft.AspNetCore.SignalR.Client;
 using SIPSorcery.Net;
 using SIPSorceryMedia.Abstractions;
 using Vpx.Net;
@@ -8,71 +7,89 @@ using Vpx.Net;
 namespace PROCTORSystemMulti_ProjectApp.ClassInsight;
 
 /// <summary>
-/// The teacher side of WebRTC screen viewing for a single student (the focus view).
-/// Asks the server to start the stream, answers the student's SDP offer, exchanges ICE
-/// over the same SignalR hub, and decodes each incoming VP8 frame to raw BGRA pixels
-/// that the UI blits to a canvas.
+/// The teacher side of WebRTC screen viewing for one student. Created and driven by
+/// <see cref="StreamManager"/>, which routes the student's relayed offer/ICE here. It asks the
+/// server for a stream at a given quality/display, answers the student's SDP offer, and decodes
+/// each incoming VP8 frame into the student's <see cref="FrameBuffer"/>.
 ///
-/// Mirrors <c>ScreenStreamSender</c> on the agent: there the student is the media
-/// sender/offerer; here the teacher is the receiver/answerer. The server relays SDP/ICE
-/// only between this authorised teacher↔student pair (FR-SEC-04).
+/// A quality or display switch is a re-request: the agent replaces its sender and offers again,
+/// and this receiver swaps in a fresh peer connection (and decoder) for the new offer, so the
+/// tile keeps showing the last frame until the new stream's first keyframe lands.
 ///
-/// The VP8 codec is pure managed (<see cref="VP8Codec"/>), so decoding works the same on
-/// every teacher platform with no native dependency (NFR-PORT-01).
+/// Mirrors <c>ScreenStreamSender</c> on the agent (student = offerer, teacher = answerer). The
+/// server relays SDP/ICE only between this authorised teacher↔student pair (FR-SEC-04); media is
+/// DTLS-SRTP encrypted end-to-end (NFR-SEC-03). The VP8 codec is pure managed, so decoding is
+/// identical on every teacher platform (NFR-PORT-01).
 /// </summary>
 public sealed class ScreenStreamReceiver : IAsyncDisposable
 {
-    private readonly HubConnection _hub;
-    private readonly string _studentConnectionId;
-    private readonly StreamQuality _quality;
-
-    private readonly VP8Codec _decoder = new();
-    private readonly List<IDisposable> _subscriptions = new();
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly TeacherClient _client;
+    private readonly StudentTile _tile;
+    private readonly Action<string> _status;
+    private readonly object _gate = new();
 
     private RTCPeerConnection? _pc;
-    private byte[]? _bgra;          // reusable decode target, grown as needed
+    private VP8Codec? _decoder;
     private volatile bool _disposed;
 
-    /// <summary>Raised with a freshly decoded frame as 32-bpp BGRA, top-down, tightly packed.</summary>
-    public event Action<DecodedFrame>? FrameDecoded;
-
-    /// <summary>Human-readable status for the focus view (connecting, streaming, failed…).</summary>
-    public event Action<string>? Status;
-
-    public ScreenStreamReceiver(HubConnection hub, string studentConnectionId, StreamQuality quality)
+    public ScreenStreamReceiver(TeacherClient client, StudentTile tile, Action<string> status)
     {
-        _hub = hub;
-        _studentConnectionId = studentConnectionId;
-        _quality = quality;
+        _client = client;
+        _tile = tile;
+        _status = status;
     }
 
-    /// <summary>Wire up signalling handlers and ask the server to begin the stream.</summary>
-    public async Task StartAsync(CancellationToken ct)
+    public string StudentConnectionId => _tile.ConnectionId;
+    public StreamQuality Quality { get; private set; }
+    public int DisplayIndex { get; private set; }
+
+    /// <summary>When the current request was sent; used to retry a request that never got an offer.</summary>
+    public DateTimeOffset RequestedAt { get; private set; }
+
+    /// <summary>True once the peer connection is up.</summary>
+    public bool IsConnected => _pc?.connectionState == RTCPeerConnectionState.connected;
+
+    /// <summary>True when the stream died on its own (not torn down by us) and should be retried.</summary>
+    public bool Failed { get; private set; }
+
+    /// <summary>True while waiting for the agent's offer to the current request.</summary>
+    public bool AwaitingOffer { get; private set; }
+
+    /// <summary>Ask the server for a stream at this quality/display (also used to switch).</summary>
+    public async Task RequestAsync(StreamQuality quality, int displayIndex)
     {
-        // The agent (sender) produces the offer; we answer it. Also take relayed ICE.
-        _subscriptions.Add(_hub.On<SdpMessage>(Protocol.ClientMethods.ReceiveOffer, OnOffer));
-        _subscriptions.Add(_hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveIceCandidate, OnIceCandidate));
+        Quality = quality;
+        DisplayIndex = displayIndex;
+        RequestedAt = DateTimeOffset.UtcNow;
+        Failed = false;
+        AwaitingOffer = true;
+        _status(IsConnected ? "Switching…" : "Requesting stream…");
 
-        Status?.Invoke("Requesting stream…");
-        await _hub.SendAsync(Protocol.ServerMethods.RequestStream,
-            new StreamRequest { StudentConnectionId = _studentConnectionId, Quality = _quality }, ct);
-    }
-
-    private async Task OnOffer(SdpMessage offer)
-    {
-        // Only react to the offer from the student this receiver is watching.
-        if (offer.FromConnectionId != _studentConnectionId) return;
-
-        await _gate.WaitAsync();
-        try
+        await _client.SendAsync(Protocol.ServerMethods.RequestStream, new StreamRequest
         {
-            if (_disposed || _pc is not null) return;
+            StudentConnectionId = StudentConnectionId,
+            Quality = quality,
+            DisplayIndex = displayIndex,
+        });
+    }
 
-            var pc = new RTCPeerConnection(null);
+    /// <summary>The student's SDP offer (initial, or a renegotiation after a switch).</summary>
+    public async Task HandleOfferAsync(SdpMessage offer)
+    {
+        if (_disposed) return;
+
+        RTCPeerConnection pc;
+        RTCSessionDescriptionInit answer;
+        lock (_gate)
+        {
+            // A new offer always supersedes the previous stream.
+            ClosePeerLocked();
+
+            var decoder = new VP8Codec();
+            pc = new RTCPeerConnection(BuildConfig(_client.IceServers));
 
             // Receive-only VP8 video track that matches what the agent offers.
-            pc.addTrack(new MediaStreamTrack(_decoder.SupportedFormats, MediaStreamStatusEnum.RecvOnly));
+            pc.addTrack(new MediaStreamTrack(decoder.SupportedFormats, MediaStreamStatusEnum.RecvOnly));
 
             // Reassembled VP8 focus frames can be large; give the depacketiser headroom.
             // MUST come after addTrack — the setter dereferences the video stream, which
@@ -82,28 +99,40 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
             pc.onicecandidate += candidate =>
             {
                 if (candidate is null) return;
-                _ = SafeSend(Protocol.ServerMethods.SendIceCandidate, new IceCandidateMessage
+                _ = _client.SendAsync(Protocol.ServerMethods.SendIceCandidate, new IceCandidateMessage
                 {
-                    TargetConnectionId = _studentConnectionId,
+                    TargetConnectionId = StudentConnectionId,
                     Candidate = candidate.ToString(),
                     SdpMid = candidate.sdpMid,
                     SdpMLineIndex = candidate.sdpMLineIndex,
                 });
             };
 
-            pc.OnVideoFrameReceived += OnVideoFrame;
+            pc.OnVideoFrameReceived += (_, _, frame, _) => OnVideoFrame(pc, decoder, frame);
 
             pc.onconnectionstatechange += state =>
             {
-                Status?.Invoke(state switch
+                if (!ReferenceEquals(pc, _pc)) return;   // a superseded connection closing
+                switch (state)
                 {
-                    RTCPeerConnectionState.connected => "Streaming",
-                    RTCPeerConnectionState.connecting => "Connecting…",
-                    RTCPeerConnectionState.failed => "Connection failed.",
-                    RTCPeerConnectionState.disconnected => "Disconnected.",
-                    RTCPeerConnectionState.closed => "Closed.",
-                    _ => state.ToString(),
-                });
+                    case RTCPeerConnectionState.connected:
+                        _status("Live");
+                        break;
+                    case RTCPeerConnectionState.connecting:
+                        _status("Connecting…");
+                        break;
+                    case RTCPeerConnectionState.failed:
+                    case RTCPeerConnectionState.disconnected:
+                    case RTCPeerConnectionState.closed:
+                        // During a quality/display switch the agent closes the old peer before the
+                        // new offer lands; that's expected, not a failure to retry.
+                        if (!_disposed && !AwaitingOffer)
+                        {
+                            Failed = true;
+                            _status(state == RTCPeerConnectionState.failed ? "Connection failed." : "Stream ended.");
+                        }
+                        break;
+                }
             };
 
             var set = pc.setRemoteDescription(new RTCSessionDescriptionInit
@@ -113,34 +142,34 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
             });
             if (set != SetDescriptionResultEnum.OK)
             {
-                Status?.Invoke($"Could not accept offer: {set}");
+                _status($"Could not accept offer: {set}");
                 pc.close();
+                decoder.Dispose();
+                Failed = true;
                 return;
             }
 
-            var answer = pc.createAnswer();
-            await pc.setLocalDescription(answer);
-
+            answer = pc.createAnswer();
             _pc = pc;
+            _decoder = decoder;
+            AwaitingOffer = false;
+        }
 
-            await SafeSend(Protocol.ServerMethods.SendAnswer, new SdpMessage
-            {
-                TargetConnectionId = _studentConnectionId,
-                Type = "answer",
-                Sdp = answer.sdp,
-            });
-            Status?.Invoke("Negotiating…");
-        }
-        finally
+        await pc.setLocalDescription(answer);
+        await _client.SendAsync(Protocol.ServerMethods.SendAnswer, new SdpMessage
         {
-            _gate.Release();
-        }
+            TargetConnectionId = StudentConnectionId,
+            Type = "answer",
+            Sdp = answer.sdp,
+        });
+        _status("Negotiating…");
     }
 
-    private void OnIceCandidate(IceCandidateMessage message)
+    public void HandleIceCandidate(IceCandidateMessage message)
     {
-        if (message.FromConnectionId != _studentConnectionId) return;
-        _pc?.addIceCandidate(new RTCIceCandidateInit
+        RTCPeerConnection? pc;
+        lock (_gate) pc = _pc;
+        pc?.addIceCandidate(new RTCIceCandidateInit
         {
             candidate = message.Candidate,
             sdpMid = message.SdpMid,
@@ -148,73 +177,66 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
         });
     }
 
-    private void OnVideoFrame(System.Net.IPEndPoint endPoint, uint timestamp, byte[] frame, VideoFormat format)
+    private void OnVideoFrame(RTCPeerConnection source, VP8Codec decoder, byte[] frame)
     {
-        if (_disposed || FrameDecoded is null) return;
+        if (_disposed || !ReferenceEquals(source, _pc)) return;
 
-        // Decode the VP8 frame to BGR, then widen to BGRA for the canvas. DecodeVideo
-        // yields nothing until the first keyframe arrives, which is expected.
-        foreach (var sample in _decoder.DecodeVideo(frame, VideoPixelFormatsEnum.Bgr, VideoCodecsEnum.VP8))
-        {
-            var w = (int)sample.Width;
-            var h = (int)sample.Height;
-            // Clamp to a sane maximum before any sizing so a hostile/buggy sender can't
-            // overflow the 32-bit size math (w*h*4) into a tiny/negative allocation and
-            // drive an out-of-bounds write, or force a huge allocation. 8192² covers 8K.
-            if (w is <= 0 or > 8192 || h is <= 0 or > 8192 || sample.Sample is null) continue;
-
-            long pixels = (long)w * h;
-            if (sample.Sample.Length < pixels * 3) continue;
-
-            long need = pixels * 4;
-            var dst = _bgra;
-            if (dst is null || dst.Length < need) _bgra = dst = new byte[need];
-
-            var src = sample.Sample;
-            for (int i = 0, s = 0, d = 0; i < w * h; i++, s += 3, d += 4)
-            {
-                dst[d] = src[s];       // B
-                dst[d + 1] = src[s + 1]; // G
-                dst[d + 2] = src[s + 2]; // R
-                dst[d + 3] = 0xFF;       // A
-            }
-
-            FrameDecoded?.Invoke(new DecodedFrame(w, h, dst));
-        }
-    }
-
-    private async Task SafeSend(string method, object arg)
-    {
         try
         {
-            if (!_disposed && _hub.State == HubConnectionState.Connected)
-                await _hub.SendAsync(method, arg);
+            // Decode the VP8 frame to BGR. DecodeVideo yields nothing until the first keyframe
+            // arrives, which is expected.
+            foreach (var sample in decoder.DecodeVideo(frame, VideoPixelFormatsEnum.Bgr, VideoCodecsEnum.VP8))
+            {
+                var w = (int)sample.Width;
+                var h = (int)sample.Height;
+                // Clamp to a sane maximum before any sizing so a hostile/buggy sender can't
+                // overflow the size math into a tiny/negative allocation and drive an
+                // out-of-bounds write, or force a huge allocation. 8192² covers 8K.
+                if (w is <= 0 or > 8192 || h is <= 0 or > 8192 || sample.Sample is null) continue;
+                if (sample.Sample.Length < (long)w * h * 3) continue;
+
+                _tile.Frame.WriteBgr(w, h, sample.Sample);
+            }
         }
         catch
         {
-            // Link dropping mid-negotiation is surfaced via connection state; ignore here.
+            // A corrupt frame shouldn't kill the stream; the next keyframe recovers it.
         }
     }
 
+    internal static RTCConfiguration? BuildConfig(IReadOnlyList<IceServerConfig> servers)
+    {
+        if (servers.Count == 0) return null;   // flat LAN: host candidates are enough
+        return new RTCConfiguration
+        {
+            iceServers = servers.Select(s => new RTCIceServer
+            {
+                urls = s.Urls,
+                username = s.Username,
+                credential = s.Credential,
+            }).ToList(),
+        };
+    }
+
+    private void ClosePeerLocked()
+    {
+        var pc = _pc;
+        var decoder = _decoder;
+        _pc = null;
+        _decoder = null;
+        try { pc?.close(); } catch { }
+        // Let any in-flight decode finish before freeing the codec.
+        if (decoder is not null) _ = Task.Delay(500).ContinueWith(_ => decoder.Dispose());
+    }
+
+    /// <summary>Stop viewing: tell the server (so the agent stops encoding, FR-STREAM-06) and close the peer.</summary>
     public async ValueTask DisposeAsync()
     {
+        if (_disposed) return;
         _disposed = true;
-        foreach (var sub in _subscriptions) sub.Dispose();
-        _subscriptions.Clear();
 
-        try
-        {
-            if (_hub.State == HubConnectionState.Connected)
-                await _hub.SendAsync(Protocol.ServerMethods.StopStream, _studentConnectionId);
-        }
-        catch { /* best effort */ }
+        await _client.SendAsync(Protocol.ServerMethods.StopStream, StudentConnectionId);
 
-        _pc?.close();
-        _pc = null;
-        _decoder.Dispose();
-        _gate.Dispose();
+        lock (_gate) ClosePeerLocked();
     }
 }
-
-/// <summary>A single decoded video frame: 32-bpp BGRA, top-down, tightly packed (stride = Width*4).</summary>
-public readonly record struct DecodedFrame(int Width, int Height, byte[] Bgra);

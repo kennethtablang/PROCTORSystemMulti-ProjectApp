@@ -6,29 +6,48 @@ using ClassInsight.Shared.Contracts;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Devices;
+using Microsoft.Maui.Dispatching;
+using Microsoft.Maui.Storage;
 
 namespace PROCTORSystemMulti_ProjectApp.ClassInsight;
 
 /// <summary>
-/// Backs the dashboard: owns the <see cref="TeacherClient"/>, keeps the live roster as
-/// an observable collection of <see cref="StudentTile"/>, and marshals every server
-/// event onto the UI thread.
+/// Backs every teacher tab: owns the <see cref="TeacherClient"/> and the <see cref="StreamManager"/>,
+/// keeps the live roster as observable <see cref="StudentTile"/>s, and marshals every server event
+/// onto the UI thread. Also drives room choice (FR-DISC-04), the manual server address fallback
+/// (NFR-COMPAT-02) and the dashboard's search / sort / density controls (FR-TEACH-06).
 /// </summary>
 public sealed class DashboardViewModel : INotifyPropertyChanged
 {
+    private const string PrefRoom = "classinsight.room";
+    private const string PrefServer = "classinsight.server";
+
     private readonly TeacherClient _client = new();
     private readonly Dictionary<string, StudentTile> _byConnection = new();
     private readonly CancellationTokenSource _cts = new();
+    private volatile StudentTile[] _snapshot = [];   // thread-safe roster view for the stream manager
     private bool _maintaining;
+    private IDispatcherTimer? _resortTimer;
 
+    /// <summary>Every connected student (Processes and Bandwidth tabs).</summary>
     public ObservableCollection<StudentTile> Students { get; } = new();
 
-    /// <summary>The shared server link, handed to the focus view so its WebRTC stream
-    /// rides the same signalling connection.</summary>
+    /// <summary>The dashboard grid: <see cref="Students"/> after search and sort (FR-TEACH-06).</summary>
+    public ObservableCollection<StudentTile> VisibleStudents { get; } = new();
+
+    /// <summary>Rooms to choose from when several answered discovery (FR-DISC-04).</summary>
+    public ObservableCollection<RoomOption> Rooms { get; } = new();
+
+    /// <summary>The shared server link (the focus view uses it to check connectivity).</summary>
     public TeacherClient Client => _client;
+
+    /// <summary>All live screen streams: thumbnails for the grid, one focus stream (FR-STREAM-04).</summary>
+    public StreamManager Streams { get; }
 
     public DashboardViewModel()
     {
+        Streams = new StreamManager(_client, () => _snapshot);
+
         _client.Status += s => OnUi(() => Status = s);
         _client.RosterUpdated += r => OnUi(() => ReplaceRoster(r));
         _client.StudentJoined += s => OnUi(() => AddOrUpdate(s));
@@ -39,8 +58,18 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         // start re-discovering so we latch back on automatically (FR-DISC-05).
         _client.ConnectionLost += () => OnUi(OnConnectionLost);
 
-        ConnectCommand = new Command(async () => await ConnectAsync(), () => !IsBusy && !IsConnected);
+        ConnectCommand = new Command(async () => await ConnectWithCodeAsync(), () => !IsBusy && !IsConnected);
+        ConnectManualCommand = new Command(async () => await ConnectManualAsync(), () => !IsBusy && !IsConnected);
+        SelectRoomCommand = new Command<RoomOption>(async r => await SelectRoomAsync(r));
+        SwitchRoomCommand = new Command(async () => await SwitchRoomAsync(), () => IsConnected);
+        MoreColumnsCommand = new Command(() => Columns++);
+        FewerColumnsCommand = new Command(() => Columns--);
+
+        _manualAddress = LoadPref(PrefServer);
+        _columns = DeviceInfo.Idiom == DeviceIdiom.Phone ? 1 : DeviceInfo.Idiom == DeviceIdiom.Tablet ? 2 : 3;
     }
+
+    // ---- connection state -------------------------------------------------
 
     private string _joinCode = string.Empty;
     public string JoinCode { get => _joinCode; set { _joinCode = value; Raise(); } }
@@ -52,12 +81,25 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
     public bool IsConnected
     {
         get => _isConnected;
-        private set { _isConnected = value; Raise(); Raise(nameof(NotConnected)); RefreshCommand(); }
+        private set
+        {
+            _isConnected = value;
+            Raise(); Raise(nameof(NotConnected)); Raise(nameof(RoomTitle));
+            if (value) { NeedsRoomChoice = false; ShowManualEntry = false; }
+            RefreshCommands();
+        }
     }
     public bool NotConnected => !_isConnected;
 
+    public string RoomTitle => _isConnected && _client.CurrentServer is { } s ? s.RoomName : "";
+
+    // A teacher-initiated attempt (code / manual address / room pick) is in flight.
     private bool _isBusy;
-    public bool IsBusy { get => _isBusy; private set { _isBusy = value; Raise(); RefreshCommand(); } }
+    public bool IsBusy { get => _isBusy; private set { _isBusy = value; Raise(); RefreshCommands(); } }
+
+    // The background discover/reconnect loop is running (doesn't block the manual controls).
+    private bool _isSearching;
+    public bool IsSearching { get => _isSearching; private set { _isSearching = value; Raise(); } }
 
     /// <summary>
     /// False by default so the app "just opens and connects". It flips true only when a
@@ -67,17 +109,73 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
     private bool _needsJoinCode;
     public bool NeedsJoinCode { get => _needsJoinCode; private set { _needsJoinCode = value; Raise(); } }
 
+    private bool _needsRoomChoice;
+    public bool NeedsRoomChoice { get => _needsRoomChoice; private set { _needsRoomChoice = value; Raise(); } }
+
+    /// <summary>Shown once discovery has come up empty: lets the teacher type the server address.</summary>
+    private bool _showManualEntry;
+    public bool ShowManualEntry { get => _showManualEntry; private set { _showManualEntry = value; Raise(); } }
+
+    private string _manualAddress;
+    public string ManualAddress { get => _manualAddress; set { _manualAddress = value; Raise(); } }
+
     public int StudentCount => Students.Count;
     public bool HasStudents => Students.Count > 0;
 
     public ICommand ConnectCommand { get; }
+    public ICommand ConnectManualCommand { get; }
+    public ICommand SelectRoomCommand { get; }
+    public ICommand SwitchRoomCommand { get; }
+    public ICommand MoreColumnsCommand { get; }
+    public ICommand FewerColumnsCommand { get; }
+
+    // ---- search / sort / density (FR-TEACH-06) ----------------------------
+
+    public IReadOnlyList<string> SortOptions { get; } = ["Name", "CPU", "Memory", "Bandwidth"];
+
+    private int _sortIndex;
+    public int SortIndex
+    {
+        get => _sortIndex;
+        set
+        {
+            if (_sortIndex == value || value < 0) return;
+            _sortIndex = value; Raise(); RefreshVisible();
+            EnsureResortTimer();
+        }
+    }
+
+    private string _searchText = string.Empty;
+    public string SearchText { get => _searchText; set { _searchText = value ?? ""; Raise(); RefreshVisible(); } }
+
+    private int _columns;
+    /// <summary>Tiles per row in the dashboard grid (1–8).</summary>
+    public int Columns
+    {
+        get => _columns;
+        set
+        {
+            var v = Math.Clamp(value, 1, 8);
+            if (v == _columns) return;
+            _columns = v; Raise(); Raise(nameof(ColumnsText));
+        }
+    }
+    public string ColumnsText => $"{_columns} per row";
+
+    public string EmptyText => Students.Count > 0 ? "No students match your search." : "No students connected yet.";
+
+    public string VisibleCountText => VisibleStudents.Count == Students.Count
+        ? $"{Students.Count} online"
+        : $"{VisibleStudents.Count} of {Students.Count} shown";
+
+    // ---- connecting -------------------------------------------------------
 
     private bool _autoTried;
 
     /// <summary>
-    /// Called once when the dashboard appears: try to connect with no code. On an open
-    /// server this lands straight on the live grid; only if the server asks for a code do
-    /// we show the box (NeedsJoinCode) so the teacher can type it.
+    /// Called once when the first tab appears: try to connect with no code. On an open server
+    /// this lands straight on the live grid; only if the server asks for a code (or several
+    /// rooms answer) does the UI ask the teacher anything.
     /// </summary>
     public Task AutoConnectAsync()
     {
@@ -86,43 +184,94 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         return MaintainConnectionAsync();
     }
 
-    /// <summary>
-    /// A single, user-initiated connect attempt — used by the Connect button once the server has
-    /// asked for a join code. Automatic retry/reconnect is handled by <see cref="MaintainConnectionAsync"/>.
-    /// </summary>
-    public async Task ConnectAsync()
+    /// <summary>Connect button next to the join-code box: retry the same server with the typed code.</summary>
+    private async Task ConnectWithCodeAsync()
     {
         if (IsBusy || IsConnected) return;
+        await RunAttemptAsync(_client.CurrentServer);
+    }
+
+    private async Task ConnectManualAsync()
+    {
+        if (IsBusy || IsConnected) return;
+        var address = ManualAddress?.Trim() ?? "";
+        if (!global::ClassInsight.Shared.Discovery.ManualServer.TryParse(address, out _, out _))
+        {
+            Status = "Enter the server address as host or host:port (e.g. 192.168.1.20:5080).";
+            return;
+        }
+
+        global::ClassInsight.Shared.Contracts.DiscoveryResponse? server;
         IsBusy = true;
         try
         {
-            var outcome = await _client.ConnectAsync(
-                JoinCode?.Trim() ?? string.Empty,
-                DeviceInfo.Name ?? "Teacher",
-                DeviceInfo.Platform.ToString(),
-                _cts.Token);
-
-            IsConnected = outcome == ConnectOutcome.Connected;
-            // Reveal the code box only when the server actually requires one.
-            NeedsJoinCode = outcome == ConnectOutcome.NeedsJoinCode;
+            Status = $"Contacting {address}…";
+            server = await global::ClassInsight.Shared.Discovery.ManualServer.ResolveAsync(address, TimeSpan.FromSeconds(5), _cts.Token);
+            if (server is null)
+            {
+                Status = $"No ClassInsight server answered at {address}.";
+                return;
+            }
+            SavePref(PrefServer, address);
         }
         finally
         {
             IsBusy = false;
         }
+
+        // Dial exactly the server that answered (the address is also remembered for reconnects).
+        await RunAttemptAsync(server);
+    }
+
+    private async Task SelectRoomAsync(RoomOption? room)
+    {
+        if (room is null || IsBusy || IsConnected) return;
+        NeedsRoomChoice = false;
+        SavePref(PrefRoom, room.Server.RoomName);
+        await RunAttemptAsync(room.Server);
+    }
+
+    private async Task SwitchRoomAsync()
+    {
+        // Forget the remembered room and current server, then discover afresh (shows the chooser
+        // if several rooms answer).
+        SavePref(PrefRoom, "");
+        ClearRoster();
+        await _client.ForgetServerAsync();
+        IsConnected = false;
+        await MaintainConnectionAsync();
+    }
+
+    /// <summary>One attempt at a specific server (picked room / code retry), then hand back to the loop if it fails.</summary>
+    private async Task RunAttemptAsync(global::ClassInsight.Shared.Contracts.DiscoveryResponse? target)
+    {
+        IsBusy = true;
+        ConnectOutcome outcome;
+        try
+        {
+            outcome = await _client.ConnectAsync(JoinCode?.Trim() ?? "", DeviceName, Platform, _cts.Token, target: target);
+            ApplyOutcome(outcome);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        if (outcome is ConnectOutcome.NoServer or ConnectOutcome.Error)
+            _ = MaintainConnectionAsync();
     }
 
     /// <summary>
     /// Keeps trying to reach a classroom server until connected. Handles "the server isn't up yet"
     /// at launch and full re-discovery after a drop (FR-DISC-05): it retries every few seconds on
-    /// NoServer/Error, and stops only once connected or when the server is waiting on the teacher
-    /// (needs a join code / incompatible version), at which point the UI takes over.
+    /// NoServer/Error, and stops once connected or when the teacher has to act (enter a join code,
+    /// pick a room, or update an incompatible app).
     /// </summary>
     private async Task MaintainConnectionAsync()
     {
         if (_maintaining) return;
         _maintaining = true;
-        IsBusy = true;
+        IsSearching = true;
         try
         {
             while (!_cts.IsCancellationRequested && !IsConnected)
@@ -132,18 +281,19 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
                 {
                     outcome = await _client.ConnectAsync(
                         JoinCode?.Trim() ?? string.Empty,
-                        DeviceInfo.Name ?? "Teacher",
-                        DeviceInfo.Platform.ToString(),
-                        _cts.Token);
+                        DeviceName,
+                        Platform,
+                        _cts.Token,
+                        preferredRoom: LoadPref(PrefRoom),
+                        manualAddress: string.IsNullOrWhiteSpace(ManualAddress) ? null : ManualAddress.Trim());
                 }
                 catch (OperationCanceledException) { break; }
 
-                IsConnected = outcome == ConnectOutcome.Connected;
-                NeedsJoinCode = outcome == ConnectOutcome.NeedsJoinCode;
+                ApplyOutcome(outcome);
 
-                // Connected, or waiting on the user — stop the automatic retry loop.
                 if (outcome is ConnectOutcome.Connected
                             or ConnectOutcome.NeedsJoinCode
+                            or ConnectOutcome.ChooseRoom
                             or ConnectOutcome.Incompatible)
                     break;
 
@@ -155,8 +305,28 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         finally
         {
             _maintaining = false;
-            IsBusy = false;
+            IsSearching = false;
         }
+    }
+
+    private void ApplyOutcome(ConnectOutcome outcome)
+    {
+        IsConnected = outcome == ConnectOutcome.Connected;
+        NeedsJoinCode = outcome == ConnectOutcome.NeedsJoinCode;
+
+        if (outcome == ConnectOutcome.ChooseRoom)
+        {
+            Rooms.Clear();
+            foreach (var r in _client.DiscoveredRooms) Rooms.Add(new RoomOption(r));
+            NeedsRoomChoice = true;
+        }
+        else
+        {
+            NeedsRoomChoice = false;
+        }
+
+        if (outcome == ConnectOutcome.NoServer) ShowManualEntry = true;
+        if (outcome == ConnectOutcome.Connected && _client.CurrentServer is { } s) SavePref(PrefRoom, s.RoomName);
     }
 
     private void OnConnectionLost()
@@ -165,14 +335,29 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         _ = MaintainConnectionAsync();
     }
 
+    private static string DeviceName => DeviceInfo.Name ?? "Teacher";
+    private static string Platform => DeviceInfo.Platform.ToString();
+
+    // ---- roster -----------------------------------------------------------
+
     private void ReplaceRoster(RosterSnapshot roster)
     {
         Students.Clear();
         _byConnection.Clear();
-        foreach (var s in roster.Students) AddOrUpdate(s);
+        foreach (var s in roster.Students) AddOrUpdate(s, refresh: false);
+        RosterChanged();
     }
 
-    private void AddOrUpdate(StudentSnapshot snap)
+    private void ClearRoster()
+    {
+        Students.Clear();
+        _byConnection.Clear();
+        RosterChanged();
+    }
+
+    private void AddOrUpdate(StudentSnapshot snap) => AddOrUpdate(snap, refresh: true);
+
+    private void AddOrUpdate(StudentSnapshot snap, bool refresh)
     {
         if (_byConnection.TryGetValue(snap.ConnectionId, out var existing))
         {
@@ -182,7 +367,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         var tile = new StudentTile(snap);
         _byConnection[snap.ConnectionId] = tile;
         Students.Add(tile);
-        RaiseCounts();
+        if (refresh) RosterChanged();
     }
 
     private void Remove(string connectionId)
@@ -190,7 +375,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         if (_byConnection.Remove(connectionId, out var tile))
         {
             Students.Remove(tile);
-            RaiseCounts();
+            RosterChanged();
         }
     }
 
@@ -204,13 +389,91 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         if (_byConnection.TryGetValue(connectionId, out var tile)) tile.Apply(telemetry);
     }
 
-    private void RaiseCounts()
+    private void RosterChanged()
     {
+        _snapshot = Students.ToArray();
         Raise(nameof(StudentCount));
         Raise(nameof(HasStudents));
+        RefreshVisible();
+        Streams.RosterChanged();
     }
 
-    private void RefreshCommand() => (ConnectCommand as Command)?.ChangeCanExecute();
+    /// <summary>
+    /// Rebuild <see cref="VisibleStudents"/> from search + sort with minimal moves, so tiles (and
+    /// their live video surfaces) are reordered rather than recreated.
+    /// </summary>
+    private void RefreshVisible()
+    {
+        IEnumerable<StudentTile> q = Students;
+
+        var term = _searchText.Trim();
+        if (term.Length > 0)
+            q = q.Where(t => t.Header.Contains(term, StringComparison.OrdinalIgnoreCase)
+                             || t.ForegroundText.Contains(term, StringComparison.OrdinalIgnoreCase)
+                             || t.ActiveHostText.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+        q = _sortIndex switch
+        {
+            1 => q.OrderByDescending(t => t.CpuPercent).ThenBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase),
+            2 => q.OrderByDescending(t => t.MemoryPercent).ThenBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase),
+            3 => q.OrderByDescending(t => t.TotalRate).ThenBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase),
+            _ => q.OrderBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.UserName),
+        };
+
+        var desired = q.ToList();
+        for (var i = 0; i < desired.Count; i++)
+        {
+            var item = desired[i];
+            if (i < VisibleStudents.Count && ReferenceEquals(VisibleStudents[i], item)) continue;
+            var at = VisibleStudents.IndexOf(item);
+            if (at >= 0) VisibleStudents.Move(at, i);
+            else VisibleStudents.Insert(i, item);
+        }
+        while (VisibleStudents.Count > desired.Count) VisibleStudents.RemoveAt(VisibleStudents.Count - 1);
+
+        Raise(nameof(VisibleCountText));
+        Raise(nameof(EmptyText));
+    }
+
+    /// <summary>Live-metric sorts re-order every few seconds rather than on every sample, so tiles don't jitter.</summary>
+    private void EnsureResortTimer()
+    {
+        if (_sortIndex == 0)
+        {
+            _resortTimer?.Stop();
+            return;
+        }
+        if (_resortTimer is null)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null) return;
+            _resortTimer = dispatcher.CreateTimer();
+            _resortTimer.Interval = TimeSpan.FromSeconds(3);
+            _resortTimer.Tick += (_, _) => RefreshVisible();
+        }
+        _resortTimer.Start();
+    }
+
+    // ---- helpers ----------------------------------------------------------
+
+    private void RefreshCommands()
+    {
+        (ConnectCommand as Command)?.ChangeCanExecute();
+        (ConnectManualCommand as Command)?.ChangeCanExecute();
+        (SwitchRoomCommand as Command)?.ChangeCanExecute();
+    }
+
+    private static string LoadPref(string key)
+    {
+        try { return Preferences.Default.Get(key, string.Empty); }
+        catch { return string.Empty; }
+    }
+
+    private static void SavePref(string key, string value)
+    {
+        try { Preferences.Default.Set(key, value); }
+        catch { /* preferences unavailable (e.g. unpackaged without storage) — non-essential */ }
+    }
 
     private static void OnUi(Action action)
     {
@@ -221,4 +484,11 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     private void Raise([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+/// <summary>A room offered in the chooser (FR-DISC-04).</summary>
+public sealed record RoomOption(global::ClassInsight.Shared.Contracts.DiscoveryResponse Server)
+{
+    public string Title => Server.RoomName;
+    public string Detail => $"{Server.Host}:{Server.Port}";
 }

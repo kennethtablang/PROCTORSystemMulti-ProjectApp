@@ -7,14 +7,21 @@ using Microsoft.AspNetCore.SignalR.Client;
 namespace PROCTORSystemMulti_ProjectApp.ClassInsight;
 
 /// <summary>
-/// The teacher app's live link to the classroom server: LAN discovery, the SignalR
-/// connection, teacher registration (with the join code), and the roster/telemetry
-/// event stream. UI-agnostic — it raises plain events the view model marshals to the
-/// UI thread. WebRTC viewing is added in a later slice.
+/// The teacher app's live link to the classroom server: LAN discovery (several rooms may answer,
+/// FR-DISC-04), a manual-address fallback for broadcast-blocked networks (NFR-COMPAT-02), the
+/// SignalR connection, teacher registration (with the join code), and the roster / telemetry /
+/// WebRTC-signalling event stream. UI-agnostic — it raises plain events the view model and the
+/// <see cref="StreamManager"/> marshal as needed.
 /// </summary>
 public sealed class TeacherClient : IAsyncDisposable
 {
+    private static readonly TimeSpan DiscoveryWindow = TimeSpan.FromMilliseconds(Protocol.BeaconIntervalMs + 600);
+
     private HubConnection? _hub;
+
+    // One connect attempt at a time: the background reconnect loop and a teacher's manual
+    // attempt (code / address / room) must not race over the hub.
+    private readonly SemaphoreSlim _connectGate = new(1, 1);
 
     // The registration that last succeeded, replayed after a reconnect so the server restores
     // our roster entry (FR-DISC-05). Null until we've registered at least once.
@@ -37,48 +44,86 @@ public sealed class TeacherClient : IAsyncDisposable
     public event Action<string, TelemetrySnapshot>? TelemetryUpdated;
     public event Action<string>? Status;
 
+    /// <summary>WebRTC signalling relayed from a student, routed by <see cref="StreamManager"/>.</summary>
+    public event Action<SdpMessage>? OfferReceived;
+    public event Action<IceCandidateMessage>? IceCandidateReceived;
+
+    /// <summary>
+    /// Raised after every successful registration — the first connect and each re-registration
+    /// after a reconnect. The server has forgotten any streams by then, so viewers re-request.
+    /// </summary>
+    public event Action? Registered;
+
     /// <summary>Raised when the connection is lost for good (SignalR's auto-reconnect gave up, or
     /// a reconnected session could no longer re-register), so the app can re-discover from scratch.</summary>
     public event Action? ConnectionLost;
 
     public bool IsConnected => _hub?.State == HubConnectionState.Connected;
 
+    /// <summary>The server currently connected to (or last attempted), for display and code retries.</summary>
+    public DiscoveryResponse? CurrentServer { get; private set; }
+
+    /// <summary>When the last discovery heard several rooms and none was preferred, the choices (FR-DISC-04).</summary>
+    public IReadOnlyList<DiscoveryResponse> DiscoveredRooms { get; private set; } = [];
+
+    /// <summary>STUN/TURN servers the room is configured with (relay fallback); empty on a flat LAN.</summary>
+    public IReadOnlyList<IceServerConfig> IceServers { get; private set; } = [];
+
     /// <summary>
-    /// The live signalling connection, shared with a <see cref="ScreenStreamReceiver"/>
-    /// so the focus view's WebRTC offer/answer/ICE travels over the same hub. Null until
-    /// <see cref="ConnectAsync"/> succeeds.
+    /// Find a server and connect to it as a teacher.
     /// </summary>
-    internal HubConnection? Hub => _hub;
-
-    public async Task<ConnectOutcome> ConnectAsync(string joinCode, string deviceName, string platform, CancellationToken ct)
+    /// <param name="target">Connect to exactly this server (a room the teacher picked, or a code retry).</param>
+    /// <param name="preferredRoom">If several rooms answer, take this one automatically (the last room used).</param>
+    /// <param name="manualAddress">host[:port] to try when broadcast discovery finds nothing.</param>
+    public async Task<ConnectOutcome> ConnectAsync(
+        string joinCode,
+        string deviceName,
+        string platform,
+        CancellationToken ct,
+        DiscoveryResponse? target = null,
+        string? preferredRoom = null,
+        string? manualAddress = null)
     {
-        Status?.Invoke("Searching for classroom server…");
-        _intentionalClose = false;
-
-        var discovery = new LanDiscoveryClient("teacher");
-        DiscoveryResponse? server = null;
-        for (var i = 0; i < 5 && server is null && !ct.IsCancellationRequested; i++)
+        await _connectGate.WaitAsync(ct);
+        try
         {
-            var found = await discovery.FindServerAsync(TimeSpan.FromSeconds(3), ct);
-            if (found is null) continue;
-
-            // Once we've bound to a server, an automatic reconnect must re-attach to that same
-            // endpoint only — never hand the (possibly set) join code to a different server that
-            // answered discovery, which could be a rogue that popped up after the real one dropped.
-            if (_pinnedServer is not null && !SameEndpoint(_pinnedServer, found))
-            {
-                Status?.Invoke($"Ignoring unknown server \"{found.RoomName}\" ({found.Host}); waiting for \"{_pinnedServer.RoomName}\".");
-                continue;
-            }
-            server = found;
+            // An untargeted attempt that queued behind one which already connected is moot.
+            if (target is null && IsConnected) return ConnectOutcome.Connected;
+            return await ConnectCoreAsync(joinCode, deviceName, platform, ct, target, preferredRoom, manualAddress);
         }
+        finally
+        {
+            _connectGate.Release();
+        }
+    }
 
+    private async Task<ConnectOutcome> ConnectCoreAsync(
+        string joinCode,
+        string deviceName,
+        string platform,
+        CancellationToken ct,
+        DiscoveryResponse? target,
+        string? preferredRoom,
+        string? manualAddress)
+    {
+        _intentionalClose = false;
+        DiscoveredRooms = [];
+
+        var server = target ?? await FindServerAsync(preferredRoom, manualAddress, ct);
         if (server is null)
         {
-            Status?.Invoke("No classroom server found on this network.");
+            if (DiscoveredRooms.Count > 1)
+            {
+                Status?.Invoke($"{DiscoveredRooms.Count} classrooms found — choose one.");
+                return ConnectOutcome.ChooseRoom;
+            }
+            Status?.Invoke(_pinnedServer is null
+                ? "No classroom server found on this network."
+                : $"Waiting for \"{_pinnedServer.RoomName}\" ({_pinnedServer.Host}) to come back…");
             return ConnectOutcome.NoServer;
         }
 
+        CurrentServer = server;
         Status?.Invoke($"Connecting to \"{server.RoomName}\"…");
 
         // Make sure a previous connection is gone before building a new one.
@@ -98,6 +143,8 @@ public sealed class TeacherClient : IAsyncDisposable
             (id, st) => StudentStateChanged?.Invoke(id, st));
         hub.On<string, TelemetrySnapshot>(Protocol.ClientMethods.TelemetryUpdated,
             (id, t) => TelemetryUpdated?.Invoke(id, t));
+        hub.On<SdpMessage>(Protocol.ClientMethods.ReceiveOffer, o => OfferReceived?.Invoke(o));
+        hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveIceCandidate, c => IceCandidateReceived?.Invoke(c));
 
         // Reconnection handling (FR-DISC-05). SignalR's automatic reconnect restores the transport
         // after a transient drop, but the server — especially one that restarted — no longer knows
@@ -114,7 +161,9 @@ public sealed class TeacherClient : IAsyncDisposable
             {
                 if (_registration is not null)
                     await hub.InvokeAsync(Protocol.ServerMethods.RegisterTeacher, _registration);
+                await LoadIceServersAsync(hub, CancellationToken.None);
                 Status?.Invoke($"Reconnected to \"{server.RoomName}\".");
+                Registered?.Invoke();
             }
             catch
             {
@@ -136,7 +185,7 @@ public sealed class TeacherClient : IAsyncDisposable
         {
             DeviceName = deviceName,
             Platform = platform,
-            AppVersion = "0.1.0",
+            AppVersion = "0.2.0",
             JoinCode = joinCode,
         };
 
@@ -146,6 +195,7 @@ public sealed class TeacherClient : IAsyncDisposable
             await hub.InvokeAsync(Protocol.ServerMethods.RegisterTeacher, info, ct);
             _registration = info;    // remember what worked, to replay on reconnect
             _pinnedServer = server;  // and only reconnect to this same endpoint from now on
+            await LoadIceServersAsync(hub, ct);
         }
         catch (HubException ex) when (ex.Message.Contains("Protocol version", StringComparison.OrdinalIgnoreCase))
         {
@@ -154,6 +204,14 @@ public sealed class TeacherClient : IAsyncDisposable
             Status?.Invoke($"\"{server.RoomName}\" needs a matching app version. {ex.Message}");
             await DisposeHubAsync();
             return ConnectOutcome.Incompatible;
+        }
+        catch (HubException ex) when (ex.Message.Contains("Too many attempts", StringComparison.OrdinalIgnoreCase))
+        {
+            // The SignalR client wraps the server's message; show just the server's part.
+            var at = ex.Message.IndexOf("Too many attempts", StringComparison.OrdinalIgnoreCase);
+            Status?.Invoke(ex.Message[at..]);
+            await DisposeHubAsync();
+            return ConnectOutcome.NeedsJoinCode;
         }
         catch (HubException)
         {
@@ -174,15 +232,67 @@ public sealed class TeacherClient : IAsyncDisposable
         }
 
         Status?.Invoke($"Connected to \"{server.RoomName}\".");
+        Registered?.Invoke();
         return ConnectOutcome.Connected;
     }
 
-    /// <summary>Ask the server to begin streaming a student's screen (WebRTC next slice).</summary>
-    public Task RequestStreamAsync(string studentConnectionId, StreamQuality quality)
+    /// <summary>
+    /// Resolve which server to dial. Returns null with <see cref="DiscoveredRooms"/> set when the
+    /// teacher must choose between several rooms.
+    /// </summary>
+    private async Task<DiscoveryResponse?> FindServerAsync(string? preferredRoom, string? manualAddress, CancellationToken ct)
     {
-        if (_hub is not { State: HubConnectionState.Connected }) return Task.CompletedTask;
-        return _hub.SendAsync(Protocol.ServerMethods.RequestStream,
-            new StreamRequest { StudentConnectionId = studentConnectionId, Quality = quality });
+        Status?.Invoke("Searching for classroom servers…");
+        var rooms = await new LanDiscoveryClient("teacher").FindServersAsync(DiscoveryWindow, ct);
+
+        if (_pinnedServer is { } pin)
+        {
+            // Once bound, an automatic reconnect re-attaches to that same endpoint only — never
+            // hand the (possibly set) join code to a different server that answered discovery,
+            // which could be a rogue that popped up after the real one dropped.
+            var same = rooms.FirstOrDefault(r => SameEndpoint(pin, r));
+            if (same is not null) return same;
+
+            // Broadcast may be blocked (the pin may have come from a manual address): ask it directly.
+            var direct = await ManualServer.ResolveAsync($"{pin.Host}:{pin.Port}", TimeSpan.FromSeconds(3), ct);
+            return direct is not null && SameEndpoint(pin, direct) ? direct : null;
+        }
+
+        if (rooms.Count == 0)
+        {
+            if (string.IsNullOrWhiteSpace(manualAddress)) return null;
+            Status?.Invoke($"No broadcast reply; trying {manualAddress}…");
+            return await ManualServer.ResolveAsync(manualAddress, TimeSpan.FromSeconds(4), ct);
+        }
+
+        if (rooms.Count == 1) return rooms[0];
+
+        var preferred = rooms.Where(r => LanDiscoveryClient.MatchesRoom(r, preferredRoom)).ToArray();
+        if (!string.IsNullOrWhiteSpace(preferredRoom) && preferred.Length == 1) return preferred[0];
+
+        DiscoveredRooms = rooms;
+        return null;
+    }
+
+    private async Task LoadIceServersAsync(HubConnection hub, CancellationToken ct)
+    {
+        try
+        {
+            IceServers = await hub.InvokeAsync<IReadOnlyList<IceServerConfig>>(Protocol.ServerMethods.GetIceServers, ct) ?? [];
+        }
+        catch
+        {
+            IceServers = [];   // older server / transient: direct LAN connectivity still works
+        }
+    }
+
+    /// <summary>Fire-and-forget a hub call if connected (signalling and stream control).</summary>
+    internal async Task SendAsync(string method, object arg)
+    {
+        var hub = _hub;
+        if (hub is not { State: HubConnectionState.Connected }) return;
+        try { await hub.SendAsync(method, arg); }
+        catch { /* link state surfaces via Reconnecting/Closed */ }
     }
 
     public async Task DisconnectAsync()
@@ -190,6 +300,15 @@ public sealed class TeacherClient : IAsyncDisposable
         _pinnedServer = null;   // a user-initiated disconnect clears the pin; next connect is fresh
         await DisposeHubAsync();
         Status?.Invoke("Disconnected.");
+    }
+
+    /// <summary>Forget the pinned server so the next connect discovers rooms afresh (the teacher chose "switch room").</summary>
+    public async Task ForgetServerAsync()
+    {
+        _pinnedServer = null;
+        _registration = null;
+        CurrentServer = null;
+        await DisposeHubAsync();
     }
 
     // Same server endpoint across a restart: host + port + room (ServerId is a fresh GUID each
@@ -221,6 +340,8 @@ public enum ConnectOutcome
     NeedsJoinCode,
     /// <summary>A server was found but it speaks an incompatible protocol version (FR-DISC-06).</summary>
     Incompatible,
+    /// <summary>Several rooms answered; the teacher must pick one (FR-DISC-04).</summary>
+    ChooseRoom,
     /// <summary>No classroom server answered discovery on this network.</summary>
     NoServer,
     /// <summary>A transport/other error prevented connecting.</summary>

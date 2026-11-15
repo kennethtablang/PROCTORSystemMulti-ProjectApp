@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.11 (draft)
+**Version:** 0.12 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -111,7 +111,8 @@ authorized to manage, under the institution's acceptable-use and privacy policy
 | `ClassInsight.Server`   | ASP.NET Core (SignalR)   | Roster, **pair-gated** WebRTC signalling relay, telemetry fan-out, discovery, `/status`, optional STUN/TURN config. **Open teacher mode on by default** (trusted-VLAN deploy). Runtime-verified incl. two rooms on one LAN | ✅ Built |
 | `ClassInsight.Agent`    | .NET 10 Windows app      | Discovery + registration + 1 Hz telemetry + multi-monitor GDI capture + **pure-managed VP8 WebRTC sender** (one peer per watching teacher), runtime-verified at thumbnail and focus quality. The Windows service is a session **supervisor** that runs the monitor in the student's desktop session (elevated install still to be run) | ✅ Built |
 | `PROCTORSystemMulti-ProjectApp` | .NET MAUI app (WinUI/Droid/Mac/iOS heads) | **Teacher app:** room chooser + manual address, live **thumbnail video grid** with search/sort/density, focus view with display picker, Processes/Bandwidth tabs; one `StreamManager` owns every WebRTC stream. WinUI GUI-verified; all four heads compile (0 warnings). Android/iOS/macOS on-device runs pending | 🟡 Built, devices pending |
-| `ClassInsight.Tests`    | xUnit test project       | 47 unit + in-process SignalR integration tests (discovery codec, roster/pairs, throttle, join code, telemetry math, capture sizing, DTLS-SRTP, hub flows incl. injection cases) | ✅ Built, 47/47 pass |
+| `ClassInsight.Tests`    | xUnit test project       | 52 unit + in-process SignalR integration tests (discovery codec, roster/pairs, throttle, join code, telemetry math, capture sizing + DXGI mip choice, DTLS-SRTP, hub flows incl. injection cases) | ✅ Built, 52/52 pass |
+| `installer` (WiX v5)    | MSI                      | `ClassInsight.Agent.msi`: self-contained agent, auto-start LocalSystem service with restart-on-failure, protected `%ProgramData%` state folder, in-place upgrade | ✅ Built (install run pending) |
 
 > The teacher app is a **separate MAUI solution** (`PROCTORSystemMulti-ProjectApp`, MAUI
 > multi-project template with WinUI/Droid/Mac/iOS heads); the
@@ -135,11 +136,12 @@ authorized to manage, under the institution's acceptable-use and privacy policy
 
 - **Language/runtime:** C# / .NET 10.
 - **Server:** ASP.NET Core, SignalR, hosted `BackgroundService` for discovery.
-- **Agent:** .NET 10 Windows; GDI `StretchBlt` (HALFTONE) capture per display, per-monitor
-  DPI aware; Win32 (`GetSystemTimes`, `GlobalMemoryStatusEx`, NIC counters) and UI Automation
-  for telemetry; SIPSorcery WebRTC + pure-managed `SIPSorcery.VP8` encode; packaged as a Windows
-  service that supervises an in-session monitor process. (DXGI Desktop Duplication is the
-  planned upgrade to cut capture CPU — see NFR-PERF-04.)
+- **Agent:** .NET 10 Windows; **DXGI Desktop Duplication** capture (GPU copy + GPU mip
+  downsampling via Vortice.Direct3D11) per display, with GDI `StretchBlt` as automatic fallback,
+  per-monitor DPI aware; Win32 (`GetSystemTimes`, `GlobalMemoryStatusEx`, NIC counters) and UI
+  Automation for telemetry; SIPSorcery WebRTC + pure-managed `SIPSorcery.VP8` encode; a WPF
+  "being viewed" notice; packaged as an MSI / Windows service that supervises an in-session
+  monitor process.
 - **Teacher:** .NET MAUI (WinUI/Droid/Mac/iOS heads); SignalR .NET client; SIPSorcery WebRTC
   receiver + managed VP8 decode; one SkiaSharp video surface (`LiveScreenView`) on every head.
 - **Transport:** SignalR over WebSocket (control); WebRTC/SRTP (media); UDP (discovery).
@@ -275,8 +277,8 @@ version is carried in every message so mismatched clients can be rejected cleanl
 - ✅ **FR-AGENT-06 [P3]** The agent **shall** report the foreground application/window
   title; it **may** report the active browser URL. *(Title runtime-verified. Browser activity
   built: UI Automation reads the foreground Chrome/Edge/Firefox/Brave/Opera/Vivaldi address bar
-  and reports the **host only** (never path or query, for privacy), shown on tiles and searchable;
-  host parsing is unit-tested, on-screen check with a live browser still to do. Toggle:
+  and reports the **host only** (never path or query, for privacy), shown on tiles and searchable.
+  **Runtime-verified**: with Brave in the foreground the tile showed "🌐 claude.ai". Toggle:
   `ClassInsight:ReportBrowserActivity`.)*
 - 🟡 **FR-AGENT-07 [P4]** The agent **should** resist casual termination by a standard
   student user (e.g. run as a service / restart on exit) within the lab trust model.
@@ -408,8 +410,14 @@ version is carried in every message so mismatched clients can be rejected cleanl
   only by a teacher's `RequestStream`; offers flow student → its teacher, answers teacher → its
   student, ICE either way within the pair; a connection holds one role. Integration tests cover
   the injection cases.)*
-- ⬜ **FR-SEC-05 [P5]** The system **should** offer a visible indicator on the student
-  machine when monitoring/streaming is active, where policy or law requires notice.
+- ✅ **FR-SEC-05 [P5]** The system **should** offer a visible indicator on the student
+  machine when monitoring/streaming is active, where policy or law requires notice. *(Delivered
+  early (0.12): while any teacher views the screen the agent shows a click-through pill "Your
+  screen is being viewed by your teacher" at the top of the display, hidden again when the last
+  viewer leaves; it's excluded from capture so it never clutters the teacher's view. On by
+  default, `ClassInsight:ShowViewingIndicator=false` to disable. **Verified** via the window
+  manager: visible, topmost, no-activate, click-through, display affinity
+  `WDA_EXCLUDEFROMCAPTURE`; gone after the teacher left.)*
 - ✅ **FR-SEC-06 [P0]** The server **shall** throttle and lock out repeated failed teacher
   join-code attempts (per remote IP and globally) so a human-typable code cannot be
   brute-forced online. The auto-generated code **shall** be ≥ 64 bits of entropy. *(**Fixed in
@@ -455,18 +463,22 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
 - ✅ **NFR-PERF-03** Telemetry **shall** update at ≥ 1 Hz with ≤ 2 s end-to-end delay.
   *(**Verified**: the agent samples and pushes every 1 s (`TelemetryInterval`), and the teacher
   UI was observed updating CPU/RAM/bandwidth/processes continuously and promptly in real time.)*
-- 🟡 **NFR-PERF-04** The agent **should** keep steady-state CPU overhead modest (target
-  < 10 % of one core when streaming a thumbnail on typical lab hardware). *(Measured **10.1 %**
-  of one core streaming a thumbnail while the screen changes continuously (worst case); ~1.5 %
-  with no viewers; focus ~60–80 %. On the boundary: GDI screen readback (~27–45 ms per frame)
-  dominates. Next step: DXGI Desktop Duplication (GPU capture, dirty rects).)*
+- ✅ **NFR-PERF-04** The agent **should** keep steady-state CPU overhead modest (target
+  < 10 % of one core when streaming a thumbnail on typical lab hardware). *(0.12 moved capture to
+  **DXGI Desktop Duplication**: the desktop is copied and mip-downsampled on the GPU and only the
+  small mip is read back (~2.5 ms/frame vs 27–45 ms with GDI), and an unchanged screen costs
+  nothing. Measured with continuously changing content: thumbnail **5.9 %** of one core (was
+  10.1 % with GDI), ~1.3 % with no viewers; focus ~80 % (VP8 encode dominates). GDI remains the
+  automatic fallback.)*
 
 ### 7.2 Scalability — `NFR-SCAL`
 
-- ⬜ **NFR-SCAL-01** A single room **shall** support at least **40 concurrent student
-  agents** with all tiles streaming thumbnails. *(Needs a lab run. Sizing: thumbnails are
-  480×272 at 5 fps, so 40 tiles are ≈ 26 MPix/s of managed VP8 decode on the teacher; grid
-  streams stop whenever the Dashboard tab isn't visible.)*
+- ✅ **NFR-SCAL-01** A single room **shall** support at least **40 concurrent student
+  agents** with all tiles streaming thumbnails. *(**Verified by simulation**: 40 simulated agents
+  speaking the real protocol (registration, 1 Hz telemetry, real VP8/WebRTC thumbnail streams)
+  against the real server and the WinUI teacher app: 40 online, 40 streams at ~197 frames/s
+  aggregate (5 fps each), every tile live; teacher app **162 % of one core (~27 % of a 6-core
+  PC)**, 392 MB. All on one machine, so a lab run on real PCs/network is still recommended.)*
 - ✅ **NFR-SCAL-02** The server's per-student resource cost **shall** stay low because it
   relays control/signalling only, not media. *(Media never touches the server by design.)*
 
@@ -544,12 +556,11 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
 - ✅ **NFR-COMPAT-01** The system **shall** operate on a standard IPv4 LAN where UDP
   broadcast is permitted between the relevant devices. *(Full system verified: discovery →
   register → telemetry → thumbnail/focus video.)*
-- 🟡 **NFR-COMPAT-02** The system **should** degrade gracefully (and document the fix) on
-  networks where broadcast is blocked, e.g. via a manually entered server address. *(Built: a
-  teacher "Enter its address" box appears when nothing is discovered (remembered, and
-  reconnects re-check that address directly); agents take `ClassInsight:ServerAddress`; the
-  server can switch its beacon off. `ManualServer` resolution via `/status` is runtime-verified;
-  the UI path hasn't yet been clicked through on a broadcast-blocked network.)*
+- ✅ **NFR-COMPAT-02** The system **should** degrade gracefully (and document the fix) on
+  networks where broadcast is blocked, e.g. via a manually entered server address. *(**Verified**
+  with the server's beacon switched off (`DiscoveryEnabled=false`): an agent with only
+  `ServerAddress` set joined within ~4 s, and in the teacher app the "Enter its address" box
+  appeared; typing the address connected straight to the live grid (remembered for next time).)*
 
 ---
 
@@ -587,8 +598,8 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
 | **P1 — Student agent MVP** ✅ | Agent registers, streams one screen, reports telemetry | `ClassInsight.Agent`: discovery ✅, `RegisterStudent` ✅, 1 Hz telemetry ✅, WebRTC **VP8** sender ✅, auto-start service ✅ (elevated install run pending 🟡) | A real Windows PC appears in the roster (✅) and streams its screen on request (✅) |
 | **P2 — Teacher app MVP** 🟡 | Live grid + focus view | Discovery + room choice ✅, live thumbnail grid ✅, focus view ✅, state badges ✅ on WinUI; Android/iOS/macOS heads compile ✅, on-device runs ⬜ | A teacher on any of the 4 platforms sees live student screens in a grid (Windows ✅; others need devices) |
 | **P3 — Telemetry views** ✅ | Processes & bandwidth UI | Processes view ✅, live bandwidth view ✅, foreground app + browser host ✅, quality switching ✅, sort/filter/density ✅ | Teacher can inspect any student's processes and live bandwidth (✅) |
-| **P4 — Hardening** 🟡 | Production readiness | Reconnection ✅, multi-monitor ✅, STUN/TURN config ✅ (no TURN server tested), multi-room ✅, manual address ✅, service installer ✅; MSI + code signing ⬜, DXGI capture ⬜ | Stable 40-student room (⬜ lab run); agent deployable by IT via installer (✅ script) |
-| **P5 — Classroom control (future)** | Interactive control | Blank/lock, broadcast, messaging, remote launch, optional remote control, web policy | Per-feature acceptance; monitoring indicators in place |
+| **P4 — Hardening** ✅ | Production readiness | Reconnection ✅, multi-monitor ✅, STUN/TURN config ✅ (no TURN server tested), multi-room ✅, manual address ✅, PowerShell installer ✅, **MSI** ✅, DXGI capture ✅; code signing needs the institution's certificate | Stable 40-student room (✅ simulated; field run recommended); agent deployable by IT via installer (✅ MSI + script) |
+| **P5 — Classroom control (future)** | Interactive control | Monitoring indicator ✅ (delivered early); blank/lock, broadcast, messaging, remote launch, optional remote control, web policy ⬜ | Per-feature acceptance; monitoring indicators in place (✅) |
 
 **Cross-cutting (all phases):** automated tests (§10), zero-warning builds, and keeping
 this document and `README.md` in sync with reality.
@@ -597,7 +608,7 @@ this document and `README.md` in sync with reality.
 
 ## 10. Testing strategy
 
-`tests/ClassInsight.Tests` (xUnit, in the `ClassInsight` solution) — **47 tests, all passing**
+`tests/ClassInsight.Tests` (xUnit, in the `ClassInsight` solution) — **52 tests, all passing**
 (`dotnet test ClassInsight.slnx`):
 
 - **Unit tests:** discovery codec (round trip, forced source host/path, bad magic/version/port,
@@ -613,7 +624,9 @@ this document and `README.md` in sync with reality.
 - **Runtime harness (manual, per release):** a headless teacher against a live server + agent
   measures fps, capture → decode latency (flash-window colour detection), agent CPU, quality
   switching, two concurrent viewers, and teardown.
-- **Still manual/field:** the 40-machine lab run (NFR-SCAL-01), the elevated service install,
+- **Load simulation (manual):** a generator of N simulated agents (real protocol + real VP8
+  streams) against the real server and teacher app — used for the 40-student check.
+- **Still manual/field:** a 40-PC lab run on a real network, the elevated service/MSI install,
   and the phone/tablet/Mac heads.
 
 ---
@@ -622,11 +635,14 @@ this document and `README.md` in sync with reality.
 
 - **Server:** runs on the teacher's machine or a small lab server; configured via
   `appsettings.json` (`Port`, `RoomName`, `TeacherCode`); listens on `0.0.0.0`.
-- **Agent:** `deploy/Install-Agent.ps1` installs the self-contained build as an auto-start
-  service (protected folder, restart-on-failure), deployable by IT via a GPO startup script or
-  imaging; no per-machine configuration (discovery handles connection). Optional per-lab
-  settings in the agent's `appsettings.json`: `RoomName`, `ServerAddress`,
-  `ReportBrowserActivity`. An MSI and code signing are still to do.
+- **Agent:** `installer/` builds **`ClassInsight.Agent.msi`** (WiX v5, `dotnet build -c Release`)
+  for GPO software installation / Intune / SCCM / imaging (`msiexec /i … /qn`); the equivalent
+  `deploy/Install-Agent.ps1` remains for script-based deployment. Both install the
+  self-contained agent as an auto-start LocalSystem service with restart-on-failure and a
+  protected state folder; no per-machine configuration (discovery handles connection). Optional
+  per-lab settings in `appsettings.json` (kept across MSI upgrades): `RoomName`,
+  `ServerAddress`, `ReportBrowserActivity`, `ShowViewingIndicator`, `CaptureBackend`. Sign the
+  MSI with the institution's code-signing certificate before distribution.
 - **Teacher app:** distributed per platform (MSIX/Store/TestFlight/APK) from the MAUI
   (`PROCTORSystemMulti-ProjectApp`) build.
 - **Networking:** allow UDP 47800 and the hub TCP port between lab devices, plus UDP between
@@ -642,7 +658,7 @@ this document and `README.md` in sync with reality.
 | -- | ---------------- | ---------------------------- |
 | R-1 | WebRTC video maturity in .NET from MAUI (esp. iOS/Android video rendering) | Retired on Windows: real screen capture → managed VP8 → WebRTC → managed decode → SkiaSharp is measured end to end (5 / 14.9 fps, 114–175 ms). Codec constraints learned: frame sizes must be multiples of 16, and an encoder can't change size (recreate it). Remaining: the decode cost of 40 thumbnails on the teacher, and on-device runs of the mobile heads. |
 | R-2 | School networks that block UDP broadcast | Provide manual server-address entry (NFR-COMPAT-02). |
-| R-3 | CPU cost of many simultaneous encodes on older lab PCs | Encode only when viewed (FR-STREAM-06, verified), skip unchanged frames, pipelined capture/encode. Measured thumbnail ≈ 10 % of one core; GDI readback dominates, so DXGI Desktop Duplication is planned (NFR-PERF-04). Each extra viewer of the same student is one more encode. |
+| R-3 | CPU cost of many simultaneous encodes on older lab PCs | Encode only when viewed (FR-STREAM-06, verified), skip unchanged frames, pipelined capture/encode, DXGI GPU capture: thumbnail 5.9 % of one core (NFR-PERF-04). Each extra viewer of the same student is one more encode. |
 | R-4 | Legal/consent notice requirements vary by jurisdiction | FR-SEC-05 monitoring indicator; document admin responsibilities (NFR-PRIV). |
 | R-5 | Rogue device registers as teacher and views screens | Resolved: fail-closed teacher auth — code enforced by default (configured or auto-generated 64-bit), open mode only via explicit `AllowOpenTeacherMode=true`, and failed `RegisterTeacher` attempts are throttled/locked out per IP and globally (FR-SEC-06). Future: QR-code pairing carrying a high-entropy secret. |
 | R-6 | Rogue server on a shared LAN harvests telemetry; plaintext `ws` transport | Partially mitigated: agent connects only to the probe's responder on the fixed hub path (NFR-SEC-05). Full fix — signed discovery + `wss`/TLS pinning + agent enrolment (NFR-SEC-06) — deferred to P4 as it trades against zero-config. Acceptable on an isolated lab VLAN. |
@@ -668,6 +684,21 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.12 — 2026-11-15**
+  - **DXGI Desktop Duplication capture (NFR-PERF-04 → ✅).** GPU copy + GPU mip downsampling,
+    only the small mip read back (~2.5 ms/frame), unchanged screens free; GDI is the automatic
+    fallback (secure desktop, mode change, unsupported driver). Thumbnail agent CPU 10.1 % → 5.9 %.
+  - **40-student scale check (NFR-SCAL-01 → ✅, simulated).** 40 simulated agents on the real
+    protocol + real WebRTC/VP8 against the real server and WinUI teacher: all tiles live at 5 fps,
+    teacher ~27 % of a 6-core PC.
+  - **Monitoring notice (FR-SEC-05 → ✅, delivered early from P5)** — click-through, capture-excluded.
+  - **Manual address fallback GUI-verified (NFR-COMPAT-02 → ✅)** with the beacon switched off;
+    **browser host verified live (FR-AGENT-06)**.
+  - **Agent MSI** (`installer/`, WiX v5): service, restart actions and protected state folder
+    checked in the MSI tables; install run pending (needs admin).
+  - Security follow-ups from automated review: join code bound to the server that asked for it;
+    decoded frame size capped by requested quality.
 
 - **0.11 — 2026-11-15**
   - **Finished the remaining P1–P4 work and re-checked every "done" item against the code.**

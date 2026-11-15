@@ -5,6 +5,13 @@ namespace ClassInsight.Server.Services;
 /// <summary>
 /// The room's poll (one at a time), its answers and the live tally — in memory only, like the
 /// rest of the roster (AD-6). Starting a new poll replaces the previous one. Thread-safe.
+///
+/// Integrity: answers are keyed by the student PC's install id (<see cref="StudentInfo.MachineId"/>),
+/// not the connection, so a PC that reconnects counts once; an answer is dropped when its student
+/// leaves the room, so the tally only ever reflects students currently on the roster (each a visible
+/// tile on the teacher's dashboard). Students join without a login by design, so this can't stop a
+/// rogue device posing as extra students — but every counted answer belongs to a student the
+/// teacher can see.
 /// </summary>
 public sealed class PollBox
 {
@@ -12,8 +19,8 @@ public sealed class PollBox
     private Poll? _poll;
     private bool _closed;
 
-    // Latest answer per student connection, with the name shown to teachers.
-    private readonly Dictionary<string, (string Student, PollAnswer Answer)> _answers = new(StringComparer.Ordinal);
+    // Latest answer per student PC (MachineId), with its current connection and display name.
+    private readonly Dictionary<string, (string Connection, string Student, PollAnswer Answer)> _answers = new(StringComparer.Ordinal);
 
     /// <summary>The open poll, or null if none is open.</summary>
     public Poll? Open { get { lock (_gate) return _closed ? null : _poll; } }
@@ -44,16 +51,31 @@ public sealed class PollBox
         }
     }
 
-    /// <summary>Record (or replace) a student's answer. False if no poll is open or the answer doesn't fit.</summary>
-    public bool Submit(string studentConnectionId, string studentName, PollAnswer answer)
+    /// <summary>
+    /// Record (or replace) a student's answer, keyed by their PC's <paramref name="studentKey"/>.
+    /// False if no poll is open or the answer doesn't fit.
+    /// </summary>
+    public bool Submit(string studentKey, string connectionId, string studentName, PollAnswer answer)
     {
         lock (_gate)
         {
             if (_poll is null || _closed) return false;
             var clean = PollLimits.CleanAnswer(_poll, answer);
             if (clean is null) return false;
-            _answers[studentConnectionId] = (studentName, clean);
+            _answers[studentKey] = (connectionId, studentName, clean);
             return true;
+        }
+    }
+
+    /// <summary>A student left the room: their answer no longer counts (while the poll is open).</summary>
+    public bool RemoveConnection(string connectionId)
+    {
+        lock (_gate)
+        {
+            if (_poll is null || _closed) return false;
+            var keys = _answers.Where(kv => kv.Value.Connection == connectionId).Select(kv => kv.Key).ToArray();
+            foreach (var k in keys) _answers.Remove(k);
+            return keys.Length > 0;
         }
     }
 
@@ -65,15 +87,17 @@ public sealed class PollBox
             if (_poll is null) return null;
             var options = PollLimits.EffectiveOptions(_poll);
             var counts = new int[options.Count];
-            foreach (var (_, (_, a)) in _answers)
+            foreach (var (_, (_, _, a)) in _answers)
                 if (a.Choice >= 0 && a.Choice < counts.Length) counts[a.Choice]++;
 
             return new PollResults
             {
                 Poll = _poll,
                 Counts = counts,
-                Answered = _answers.Count,
-                Asked = Math.Max(studentsInRoom, _answers.Count),
+                // Never more answers than students: a closed poll keeps its final tally even if
+                // students have since left, so cap only while open.
+                Answered = _closed ? _answers.Count : Math.Min(_answers.Count, studentsInRoom),
+                Asked = _closed ? Math.Max(studentsInRoom, _answers.Count) : studentsInRoom,
                 Closed = _closed,
                 Responses = _poll.Anonymous
                     // Anonymous: written answers are shown without names (sorted, so order
@@ -82,12 +106,12 @@ public sealed class PollBox
                         ? _answers.Values.Select(v => new PollResponse { Text = v.Answer.Text })
                                          .OrderBy(r => r.Text, StringComparer.OrdinalIgnoreCase).ToArray()
                         : Array.Empty<PollResponse>()
-                    : _answers.Select(kv => new PollResponse
+                    : _answers.Values.Select(v => new PollResponse
                     {
-                        StudentConnectionId = kv.Key,
-                        Student = kv.Value.Student,
-                        Choice = kv.Value.Answer.Choice,
-                        Text = kv.Value.Answer.Text,
+                        StudentConnectionId = v.Connection,
+                        Student = v.Student,
+                        Choice = v.Answer.Choice,
+                        Text = v.Answer.Text,
                     }).OrderBy(r => r.Student, StringComparer.OrdinalIgnoreCase).ToArray(),
             };
         }

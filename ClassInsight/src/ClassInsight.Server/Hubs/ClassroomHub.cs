@@ -146,7 +146,8 @@ public sealed class ClassroomHub : Hub
         var name = string.IsNullOrWhiteSpace(student.Info.UserName)
             ? student.Info.MachineName
             : $"{student.Info.MachineName} · {student.Info.UserName}";
-        if (_polls.Submit(id, name, answer))
+        var key = string.IsNullOrWhiteSpace(student.Info.MachineId) ? id : student.Info.MachineId;
+        if (_polls.Submit(key, id, name, answer))
             await PushPollResultsAsync();
     }
 
@@ -389,6 +390,7 @@ public sealed class ClassroomHub : Hub
             _logger.LogInformation("Student left: {Name}", student?.Info.MachineName);
             await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentLeft, id);
             await BroadcastRosterToTeachers();
+            _polls.RemoveConnection(id);
             if (_polls.Open is not null) await PushPollResultsAsync();
         }
         else if (_room.RemoveTeacher(id, out var watched, out var unlocked))

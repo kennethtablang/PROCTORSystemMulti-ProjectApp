@@ -121,10 +121,10 @@ public sealed class Peer : IAsyncDisposable
         Assert.DoesNotContain(_inbox, m => m.Method == method);
     }
 
-    public Task RegisterStudentAsync(string name = "PC1") =>
+    public Task RegisterStudentAsync(string name = "PC1", string? machineId = null) =>
         Hub.InvokeAsync(Protocol.ServerMethods.RegisterStudent, new StudentInfo
         {
-            MachineId = Guid.NewGuid().ToString("N"),
+            MachineId = machineId ?? Guid.NewGuid().ToString("N"),
             MachineName = name,
             Displays = [new DisplayInfo { Index = 0, Width = 1920, Height = 1080, IsPrimary = true }],
         });

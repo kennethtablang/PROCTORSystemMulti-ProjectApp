@@ -104,6 +104,34 @@ public class PollHubTests : IAsyncLifetime
         await late.WaitForAsync(Protocol.ClientMethods.PollClosed);
     }
 
+    [Fact]
+    public async Task Reconnects_and_leavers_cannot_stuff_the_tally()
+    {
+        await using var teacher = await _factory.ConnectAsync();
+        await teacher.RegisterTeacherAsync();
+        await using var stay = await _factory.ConnectAsync();
+        await stay.RegisterStudentAsync("STAY");
+        var poll = await teacher.Hub.InvokeAsync<Poll>(Protocol.ServerMethods.StartPoll, new Poll { Question = "OK?", Kind = PollKind.YesNo });
+        await stay.Hub.InvokeAsync(Protocol.ServerMethods.SubmitPollAnswer, new PollAnswer { PollId = poll.Id, Choice = 0 });
+
+        // Same PC answers, drops off, reconnects and answers again: it still counts once.
+        var first = await _factory.ConnectAsync();
+        await first.RegisterStudentAsync("PC-X", machineId: "same-pc");
+        await first.Hub.InvokeAsync(Protocol.ServerMethods.SubmitPollAnswer, new PollAnswer { PollId = poll.Id, Choice = 1 });
+        await WaitForResults(teacher, r => r.Answered == 2);
+        await first.DisposeAsync();
+        var afterLeave = await WaitForResults(teacher, r => r.Answered == 1);
+        Assert.Equal(1, afterLeave.Asked);               // only the student still in the room
+        Assert.Equal([1, 0], afterLeave.Counts);
+
+        await using var again = await _factory.ConnectAsync();
+        await again.RegisterStudentAsync("PC-X", machineId: "same-pc");
+        await again.Hub.InvokeAsync(Protocol.ServerMethods.SubmitPollAnswer, new PollAnswer { PollId = poll.Id, Choice = 1 });
+        await again.Hub.InvokeAsync(Protocol.ServerMethods.SubmitPollAnswer, new PollAnswer { PollId = poll.Id, Choice = 1 });
+        var r = await WaitForResults(teacher, x => x.Answered == 2 && x.Asked == 2);
+        Assert.Equal([1, 1], r.Counts);
+    }
+
     private static async Task<PollResults> WaitForResults(Peer teacher, Func<PollResults, bool> match) =>
         (PollResults)(await teacher.WaitForAsync(Protocol.ClientMethods.PollResultsUpdated, a => match((PollResults)a[0]!)))[0]!;
 }

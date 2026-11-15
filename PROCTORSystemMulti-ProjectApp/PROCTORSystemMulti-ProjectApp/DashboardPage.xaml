@@ -78,6 +78,10 @@
                     <Label Text="Sort" VerticalOptions="Center" FontSize="13" />
                     <Picker ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex}" WidthRequest="130" />
                 </HorizontalStackLayout>
+                <HorizontalStackLayout Spacing="6" Margin="0,0,12,4">
+                    <Label Text="Thumbnails" VerticalOptions="Center" FontSize="13" />
+                    <Picker ItemsSource="{Binding ThumbnailChoices}" SelectedIndex="{Binding ThumbnailSizeIndex}" WidthRequest="150" />
+                </HorizontalStackLayout>
                 <HorizontalStackLayout Spacing="6" Margin="0,0,0,4">
                     <Button Text="−" Command="{Binding FewerColumnsCommand}" WidthRequest="36" Padding="0" />
                     <Label Text="{Binding ColumnsText}" VerticalOptions="Center" FontSize="13" />

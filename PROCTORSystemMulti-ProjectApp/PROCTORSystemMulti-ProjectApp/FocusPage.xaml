@@ -10,18 +10,21 @@
     <Grid x:Name="Root" RowDefinitions="Auto,Auto,*,Auto" ColumnDefinitions="*,Auto">
 
         <!-- Status / identity bar -->
-        <Grid Grid.Row="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10"
+        <Grid Grid.Row="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10"
               Padding="16,10" BackgroundColor="#181A1F">
             <VerticalStackLayout Grid.Column="0" Spacing="2">
                 <Label Text="{Binding Header}" FontAttributes="Bold" FontSize="16" TextColor="White"
                        LineBreakMode="TailTruncation" />
-                <Label Text="{Binding StreamStatus}" FontSize="12" TextColor="#9AA0A6" />
+                <Label x:Name="StreamInfo" FontSize="12" TextColor="#9AA0A6" />
             </VerticalStackLayout>
+            <!-- Stream resolution for this view (remembered on this device). -->
+            <Picker x:Name="ResolutionPicker" Grid.Column="1" WidthRequest="200" TextColor="White"
+                    SelectedIndexChanged="OnResolutionChanged" />
             <!-- Which display to watch, for multi-monitor students (FR-AGENT-04). -->
-            <Picker x:Name="DisplayPicker" Grid.Column="1" ItemsSource="{Binding DisplayLabels}"
+            <Picker x:Name="DisplayPicker" Grid.Column="2" ItemsSource="{Binding DisplayLabels}"
                     IsVisible="{Binding HasMultipleDisplays}" WidthRequest="300" TextColor="White"
                     SelectedIndexChanged="OnDisplayChanged" />
-            <Button Grid.Column="2" Text="Back" Clicked="OnStopClicked"
+            <Button Grid.Column="3" Text="Back" Clicked="OnStopClicked"
                     BackgroundColor="#2A2D34" TextColor="White" />
         </Grid>
 

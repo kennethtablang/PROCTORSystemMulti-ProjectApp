@@ -42,6 +42,22 @@ public sealed class StreamManager : IAsyncDisposable
     private bool _gridVisible;
     private string? _focusId;
     private int _focusDisplay;
+    private int _thumbnailWidth = StreamResolution.DefaultThumbnailWidth;
+    private int _focusWidth = StreamResolution.DefaultFocusWidth;
+
+    /// <summary>Requested width of every grid thumbnail (teacher setting); changing it re-requests the streams.</summary>
+    public int ThumbnailWidth
+    {
+        get => _thumbnailWidth;
+        set { if (_thumbnailWidth != value) { _thumbnailWidth = value; Schedule(); } }
+    }
+
+    /// <summary>Requested width of the focus view stream (teacher setting).</summary>
+    public int FocusWidth
+    {
+        get => _focusWidth;
+        set { if (_focusWidth != value) { _focusWidth = value; Schedule(); } }
+    }
     private int _scheduled;
 
     public StreamManager(TeacherClient client, Func<IReadOnlyCollection<StudentTile>> students)
@@ -76,9 +92,9 @@ public sealed class StreamManager : IAsyncDisposable
     /// <summary>The roster changed (join/leave/replace).</summary>
     public void RosterChanged() => Schedule();
 
-    private (StreamQuality Quality, int Display)? DesiredFor(string id) =>
-        id == _focusId ? (StreamQuality.Focus, _focusDisplay)
-        : _gridVisible ? (StreamQuality.Thumbnail, 0)
+    private (StreamQuality Quality, int Display, int Width)? DesiredFor(string id) =>
+        id == _focusId ? (StreamQuality.Focus, _focusDisplay, _focusWidth)
+        : _gridVisible ? (StreamQuality.Thumbnail, 0, _thumbnailWidth)
         : null;
 
     private void Schedule()
@@ -149,7 +165,8 @@ public sealed class StreamManager : IAsyncDisposable
                 if (_receivers.TryGetValue(id, out var existing))
                 {
                     var stale = existing.Failed || (existing.AwaitingOffer && now - existing.RequestedAt > OfferTimeout);
-                    if (existing.Quality == want.Quality && existing.DisplayIndex == want.Display && !stale) continue;
+                    if (existing.Quality == want.Quality && existing.DisplayIndex == want.Display
+                        && existing.Width == want.Width && !stale) continue;
 
                     if (stale)
                     {
@@ -159,14 +176,14 @@ public sealed class StreamManager : IAsyncDisposable
                     }
                     else
                     {
-                        await existing.RequestAsync(want.Quality, want.Display);
+                        await existing.RequestAsync(want.Quality, want.Display, want.Width);
                         continue;
                     }
                 }
 
                 var receiver = new ScreenStreamReceiver(_client, tile, status => OnUi(() => tile.StreamStatus = status));
                 _receivers[id] = receiver;
-                await receiver.RequestAsync(want.Quality, want.Display);
+                await receiver.RequestAsync(want.Quality, want.Display, want.Width);
             }
         }
         finally

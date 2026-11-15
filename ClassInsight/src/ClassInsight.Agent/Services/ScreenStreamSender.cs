@@ -51,8 +51,10 @@ public sealed class ScreenStreamSender : IAsyncDisposable
         StreamQuality quality,
         CaptureDisplay display,
         IReadOnlyList<IceServerConfig> iceServers,
-        ILogger logger)
+        ILogger logger,
+        int width = 0)
     {
+        Width = width > 0 ? width : MaxWidthFor(quality);
         _hub = hub;
         _teacherConnectionId = teacherConnectionId;
         _quality = quality;
@@ -66,7 +68,10 @@ public sealed class ScreenStreamSender : IAsyncDisposable
 
     // Quality → how aggressively we scale and how fast we send (FR-STREAM-04, NFR-PERF-02).
     // Thumbnails are kept small: a teacher's grid may decode 40 of them at once.
-    public static int MaxWidthFor(StreamQuality q) => q == StreamQuality.Focus ? 1280 : 480;
+    public static int MaxWidthFor(StreamQuality q) => q == StreamQuality.Focus ? StreamResolution.DefaultFocusWidth : StreamResolution.DefaultThumbnailWidth;
+
+    /// <summary>The width this stream sends at (teacher's request clamped to the agent's ceiling).</summary>
+    public int Width { get; }
     public static int FpsFor(StreamQuality q) => q == StreamQuality.Focus ? 15 : 5;
 
     public async Task StartAsync()
@@ -113,8 +118,8 @@ public sealed class ScreenStreamSender : IAsyncDisposable
             Type = "offer",
             Sdp = offer.sdp,
         });
-        _logger.LogInformation("Offered screen stream to teacher {Teacher} ({Quality}, display {Display}).",
-            _teacherConnectionId, _quality, DisplayIndex);
+        _logger.LogInformation("Offered screen stream to teacher {Teacher} ({Quality}, {Width} px, display {Display}).",
+            _teacherConnectionId, _quality, Width, DisplayIndex);
     }
 
     internal static RTCConfiguration? BuildConfig(IReadOnlyList<IceServerConfig> servers)
@@ -167,7 +172,7 @@ public sealed class ScreenStreamSender : IAsyncDisposable
 
     private async Task CaptureLoopAsync(CancellationToken ct)
     {
-        var maxWidth = MaxWidthFor(_quality);
+        var maxWidth = Width;
         var interval = TimeSpan.FromMilliseconds(1000.0 / FpsFor(_quality));
 
         _encoder.ForceKeyFrame();   // first frame a teacher sees must be a keyframe

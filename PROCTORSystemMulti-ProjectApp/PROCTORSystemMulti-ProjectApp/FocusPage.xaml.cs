@@ -15,6 +15,7 @@ public partial class FocusPage : ContentPage
     private readonly StudentTile _tile;
     private readonly DashboardViewModel _vm;
     private int _display;
+    private readonly IDispatcherTimer _infoTimer;
     private bool? _narrow;
 
     public FocusPage(StudentTile tile, DashboardViewModel vm)
@@ -29,6 +30,20 @@ public partial class FocusPage : ContentPage
         BindingContext = tile;
         if (tile.HasMultipleDisplays) DisplayPicker.SelectedIndex = 0;
 
+        ResolutionPicker.ItemsSource = vm.FocusChoices.ToList();
+        ResolutionPicker.SelectedIndex = vm.FocusResolutionIndex;
+
+        // "Live · 1280×720": the resolution actually being received, refreshed as frames arrive.
+        _infoTimer = Dispatcher.CreateTimer();
+        _infoTimer.Interval = TimeSpan.FromMilliseconds(500);
+        _infoTimer.Tick += (_, _) =>
+        {
+            var f = _tile.Frame;
+            StreamInfo.Text = f.HasFrame && _tile.StreamStatus == "Live"
+                ? $"Live · {f.Width}×{f.Height}"
+                : _tile.StreamStatus;
+        };
+
         SizeChanged += (_, _) => ApplyLayout();
     }
 
@@ -41,11 +56,13 @@ public partial class FocusPage : ContentPage
             return;
         }
         _vm.Streams.SetFocus(_tile.ConnectionId, _display);
+        _infoTimer.Start();
     }
 
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        _infoTimer.Stop();
         _vm.Streams.SetFocus(null);
     }
 
@@ -54,6 +71,11 @@ public partial class FocusPage : ContentPage
         if (DisplayPicker.SelectedIndex < 0 || DisplayPicker.SelectedIndex == _display) return;
         _display = DisplayPicker.SelectedIndex;
         _vm.Streams.SetFocus(_tile.ConnectionId, _display);
+    }
+
+    private void OnResolutionChanged(object? sender, EventArgs e)
+    {
+        if (ResolutionPicker.SelectedIndex >= 0) _vm.FocusResolutionIndex = ResolutionPicker.SelectedIndex;
     }
 
     private async void OnStopClicked(object? sender, EventArgs e) => await Navigation.PopAsync();

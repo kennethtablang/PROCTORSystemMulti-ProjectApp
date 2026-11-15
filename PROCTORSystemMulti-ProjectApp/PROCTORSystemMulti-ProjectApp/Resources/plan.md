@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.12 (draft)
+**Version:** 0.13 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -434,15 +434,44 @@ version is carried in every message so mismatched clients can be rejected cleanl
   (the installer protects the folder and discards a planted id), and `DiscoveryCodec` forces the
   source address and fixed hub path. Unit-tested.)*
 
-### 6.8 Classroom control — `FR-CTRL` (Phase 5, future)
+### 6.8 Classroom control — `FR-CTRL` (Phase 5)
 
-- ⬜ **FR-CTRL-01 [P5]** The teacher **may** blank/lock student screens.
+All commands are validated on the server and again on the agent, go only to registered
+students (one, or the whole class), and are logged. In **open teacher mode** the strongest
+controls (power, internet off, closing programs) are refused unless IT sets
+`AllowStrongControlsInOpenMode`; with a join code they're always available. Fail-safes: locks
+release when their teacher disconnects; room limits lift when the last teacher leaves; an agent
+that loses the server unlocks and lifts everything itself.
+
+- ✅ **FR-CTRL-01 [P5]** The teacher **may** blank/lock student screens. *(Full-screen "eyes on
+  your teacher" cover on every display + low-level keyboard hook; 2 h auto-release; Ctrl+Alt+Del
+  always works. **Live-verified** lock → unlock; lock badge on tiles; teacher-crash auto-unlock
+  integration-tested.)*
 - ⬜ **FR-CTRL-02 [P5]** The teacher **may** broadcast their own screen to students.
-- ⬜ **FR-CTRL-03 [P5]** The teacher **may** send a message to one or all students.
-- ⬜ **FR-CTRL-04 [P5]** The teacher **may** remotely launch a URL/app on student machines.
+- ✅ **FR-CTRL-03 [P5]** The teacher **may** send a message to one or all students. *(Centred
+  card with OK; live-verified delivery.)*
+- ✅ **FR-CTRL-04 [P5]** The teacher **may** remotely launch a URL/app on student machines.
+  *(**Web pages only** (http/https, validated twice), opened as the signed-in student — never as
+  SYSTEM. Launching arbitrary programs is deliberately not offered (remote code execution risk).
+  Live-verified.)*
 - ⬜ **FR-CTRL-05 [P5]** The teacher **may** take remote keyboard/mouse control of a
   focused student (with on-screen indication).
-- ⬜ **FR-CTRL-06 [P5]** The teacher **may** apply a web-access allow/block policy.
+- 🟡 **FR-CTRL-06 [P5]** The teacher **may** apply a web-access allow/block policy. *(Room-wide
+  limits: block-list or allow-only list of sites (sub-domains included); a blocked tab in front is
+  closed with an explanation — rules unit-tested, live tab-close check pending (a Windows prompt held
+  the foreground during testing). Also **blocked programs** (live-verified: Notepad closed on
+  launch), **internet off** (firewall rule; needs the service's admin rights — run pending) and
+  **mute** (live-verified). Pushed to late joiners; lifted when the last teacher leaves.)*
+- 🟡 **FR-CTRL-07 [P5]** Students **should** be able to ask for help ("raise hand"). *(Tray icon on
+  the student PC; teachers see a banner, amber tiles that float to the top, and can lower the hand.
+  Server flow integration-tested; tray click not yet exercised on screen.)*
+- 🟡 **FR-CTRL-08 [P5]** The teacher **may** log off / restart / shut down student PCs. *(30 s
+  on-screen warning; refused in open mode without opt-in; agents can refuse locally with
+  `AllowPowerCommands=false`. Relay and gating tested; not executed live, on purpose.)*
+- ✅ **FR-STREAM-07** The teacher **should** be able to choose the stream resolution. *(Focus view:
+  854 / 1280 / 1600 / 1920 / native; grid: 320 / 480 / 640 px thumbnails; remembered per device.
+  The agent clamps to its IT ceiling `MaxStreamWidth` (default 1920) and never upscales.
+  **Live-verified**: 320→320×176, 640→640×352, 854→848×480, 1600→1600×896, native→1920×1088.)*
 
 ---
 
@@ -686,6 +715,23 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.13 — 2026-11-15**
+  - **Repository move:** the back end (Shared, Server, Agent, Tests, installers) now lives in
+    this repo under `ClassInsight/` (it had been in the unrelated SENGEN repository).
+  - **Agent setup.exe:** `ClassInsight/installer/setup` builds `ClassInsight-Agent-Setup.exe`
+    (WiX Burn bundle around the MSI): double-click install, or `/quiet /norestart`.
+  - **Classroom control (P5):** lock/unlock, messages, open web page, log off/restart/shut down,
+    room limits (web block/allow lists, blocked programs, internet off, mute), raise hand — with
+    server + agent validation, open-mode gating of the strong controls, and fail-safes.
+    FR-CTRL-01/03/04 ✅, FR-CTRL-06/07/08 🟡 (see §6.8).
+  - **Stream resolution control (FR-STREAM-07 ✅):** teacher-chosen focus resolution and thumbnail
+    size, clamped by the agent's `MaxStreamWidth`.
+  - **Security follow-ups:** VP8 keyframe size checked before decoding; agent pinned to
+    `ServerAddress` skips broadcast discovery; power commands refusable per agent. Open teacher
+    mode remains the shipped default (trusted lab VLAN) — switching to a join code is recommended
+    for any shared network.
+  - Tests: 85, all passing.
 
 - **0.12 — 2026-11-15**
   - **DXGI Desktop Duplication capture (NFR-PERF-04 → ✅).** GPU copy + GPU mip downsampling,

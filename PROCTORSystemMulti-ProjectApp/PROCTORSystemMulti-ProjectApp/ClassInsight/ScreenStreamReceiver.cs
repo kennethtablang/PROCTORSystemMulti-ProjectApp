@@ -29,8 +29,8 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
     private readonly object _gate = new();
 
     // Per-quality frame caps (see OnVideoFrame). Worst case for 40 thumbnails ≈ 40 × 640×640×4 ≈ 65 MB.
-    private const int MaxThumbW = 640, MaxThumbH = 640;
-    private const int MaxFocusW = 1920, MaxFocusH = 1920;
+    private const int MaxThumbW = 640;
+    private const int MaxFocusW = StreamResolution.AbsoluteMaxWidth, MaxFocusH = 4096;
 
     private RTCPeerConnection? _pc;
     private VP8Codec? _decoder;
@@ -47,6 +47,9 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
     public StreamQuality Quality { get; private set; }
     public int DisplayIndex { get; private set; }
 
+    /// <summary>Requested stream width (the agent may send less: its IT ceiling or the display's own width).</summary>
+    public int Width { get; private set; }
+
     /// <summary>When the current request was sent; used to retry a request that never got an offer.</summary>
     public DateTimeOffset RequestedAt { get; private set; }
 
@@ -60,10 +63,11 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
     public bool AwaitingOffer { get; private set; }
 
     /// <summary>Ask the server for a stream at this quality/display (also used to switch).</summary>
-    public async Task RequestAsync(StreamQuality quality, int displayIndex)
+    public async Task RequestAsync(StreamQuality quality, int displayIndex, int width)
     {
         Quality = quality;
         DisplayIndex = displayIndex;
+        Width = width;
         RequestedAt = DateTimeOffset.UtcNow;
         Failed = false;
         AwaitingOffer = true;
@@ -74,6 +78,7 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
             StudentConnectionId = StudentConnectionId,
             Quality = quality,
             DisplayIndex = displayIndex,
+            MaxWidth = width,
         });
     }
 
@@ -201,7 +206,7 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
                 // overflow the size math or make the teacher allocate huge buffers — 40 thumbnail
                 // tiles each forced to 8K would be gigabytes. The agent sends 480 px thumbnails
                 // and 1280 px focus frames; the caps leave headroom for other agent builds.
-                var (maxW, maxH) = Quality == StreamQuality.Focus ? (MaxFocusW, MaxFocusH) : (MaxThumbW, MaxThumbH);
+                var (maxW, maxH) = Cap();
                 if (w <= 0 || w > maxW || h <= 0 || h > maxH || sample.Sample is null) continue;
                 if (sample.Sample.Length < (long)w * h * 3) continue;
 
@@ -226,8 +231,18 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
         if (frame[3] != 0x9D || frame[4] != 0x01 || frame[5] != 0x2A) return false;   // malformed keyframe
         var w = (frame[6] | (frame[7] << 8)) & 0x3FFF;
         var h = (frame[8] | (frame[9] << 8)) & 0x3FFF;
-        var (maxW, maxH) = Quality == StreamQuality.Focus ? (MaxFocusW, MaxFocusH) : (MaxThumbW, MaxThumbH);
+        var (maxW, maxH) = Cap();
         return w > 0 && h > 0 && w <= maxW && h <= maxH;
+    }
+
+    /// <summary>
+    /// Largest frame accepted: what we asked for (plus macroblock rounding), at most twice as tall
+    /// as wide (portrait displays). Anything bigger is a misbehaving or hostile sender.
+    /// </summary>
+    private (int W, int H) Cap()
+    {
+        var w = Math.Clamp(Width > 0 ? Width : (Quality == StreamQuality.Focus ? MaxFocusW : MaxThumbW), 16, MaxFocusW) + 16;
+        return (w, Math.Min(w * 2, MaxFocusH));
     }
 
     internal static RTCConfiguration? BuildConfig(IReadOnlyList<IceServerConfig> servers)

@@ -114,9 +114,9 @@ public sealed class ClassroomHub : Hub
         if (command is null || !Enum.IsDefined(command.Kind)) throw new HubException("Unknown command.");
 
         // Power commands are the most disruptive thing a teacher can send. In open mode anyone on the
-        // network can be a teacher, so they're refused unless IT has explicitly allowed them.
-        if (command.Kind is CommandKind.LogOff or CommandKind.Restart or CommandKind.ShutDown
-            && _identity.AllowOpenTeacherMode && !_identity.AllowPowerControlInOpenMode)
+        // network can be a teacher, so they (like the other strong controls) are refused unless IT
+        // has explicitly opted in.
+        if (command.Kind is CommandKind.LogOff or CommandKind.Restart or CommandKind.ShutDown && StrongControlsBlocked)
             throw new HubException("Log off / restart / shut down need a teacher join code on this server (it runs in open mode).");
 
         var text = ClassroomLimits.CleanText(command.Text);
@@ -155,6 +155,8 @@ public sealed class ClassroomHub : Hub
     {
         if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can set limits.");
         var clean = ClassroomLimits.Clean(policy);
+        if (StrongControlsBlocked && (clean.BlockInternet || clean.BlockedApps.Count > 0))
+            throw new HubException("Turning off the internet and blocking programs need a teacher join code on this server (it runs in open mode).");
         _room.Policy = clean;
         await PushPolicyAsync();
         _logger.LogInformation("Teacher {Teacher} set limits: web {Mode} ({Hosts} sites), {Apps} blocked apps, internet {Net}, mute {Mute}.",
@@ -180,6 +182,13 @@ public sealed class ClassroomHub : Hub
         await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentHandChanged, studentConnectionId, false);
         await Clients.Client(studentConnectionId).SendAsync(Protocol.ClientMethods.HandLowered);
     }
+
+    /// <summary>
+    /// In open teacher mode anyone on the network can act as a teacher, so the strongest controls
+    /// (log off / restart / shut down, internet off, closing programs) are refused unless IT opted
+    /// in with <c>ClassInsight:AllowStrongControlsInOpenMode</c>. With a join code they're always available.
+    /// </summary>
+    private bool StrongControlsBlocked => _identity.AllowOpenTeacherMode && !_identity.AllowStrongControlsInOpenMode;
 
     /// <summary>Requested targets that are real students; an empty request means every student.</summary>
     private IReadOnlyList<string> ResolveTargets(IReadOnlyList<string>? requested)

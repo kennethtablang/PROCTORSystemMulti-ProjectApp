@@ -91,6 +91,31 @@ public class ClassroomLimitsTests
 }
 
 /// <summary>Classroom-control hub flows (P5): commands, locks, limits, raised hands, fail-safes.</summary>
+public class ClosedModeControlTests : IAsyncLifetime
+{
+    private readonly ServerFactory _factory = new(
+        ("ClassInsight:AllowOpenTeacherMode", "false"),
+        ("ClassInsight:TeacherCode", "ABCD-EFGH-JKMNP"));
+
+    public Task InitializeAsync() => Task.CompletedTask;
+    public async Task DisposeAsync() => await _factory.DisposeAsync();
+
+    [Fact]
+    public async Task With_a_join_code_the_strong_controls_are_available()
+    {
+        await using var s1 = await _factory.ConnectAsync();
+        await s1.RegisterStudentAsync();
+        await using var teacher = await _factory.ConnectAsync();
+        await teacher.RegisterTeacherAsync("ABCD-EFGH-JKMNP");
+
+        var applied = await teacher.Hub.InvokeAsync<ClassPolicy>(Protocol.ServerMethods.SetPolicy,
+            new ClassPolicy { BlockInternet = true, BlockedApps = ["steam", "explorer"] });
+        Assert.True(applied.BlockInternet);
+        Assert.Equal(["steam"], applied.BlockedApps);   // explorer is protected
+        Assert.Equal(1, await teacher.Hub.InvokeAsync<int>(Protocol.ServerMethods.SendCommand, new ClassroomCommand { Kind = CommandKind.Restart }));
+    }
+}
+
 public class ClassroomControlHubTests : IAsyncLifetime
 {
     private readonly ServerFactory _factory = new();
@@ -134,9 +159,11 @@ public class ClassroomControlHubTests : IAsyncLifetime
 
         await Assert.ThrowsAsync<HubException>(() => Send(teacher, new ClassroomCommand { Kind = CommandKind.Message, Text = "  " }));
         await Assert.ThrowsAsync<HubException>(() => Send(teacher, new ClassroomCommand { Kind = CommandKind.OpenUrl, Url = "file:///C:/x.exe" }));
-        // Open mode: power control is off unless IT allows it.
+        // Open mode: the strong controls are off unless IT allows them.
         var ex = await Assert.ThrowsAsync<HubException>(() => Send(teacher, new ClassroomCommand { Kind = CommandKind.ShutDown }));
         Assert.Contains("join code", ex.Message);
+        await Assert.ThrowsAsync<HubException>(() => teacher.Hub.InvokeAsync<ClassPolicy>(Protocol.ServerMethods.SetPolicy,
+            new ClassPolicy { BlockInternet = true }));
         await s1.AssertNoneAsync(Protocol.ClientMethods.CommandReceived);
 
         Assert.Equal(1, await Send(teacher, new ClassroomCommand { Kind = CommandKind.OpenUrl, Url = "docs.google.com" }));
@@ -175,10 +202,10 @@ public class ClassroomControlHubTests : IAsyncLifetime
         {
             WebMode = WebLimitMode.BlockListed,
             WebHosts = ["YouTube.com"],
-            BlockedApps = ["explorer", "steam"],
+            MuteSound = true,
         });
         Assert.Equal(["youtube.com"], applied.WebHosts);
-        Assert.Equal(["steam"], applied.BlockedApps);   // explorer is protected
+        Assert.True(applied.MuteSound);
 
         // A student joining later gets the limits on registration.
         await using var late = await _factory.ConnectAsync();

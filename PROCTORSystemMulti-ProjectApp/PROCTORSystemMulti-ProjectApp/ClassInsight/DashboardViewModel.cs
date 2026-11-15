@@ -21,6 +21,8 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
 {
     private const string PrefRoom = "classinsight.room";
     private const string PrefServer = "classinsight.server";
+    private const string PrefThumb = "classinsight.thumbwidth";
+    private const string PrefFocus = "classinsight.focuswidth";
 
     private readonly TeacherClient _client = new();
     private readonly Dictionary<string, StudentTile> _byConnection = new();
@@ -73,6 +75,12 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         FewerColumnsCommand = new Command(() => Columns--);
 
         _manualAddress = LoadPref(PrefServer);
+
+        // Stream resolution settings (remembered per teacher device).
+        _thumbIndex = IndexOf(StreamResolution.ThumbnailChoices, LoadPref(PrefThumb), 1);
+        Streams.ThumbnailWidth = StreamResolution.ThumbnailChoices[_thumbIndex].Width;
+        _focusIndex = IndexOf(StreamResolution.FocusChoices, LoadPref(PrefFocus), 1);
+        Streams.FocusWidth = StreamResolution.FocusChoices[_focusIndex].Width;
         _columns = DeviceInfo.Idiom == DeviceIdiom.Phone ? 1 : DeviceInfo.Idiom == DeviceIdiom.Tablet ? 2 : 3;
     }
 
@@ -234,6 +242,48 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         CommandKind.ShutDown => "Shut down",
         _ => kind.ToString(),
     };
+
+    // ---- stream resolution -------------------------------------------------
+
+    public IReadOnlyList<string> ThumbnailChoices { get; } = StreamResolution.ThumbnailChoices.Select(c => c.Label).ToArray();
+    public IReadOnlyList<string> FocusChoices { get; } = StreamResolution.FocusChoices.Select(c => c.Label).ToArray();
+
+    private int _thumbIndex;
+    /// <summary>Grid thumbnail size (small / normal / large).</summary>
+    public int ThumbnailSizeIndex
+    {
+        get => _thumbIndex;
+        set
+        {
+            if (value < 0 || value >= StreamResolution.ThumbnailChoices.Count || value == _thumbIndex) return;
+            _thumbIndex = value; Raise();
+            var w = StreamResolution.ThumbnailChoices[value].Width;
+            Streams.ThumbnailWidth = w;
+            SavePref(PrefThumb, w.ToString());
+        }
+    }
+
+    private int _focusIndex;
+    /// <summary>Focus-view stream resolution.</summary>
+    public int FocusResolutionIndex
+    {
+        get => _focusIndex;
+        set
+        {
+            if (value < 0 || value >= StreamResolution.FocusChoices.Count || value == _focusIndex) return;
+            _focusIndex = value; Raise();
+            var w = StreamResolution.FocusChoices[value].Width;
+            Streams.FocusWidth = w;
+            SavePref(PrefFocus, w.ToString());
+        }
+    }
+
+    private static int IndexOf(IReadOnlyList<(string Label, int Width)> choices, string saved, int fallback)
+    {
+        if (!int.TryParse(saved, out var w)) return fallback;
+        for (var i = 0; i < choices.Count; i++) if (choices[i].Width == w) return i;
+        return fallback;
+    }
 
     // ---- search / sort / density (FR-TEACH-06) ----------------------------
 

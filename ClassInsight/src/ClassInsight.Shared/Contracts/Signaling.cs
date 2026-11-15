@@ -47,6 +47,53 @@ public sealed record StreamRequest
     /// 0 = primary). Out-of-range values fall back to the primary display (FR-AGENT-04).
     /// </summary>
     public int DisplayIndex { get; init; }
+
+    /// <summary>
+    /// Requested stream width in pixels (0 = the default for <see cref="Quality"/>). The agent clamps
+    /// it to <see cref="StreamResolution.MinWidth"/>..its IT-configured maximum and never upscales
+    /// past the display; height follows the display's aspect ratio.
+    /// </summary>
+    public int MaxWidth { get; init; }
+}
+
+/// <summary>Stream resolution choices and limits shared by the teacher app and the agent.</summary>
+public static class StreamResolution
+{
+    public const int MinWidth = 320;
+
+    /// <summary>Default agent ceiling (<c>ClassInsight:MaxStreamWidth</c>); IT can raise it up to 3840.</summary>
+    public const int DefaultMaxWidth = 1920;
+    public const int AbsoluteMaxWidth = 3840;
+
+    public const int DefaultThumbnailWidth = 480;
+    public const int DefaultFocusWidth = 1280;
+
+    /// <summary>Thumbnail sizes offered in the teacher app.</summary>
+    public static readonly IReadOnlyList<(string Label, int Width)> ThumbnailChoices =
+    [
+        ("Small (320 px)", 320),
+        ("Normal (480 px)", 480),
+        ("Large (640 px)", 640),
+    ];
+
+    /// <summary>Focus-view resolutions offered in the teacher app.</summary>
+    public static readonly IReadOnlyList<(string Label, int Width)> FocusChoices =
+    [
+        ("Low · 854 px", 854),
+        ("Standard · 1280 px", 1280),
+        ("High · 1600 px", 1600),
+        ("Full HD · 1920 px", 1920),
+        ("Native (up to 4K)", 3840),
+    ];
+
+    /// <summary>The width an agent should actually stream: requested (or default), clamped to its ceiling.</summary>
+    public static int Effective(StreamQuality quality, int requested, int agentMax)
+    {
+        var want = requested > 0 ? requested
+            : quality == StreamQuality.Focus ? DefaultFocusWidth : DefaultThumbnailWidth;
+        var ceiling = Math.Clamp(agentMax <= 0 ? DefaultMaxWidth : agentMax, MinWidth, AbsoluteMaxWidth);
+        return Math.Clamp(want, MinWidth, ceiling);
+    }
 }
 
 /// <summary>

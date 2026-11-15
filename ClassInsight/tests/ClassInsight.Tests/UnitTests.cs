@@ -340,6 +340,21 @@ public class CaptureSizingTests
     }
 }
 
+/// <summary>Teacher-requested stream resolution, clamped by the agent's IT ceiling.</summary>
+public class StreamResolutionTests
+{
+    [Theory]
+    [InlineData(StreamQuality.Thumbnail, 0, 1920, 480)]     // default thumbnail
+    [InlineData(StreamQuality.Focus, 0, 1920, 1280)]        // default focus
+    [InlineData(StreamQuality.Focus, 1600, 1920, 1600)]     // requested
+    [InlineData(StreamQuality.Focus, 3840, 1920, 1920)]     // capped by the agent's ceiling
+    [InlineData(StreamQuality.Focus, 3840, 3840, 3840)]     // IT raised the ceiling
+    [InlineData(StreamQuality.Thumbnail, 100, 1920, 320)]   // floor
+    [InlineData(StreamQuality.Focus, 1600, 99999, 1600)]    // bogus ceiling is bounded
+    public void Effective_width_is_clamped(StreamQuality q, int requested, int agentMax, int expected) =>
+        Assert.Equal(expected, StreamResolution.Effective(q, requested, agentMax));
+}
+
 /// <summary>NFR-SEC-03: the WebRTC stack negotiates DTLS-SRTP, so media is encrypted.</summary>
 public class MediaEncryptionTests
 {

@@ -53,6 +53,12 @@ public sealed class AgentWorker : BackgroundService
 
     private IReadOnlyList<IceServerConfig> _iceServers = [];
 
+    // IT ceiling for stream resolution (bandwidth / CPU budget per lab).
+    private readonly int _maxStreamWidth;
+
+    // Local IT switch: refuse log off / restart / shut down whatever the server says.
+    private readonly bool _allowPower;
+
     public AgentWorker(ILogger<AgentWorker> logger, ILoggerFactory loggerFactory, IConfiguration configuration)
     {
         _logger = logger;
@@ -60,6 +66,8 @@ public sealed class AgentWorker : BackgroundService
 
         var section = configuration.GetSection("ClassInsight");
         _roomName = NullIfBlank(section["RoomName"]);
+        _maxStreamWidth = section.GetValue<int?>("MaxStreamWidth") ?? StreamResolution.DefaultMaxWidth;
+        _allowPower = section.GetValue<bool?>("AllowPowerCommands") ?? true;
         ScreenCapture.DisableDxgi = string.Equals(section["CaptureBackend"], "GDI", StringComparison.OrdinalIgnoreCase);
         _serverAddress = NullIfBlank(section["ServerAddress"]);
 
@@ -237,6 +245,11 @@ public sealed class AgentWorker : BackgroundService
     {
         var text = ClassroomLimits.CleanText(command.Text);
         _logger.LogInformation("Teacher command: {Kind}.", command.Kind);
+        if (command.Kind is CommandKind.LogOff or CommandKind.Restart or CommandKind.ShutDown && !_allowPower)
+        {
+            _logger.LogWarning("Ignored {Kind}: power commands are disabled on this PC (AllowPowerCommands=false).", command.Kind);
+            return;
+        }
         switch (command.Kind)
         {
             case CommandKind.Message when text is not null:
@@ -299,8 +312,10 @@ public sealed class AgentWorker : BackgroundService
             if (_senders.TryRemove(teacherId, out var existing))
                 await existing.DisposeAsync();
 
+            // Requested resolution, clamped to the IT ceiling, and never wider than the display itself.
+            var width = Math.Min(StreamResolution.Effective(request.Quality, request.MaxWidth, _maxStreamWidth), display.Width);
             var sender = new ScreenStreamSender(hub, teacherId, request.Quality, display, _iceServers,
-                _loggerFactory.CreateLogger<ScreenStreamSender>());
+                _loggerFactory.CreateLogger<ScreenStreamSender>(), width);
             _senders[teacherId] = sender;
             try
             {

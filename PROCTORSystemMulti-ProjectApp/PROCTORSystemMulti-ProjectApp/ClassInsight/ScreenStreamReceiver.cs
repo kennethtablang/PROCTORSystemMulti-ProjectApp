@@ -28,6 +28,10 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
     private readonly Action<string> _status;
     private readonly object _gate = new();
 
+    // Per-quality frame caps (see OnVideoFrame). Worst case for 40 thumbnails ≈ 40 × 640×640×4 ≈ 65 MB.
+    private const int MaxThumbW = 640, MaxThumbH = 640;
+    private const int MaxFocusW = 1920, MaxFocusH = 1920;
+
     private RTCPeerConnection? _pc;
     private VP8Codec? _decoder;
     private volatile bool _disposed;
@@ -189,10 +193,12 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
             {
                 var w = (int)sample.Width;
                 var h = (int)sample.Height;
-                // Clamp to a sane maximum before any sizing so a hostile/buggy sender can't
-                // overflow the size math into a tiny/negative allocation and drive an
-                // out-of-bounds write, or force a huge allocation. 8192² covers 8K.
-                if (w is <= 0 or > 8192 || h is <= 0 or > 8192 || sample.Sample is null) continue;
+                // Clamp to what we asked for before any sizing, so a hostile/buggy sender can't
+                // overflow the size math or make the teacher allocate huge buffers — 40 thumbnail
+                // tiles each forced to 8K would be gigabytes. The agent sends 480 px thumbnails
+                // and 1280 px focus frames; the caps leave headroom for other agent builds.
+                var (maxW, maxH) = Quality == StreamQuality.Focus ? (MaxFocusW, MaxFocusH) : (MaxThumbW, MaxThumbH);
+                if (w <= 0 || w > maxW || h <= 0 || h > maxH || sample.Sample is null) continue;
                 if (sample.Sample.Length < (long)w * h * 3) continue;
 
                 _tile.Frame.WriteBgr(w, h, sample.Sample);

@@ -213,6 +213,13 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
                 return;
             }
             SavePref(PrefServer, address);
+
+            // The typed join code belongs to the server that asked for it; never offer it to a
+            // different machine the teacher dials by hand.
+            if (_client.CurrentServer is not { } asked
+                || !string.Equals(asked.Host, server.Host, StringComparison.OrdinalIgnoreCase)
+                || asked.Port != server.Port)
+                ClearJoinCode();
         }
         finally
         {
@@ -227,6 +234,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
     {
         if (room is null || IsBusy || IsConnected) return;
         NeedsRoomChoice = false;
+        ClearJoinCode();   // a code typed for another room must not be sent to this one
         SavePref(PrefRoom, room.Server.RoomName);
         await RunAttemptAsync(room.Server);
     }
@@ -236,6 +244,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         // Forget the remembered room and current server, then discover afresh (shows the chooser
         // if several rooms answer).
         SavePref(PrefRoom, "");
+        ClearJoinCode();   // the old room's code is never offered to whichever room answers next
         ClearRoster();
         await _client.ForgetServerAsync();
         IsConnected = false;
@@ -327,6 +336,12 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
 
         if (outcome == ConnectOutcome.NoServer) ShowManualEntry = true;
         if (outcome == ConnectOutcome.Connected && _client.CurrentServer is { } s) SavePref(PrefRoom, s.RoomName);
+    }
+
+    private void ClearJoinCode()
+    {
+        JoinCode = string.Empty;
+        NeedsJoinCode = false;
     }
 
     private void OnConnectionLost()

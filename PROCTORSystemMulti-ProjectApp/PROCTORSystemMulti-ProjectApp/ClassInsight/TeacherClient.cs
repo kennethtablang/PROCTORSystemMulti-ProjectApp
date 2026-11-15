@@ -109,6 +109,11 @@ public sealed class TeacherClient : IAsyncDisposable
         _intentionalClose = false;
         DiscoveredRooms = [];
 
+        // A join code is a credential for one specific room. An untargeted attempt with no pinned
+        // server could land on whatever answers discovery (possibly a rogue), so it never carries
+        // a code: codes go only to the server that asked (a targeted retry) or the pinned server.
+        if (target is null && _pinnedServer is null) joinCode = string.Empty;
+
         var server = target ?? await FindServerAsync(preferredRoom, manualAddress, ct);
         if (server is null)
         {

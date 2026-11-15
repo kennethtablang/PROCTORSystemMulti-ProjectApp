@@ -44,6 +44,11 @@ public sealed class TeacherClient : IAsyncDisposable
     public event Action<string, TelemetrySnapshot>? TelemetryUpdated;
     public event Action<string>? Status;
 
+    /// <summary>Classroom control (P5): lock state, raised hands and the room's limits.</summary>
+    public event Action<string, bool>? StudentLockChanged;
+    public event Action<string, bool>? StudentHandChanged;
+    public event Action<ClassPolicy>? PolicyUpdated;
+
     /// <summary>WebRTC signalling relayed from a student, routed by <see cref="StreamManager"/>.</summary>
     public event Action<SdpMessage>? OfferReceived;
     public event Action<IceCandidateMessage>? IceCandidateReceived;
@@ -148,6 +153,9 @@ public sealed class TeacherClient : IAsyncDisposable
             (id, st) => StudentStateChanged?.Invoke(id, st));
         hub.On<string, TelemetrySnapshot>(Protocol.ClientMethods.TelemetryUpdated,
             (id, t) => TelemetryUpdated?.Invoke(id, t));
+        hub.On<string, bool>(Protocol.ClientMethods.StudentLockChanged, (id, locked) => StudentLockChanged?.Invoke(id, locked));
+        hub.On<string, bool>(Protocol.ClientMethods.StudentHandChanged, (id, raised) => StudentHandChanged?.Invoke(id, raised));
+        hub.On<ClassPolicy>(Protocol.ClientMethods.PolicyUpdated, p => PolicyUpdated?.Invoke(p));
         hub.On<SdpMessage>(Protocol.ClientMethods.ReceiveOffer, o => OfferReceived?.Invoke(o));
         hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveIceCandidate, c => IceCandidateReceived?.Invoke(c));
 
@@ -289,6 +297,48 @@ public sealed class TeacherClient : IAsyncDisposable
         {
             IceServers = [];   // older server / transient: direct LAN connectivity still works
         }
+    }
+
+    /// <summary>
+    /// Send a classroom command (message, lock, open site, power…) to the given students, or to all
+    /// with an empty list. Returns how many students it reached; throws with the server's reason
+    /// (e.g. an invalid web address) if it was refused.
+    /// </summary>
+    public async Task<int> SendCommandAsync(ClassroomCommand command)
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try
+        {
+            return await hub.InvokeAsync<int>(Protocol.ServerMethods.SendCommand, command);
+        }
+        catch (HubException ex)
+        {
+            throw new InvalidOperationException(ServerMessage(ex), ex);
+        }
+    }
+
+    /// <summary>Set the room's web/app/internet/sound limits; returns the policy as the server cleaned it.</summary>
+    public async Task<ClassPolicy> SetPolicyAsync(ClassPolicy policy)
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try
+        {
+            return await hub.InvokeAsync<ClassPolicy>(Protocol.ServerMethods.SetPolicy, policy);
+        }
+        catch (HubException ex)
+        {
+            throw new InvalidOperationException(ServerMessage(ex), ex);
+        }
+    }
+
+    public Task LowerHandAsync(string studentConnectionId) => SendAsync(Protocol.ServerMethods.LowerHand, studentConnectionId);
+
+    /// <summary>The server's own text from a wrapped <see cref="HubException"/>.</summary>
+    private static string ServerMessage(HubException ex)
+    {
+        const string marker = "HubException: ";
+        var at = ex.Message.IndexOf(marker, StringComparison.Ordinal);
+        return at >= 0 ? ex.Message[(at + marker.Length)..] : ex.Message;
     }
 
     /// <summary>Fire-and-forget a hub call if connected (signalling and stream control).</summary>

@@ -33,6 +33,12 @@ public sealed class ServerIdentity
     /// </summary>
     public string TeacherCode { get; }
 
+    /// <summary>
+    /// In open teacher mode, whether teachers may still send log off / restart / shut down. Off by
+    /// default: without a join code anyone on the network can be a teacher.
+    /// </summary>
+    public bool AllowPowerControlInOpenMode { get; }
+
     /// <summary>When false the UDP discovery beacon is not started (tests, or broadcast-hostile networks).</summary>
     public bool DiscoveryEnabled { get; }
 
@@ -53,6 +59,7 @@ public sealed class ServerIdentity
         AllowOpenTeacherMode = section.GetValue<bool?>("AllowOpenTeacherMode") ?? false;
         Host = ResolveLanAddress();
         DiscoveryEnabled = section.GetValue<bool?>("DiscoveryEnabled") ?? true;
+        AllowPowerControlInOpenMode = section.GetValue<bool?>("AllowPowerControlInOpenMode") ?? false;
         IceServers = section.GetSection("IceServers").Get<IceServerConfig[]>()?
             .Where(s => !string.IsNullOrWhiteSpace(s.Urls))
             .ToArray() ?? [];

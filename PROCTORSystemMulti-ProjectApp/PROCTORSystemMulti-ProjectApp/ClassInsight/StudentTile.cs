@@ -23,6 +23,8 @@ public sealed class StudentTile : INotifyPropertyChanged
             ? snap.Displays
             : [new DisplayInfo { Index = 0, Width = snap.ScreenWidth, Height = snap.ScreenHeight, IsPrimary = true }];
         _state = snap.State;
+        _isLocked = snap.IsLocked;
+        _handRaised = snap.HandRaised;
         if (snap.LastTelemetry is { } t) Apply(t);
 
         // Flip HasVideo when the first frame lands / the stream is cleared. Updated fires per
@@ -50,6 +52,26 @@ public sealed class StudentTile : INotifyPropertyChanged
     public IReadOnlyList<string> DisplayLabels => Displays
         .Select(d => $"Display {d.Index + 1}{(d.IsPrimary ? " (primary)" : "")} · {d.Width}×{d.Height}")
         .ToArray();
+
+    private bool _isLocked;
+    /// <summary>The student's screen is locked by a teacher (FR-CTRL-01).</summary>
+    public bool IsLocked
+    {
+        get => _isLocked;
+        set { if (_isLocked != value) { _isLocked = value; Raise(); Raise(nameof(LockText)); } }
+    }
+    public string LockText => _isLocked ? "🔒 Locked" : "";
+
+    private bool _handRaised;
+    /// <summary>The student has raised their hand asking for help.</summary>
+    public bool HandRaised
+    {
+        get => _handRaised;
+        set { if (_handRaised != value) { _handRaised = value; Raise(); Raise(nameof(TileBorderColor)); } }
+    }
+
+    /// <summary>Tile outline: amber while the student's hand is up, so it stands out in the grid.</summary>
+    public Color TileBorderColor => _handRaised ? Color.FromArgb("#F9A825") : Color.FromArgb("#DDDDDD");
 
     /// <summary>Latest decoded screen frame — what the thumbnail and the focus view paint.</summary>
     public FrameBuffer Frame { get; } = new();

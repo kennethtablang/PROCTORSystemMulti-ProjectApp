@@ -86,6 +86,27 @@
             </FlexLayout>
         </Grid>
 
+        <!-- Class controls (P5): act on the whole class. Per-student actions live in the focus view. -->
+        <FlexLayout Wrap="Wrap" AlignItems="Center" IsVisible="{Binding HasStudents}">
+            <Label Text="Whole class:" FontSize="13" FontAttributes="Bold" VerticalOptions="Center" Margin="0,0,8,4" />
+            <Button Text="🔒 Lock" Clicked="OnLockAll" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="🔓 Unlock" Clicked="OnUnlockAll" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="✉ Message" Clicked="OnMessageAll" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="🌐 Open site" Clicked="OnOpenSiteAll" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="⛔ Limits…" Clicked="OnLimits" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="⏻ Power…" Clicked="OnPowerAll" Margin="0,0,12,4" Padding="12,4" FontSize="13" />
+            <Label Text="{Binding PolicySummary}" FontSize="12" TextColor="#7E57C2" VerticalOptions="Center"
+                   Margin="0,0,0,4" />
+        </FlexLayout>
+
+        <!-- Raised hands (students asking for help) — their tiles also float to the top. -->
+        <Border IsVisible="{Binding HasRaisedHands}" BackgroundColor="#FFF4D6" Stroke="#F9A825" Padding="12,6">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="8" />
+            </Border.StrokeShape>
+            <Label Text="{Binding RaisedHandsText}" TextColor="#7A5200" FontAttributes="Bold" FontSize="13" />
+        </Border>
+
       </VerticalStackLayout>
 
         <!-- Live roster grid: every tile streams a thumbnail while this tab is visible (FR-STREAM-04). -->
@@ -100,7 +121,7 @@
             </CollectionView.EmptyView>
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="ci:StudentTile">
-                    <Border Stroke="#DDDDDD" StrokeThickness="1" Padding="10">
+                    <Border Stroke="{Binding TileBorderColor}" StrokeThickness="2" Padding="10">
                         <Border.StrokeShape>
                             <RoundRectangle CornerRadius="10" />
                         </Border.StrokeShape>
@@ -108,10 +129,14 @@
                             <TapGestureRecognizer Tapped="OnTileTapped" />
                         </Border.GestureRecognizers>
                         <VerticalStackLayout Spacing="6">
-                            <Grid ColumnDefinitions="*,Auto">
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6">
                                 <Label Grid.Column="0" Text="{Binding Header}" FontAttributes="Bold"
                                        LineBreakMode="TailTruncation" />
-                                <Label Grid.Column="1" Text="{Binding StateText}" TextColor="{Binding StateColor}"
+                                <Label Grid.Column="1" Text="✋" FontSize="13" VerticalOptions="Center"
+                                       IsVisible="{Binding HandRaised}" />
+                                <Label Grid.Column="2" Text="{Binding LockText}" FontSize="11" TextColor="#C62828"
+                                       FontAttributes="Bold" VerticalOptions="Center" IsVisible="{Binding IsLocked}" />
+                                <Label Grid.Column="3" Text="{Binding StateText}" TextColor="{Binding StateColor}"
                                        FontSize="11" FontAttributes="Bold" VerticalOptions="Center" />
                             </Grid>
 

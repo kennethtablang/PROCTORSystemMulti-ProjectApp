@@ -58,6 +58,15 @@ public partial class FocusPage : ContentPage
 
     private async void OnStopClicked(object? sender, EventArgs e) => await Navigation.PopAsync();
 
+    // ---- per-student classroom controls (P5) ----
+    private IReadOnlyList<string> Me => [_tile.ConnectionId];
+    private async void OnLock(object? sender, EventArgs e) => await ClassActions.LockAsync(this, _vm, Me);
+    private async void OnUnlock(object? sender, EventArgs e) => await ClassActions.UnlockAsync(this, _vm, Me);
+    private async void OnMessage(object? sender, EventArgs e) => await ClassActions.MessageAsync(this, _vm, Me, _tile.MachineName);
+    private async void OnOpenSite(object? sender, EventArgs e) => await ClassActions.OpenSiteAsync(this, _vm, Me, _tile.MachineName);
+    private async void OnPower(object? sender, EventArgs e) => await ClassActions.PowerAsync(this, _vm, Me, _tile.MachineName);
+    private async void OnLowerHand(object? sender, EventArgs e) => await _vm.LowerHandAsync(_tile);
+
     /// <summary>Side panel on wide windows; panel stacked under the video on phones (NFR-USE-03).</summary>
     private void ApplyLayout()
     {
@@ -68,7 +77,7 @@ public partial class FocusPage : ContentPage
 
         if (narrow)
         {
-            Grid.SetRow(DetailPanel, 2);
+            Grid.SetRow(DetailPanel, 3);
             Grid.SetColumn(DetailPanel, 0);
             Grid.SetColumnSpan(DetailPanel, 2);
             DetailPanel.WidthRequest = -1;
@@ -77,7 +86,7 @@ public partial class FocusPage : ContentPage
         }
         else
         {
-            Grid.SetRow(DetailPanel, 1);
+            Grid.SetRow(DetailPanel, 2);
             Grid.SetColumn(DetailPanel, 1);
             Grid.SetColumnSpan(DetailPanel, 1);
             DetailPanel.WidthRequest = 340;

@@ -44,6 +44,14 @@ public partial class DashboardPage : ContentPage
         _vm.Streams.SetGridVisible(false);
     }
 
+    // ---- whole-class controls (P5) ----
+    private async void OnLockAll(object? sender, EventArgs e) => await ClassActions.LockAsync(this, _vm, null);
+    private async void OnUnlockAll(object? sender, EventArgs e) => await ClassActions.UnlockAsync(this, _vm, null);
+    private async void OnMessageAll(object? sender, EventArgs e) => await ClassActions.MessageAsync(this, _vm, null, "the whole class");
+    private async void OnOpenSiteAll(object? sender, EventArgs e) => await ClassActions.OpenSiteAsync(this, _vm, null, "the whole class");
+    private async void OnPowerAll(object? sender, EventArgs e) => await ClassActions.PowerAsync(this, _vm, null, "every student PC");
+    private async void OnLimits(object? sender, EventArgs e) => await Navigation.PushModalAsync(new LimitsPage(_vm));
+
     // A tile opens the focus view only on an explicit tap. (We deliberately don't use
     // CollectionView selection for this: on WinUI the list auto-selects its first item when the
     // window gains focus, which would pop open a student's full screen with no click.)

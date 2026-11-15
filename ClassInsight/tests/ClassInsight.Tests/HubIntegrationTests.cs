@@ -76,6 +76,11 @@ public sealed class Peer : IAsyncDisposable
         Record<SdpMessage>(Protocol.ClientMethods.ReceiveAnswer);
         Record<IceCandidateMessage>(Protocol.ClientMethods.ReceiveIceCandidate);
         Record<string, TelemetrySnapshot>(Protocol.ClientMethods.TelemetryUpdated);
+        Record<string, ClassroomCommand>(Protocol.ClientMethods.CommandReceived);
+        Record<string, bool>(Protocol.ClientMethods.StudentLockChanged);
+        Record<string, bool>(Protocol.ClientMethods.StudentHandChanged);
+        Record<ClassPolicy>(Protocol.ClientMethods.PolicyUpdated);
+        Hub.On(Protocol.ClientMethods.HandLowered, () => Push(Protocol.ClientMethods.HandLowered));
     }
 
     private void Record<T>(string method) => Hub.On<T>(method, a => Push(method, a));

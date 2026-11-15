@@ -58,6 +58,13 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         // start re-discovering so we latch back on automatically (FR-DISC-05).
         _client.ConnectionLost += () => OnUi(OnConnectionLost);
 
+        // Classroom control (P5).
+        _client.StudentLockChanged += (id, locked) => OnUi(() => { if (_byConnection.TryGetValue(id, out var t)) t.IsLocked = locked; });
+        _client.StudentHandChanged += (id, raised) => OnUi(() => SetHand(id, raised));
+        _client.PolicyUpdated += p => OnUi(() => Policy = p);
+        // A restarted server has forgotten the room's limits: re-apply the ones this teacher set.
+        _client.Registered += () => { if (!_lastSetPolicy.IsEmpty) _ = SetPolicyAsync(_lastSetPolicy); };
+
         ConnectCommand = new Command(async () => await ConnectWithCodeAsync(), () => !IsBusy && !IsConnected);
         ConnectManualCommand = new Command(async () => await ConnectManualAsync(), () => !IsBusy && !IsConnected);
         SelectRoomCommand = new Command<RoomOption>(async r => await SelectRoomAsync(r));
@@ -128,6 +135,105 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
     public ICommand SwitchRoomCommand { get; }
     public ICommand MoreColumnsCommand { get; }
     public ICommand FewerColumnsCommand { get; }
+
+    // ---- classroom control (P5) --------------------------------------------
+
+    private ClassPolicy _policy = new();
+    private ClassPolicy _lastSetPolicy = new();
+
+    /// <summary>The room's current web/app/internet/sound limits (as the server holds them).</summary>
+    public ClassPolicy Policy
+    {
+        get => _policy;
+        private set { _policy = value; Raise(); Raise(nameof(PolicySummary)); Raise(nameof(HasPolicy)); }
+    }
+
+    public bool HasPolicy => !_policy.IsEmpty;
+
+    public string PolicySummary
+    {
+        get
+        {
+            if (_policy.IsEmpty) return "No limits";
+            var parts = new List<string>();
+            if (_policy.WebMode == WebLimitMode.BlockListed && _policy.WebHosts.Count > 0) parts.Add($"{_policy.WebHosts.Count} site(s) blocked");
+            if (_policy.WebMode == WebLimitMode.AllowOnlyListed) parts.Add($"only {_policy.WebHosts.Count} site(s) allowed");
+            if (_policy.BlockedApps.Count > 0) parts.Add($"{_policy.BlockedApps.Count} app(s) blocked");
+            if (_policy.BlockInternet) parts.Add("internet off");
+            if (_policy.MuteSound) parts.Add("sound muted");
+            return "Limits: " + string.Join(" · ", parts);
+        }
+    }
+
+    public int RaisedHands => Students.Count(s => s.HandRaised);
+    public bool HasRaisedHands => RaisedHands > 0;
+    public string RaisedHandsText => RaisedHands == 1 ? "✋ 1 student needs help" : $"✋ {RaisedHands} students need help";
+
+    private void SetHand(string id, bool raised)
+    {
+        if (!_byConnection.TryGetValue(id, out var tile)) return;
+        tile.HandRaised = raised;
+        RaiseHands();
+        RefreshVisible();   // raised hands float to the top of the grid
+    }
+
+    private void RaiseHands()
+    {
+        Raise(nameof(RaisedHands));
+        Raise(nameof(HasRaisedHands));
+        Raise(nameof(RaisedHandsText));
+    }
+
+    /// <summary>Send a command to the given students (null/empty = whole class). Returns an error to show, or null.</summary>
+    public async Task<string?> SendCommandAsync(CommandKind kind, IReadOnlyList<string>? targets = null, string? text = null, string? url = null)
+    {
+        try
+        {
+            var n = await _client.SendCommandAsync(new ClassroomCommand
+            {
+                Kind = kind,
+                Targets = targets ?? [],
+                Text = text,
+                Url = url,
+            });
+            Status = n == 0 ? "No students to send to." : $"{Describe(kind)} sent to {n} student{(n == 1 ? "" : "s")}.";
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
+    }
+
+    /// <summary>Set the room's limits. Returns an error to show, or null.</summary>
+    public async Task<string?> SetPolicyAsync(ClassPolicy policy)
+    {
+        try
+        {
+            var applied = await _client.SetPolicyAsync(policy);
+            _lastSetPolicy = applied;
+            OnUi(() => Policy = applied);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
+    }
+
+    public Task LowerHandAsync(StudentTile tile) => _client.LowerHandAsync(tile.ConnectionId);
+
+    private static string Describe(CommandKind kind) => kind switch
+    {
+        CommandKind.Message => "Message",
+        CommandKind.Lock => "Lock",
+        CommandKind.Unlock => "Unlock",
+        CommandKind.OpenUrl => "Web page",
+        CommandKind.LogOff => "Log off",
+        CommandKind.Restart => "Restart",
+        CommandKind.ShutDown => "Shut down",
+        _ => kind.ToString(),
+    };
 
     // ---- search / sort / density (FR-TEACH-06) ----------------------------
 
@@ -407,6 +513,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
     private void RosterChanged()
     {
         _snapshot = Students.ToArray();
+        RaiseHands();
         Raise(nameof(StudentCount));
         Raise(nameof(HasStudents));
         RefreshVisible();
@@ -427,12 +534,14 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
                              || t.ForegroundText.Contains(term, StringComparison.OrdinalIgnoreCase)
                              || t.ActiveHostText.Contains(term, StringComparison.OrdinalIgnoreCase));
 
+        // Students asking for help always come first, then the chosen sort.
+        var byHand = q.OrderByDescending(t => t.HandRaised);
         q = _sortIndex switch
         {
-            1 => q.OrderByDescending(t => t.CpuPercent).ThenBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase),
-            2 => q.OrderByDescending(t => t.MemoryPercent).ThenBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase),
-            3 => q.OrderByDescending(t => t.TotalRate).ThenBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase),
-            _ => q.OrderBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.UserName),
+            1 => byHand.ThenByDescending(t => t.CpuPercent).ThenBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase),
+            2 => byHand.ThenByDescending(t => t.MemoryPercent).ThenBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase),
+            3 => byHand.ThenByDescending(t => t.TotalRate).ThenBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase),
+            _ => byHand.ThenBy(t => t.MachineName, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.UserName),
         };
 
         var desired = q.ToList();

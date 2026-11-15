@@ -35,6 +35,7 @@ public sealed class BrowserActivityProbe : IDisposable
     private AutomationElement? _cachedBar;
 
     private volatile string? _host;
+    private IntPtr _hostWindow;
 
     public BrowserActivityProbe(ILogger logger)
     {
@@ -46,13 +47,28 @@ public sealed class BrowserActivityProbe : IDisposable
     /// <summary>Host of the foreground browser tab, or null when the foreground app isn't a browser.</summary>
     public string? CurrentHost => _host;
 
+    /// <summary>The foreground browser tab's host and the browser window it was read from (for web limits).</summary>
+    public (string? Host, IntPtr Window) Current
+    {
+        get { lock (_cacheLock) return (_host, _host is null ? IntPtr.Zero : _hostWindow); }
+    }
+
+    /// <summary>Forget the last reading (after a tab was closed) so a stale host isn't acted on twice.</summary>
+    public void Invalidate()
+    {
+        lock (_cacheLock) { _host = null; _hostWindow = IntPtr.Zero; }
+    }
+
+    private readonly object _cacheLock = new();
+
     private void Run()
     {
         while (!_cts.IsCancellationRequested)
         {
             try
             {
-                _host = Probe();
+                var host = Probe(out var window);
+                lock (_cacheLock) { _host = host; _hostWindow = window; }
             }
             catch (Exception ex)
             {
@@ -67,9 +83,10 @@ public sealed class BrowserActivityProbe : IDisposable
         }
     }
 
-    private string? Probe()
+    private string? Probe(out IntPtr window)
     {
         var hwnd = NativeMethods.GetForegroundWindow();
+        window = hwnd;
         if (hwnd == IntPtr.Zero) return null;
 
         NativeMethods.GetWindowThreadProcessId(hwnd, out var pid);

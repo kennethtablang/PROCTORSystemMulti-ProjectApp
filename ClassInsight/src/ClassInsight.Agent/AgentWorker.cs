@@ -21,8 +21,9 @@ namespace ClassInsight.Agent;
 ///
 /// Optional IT settings (<c>ClassInsight</c> section of appsettings.json — none are needed on a
 /// normal lab LAN): <c>RoomName</c> pins the agent to one room when several share a network
-/// (FR-SRV-05); <c>ServerAddress</c> is a manual <c>host[:port]</c> fallback for networks that
-/// block broadcast (NFR-COMPAT-02); <c>ReportBrowserActivity</c> toggles the browser-host
+/// (FR-SRV-05); <c>ServerAddress</c> pins the agent to one server by address — broadcast discovery
+/// is then not used at all (networks that block broadcast, NFR-COMPAT-02, or to rule out a rogue
+/// server on the LAN); <c>ReportBrowserActivity</c> toggles the browser-host
 /// telemetry (FR-AGENT-06).
 /// </summary>
 [SupportedOSPlatform("windows")]
@@ -46,6 +47,9 @@ public sealed class AgentWorker : BackgroundService
     private readonly SystemTelemetryCollector _telemetry;
     private readonly BrowserActivityProbe? _browser;
     private readonly ViewingIndicator? _indicator;
+    private readonly ClassroomUi? _ui;
+    private readonly PolicyEnforcer _enforcer;
+    private volatile HubConnection? _hub;
 
     private IReadOnlyList<IceServerConfig> _iceServers = [];
 
@@ -66,6 +70,15 @@ public sealed class AgentWorker : BackgroundService
         // whose policy doesn't require notice can turn it off.
         if (section.GetValue<bool?>("ShowViewingIndicator") ?? true)
             _indicator = new ViewingIndicator(loggerFactory.CreateLogger<ViewingIndicator>());
+
+        // Classroom control (P5): messages, lock screen, notices and the raise-hand tray icon, plus
+        // enforcement of the room's web/app/internet/sound limits.
+        if (section.GetValue<bool?>("EnableClassroomControl") ?? true)
+        {
+            _ui = new ClassroomUi(loggerFactory.CreateLogger<ClassroomUi>());
+            _ui.HandToggled += raised => _ = SendHandAsync(raised);
+        }
+        _enforcer = new PolicyEnforcer(loggerFactory.CreateLogger<PolicyEnforcer>(), _browser, _ui);
 
         _machineId = InstallId.GetOrCreate(logger);
         _telemetry = new SystemTelemetryCollector(_machineId, _browser);
@@ -96,6 +109,7 @@ public sealed class AgentWorker : BackgroundService
                 }
 
                 await TearDownSendersAsync();
+                LiftClassroomState();
 
                 if (!ct.IsCancellationRequested)
                     await SafeDelay(ReconnectDelay, ct);
@@ -104,6 +118,8 @@ public sealed class AgentWorker : BackgroundService
         finally
         {
             await TearDownSendersAsync();
+            _enforcer.Dispose();
+            _ui?.Dispose();
             _browser?.Dispose();
             _indicator?.Dispose();
         }
@@ -124,8 +140,10 @@ public sealed class AgentWorker : BackgroundService
         hub.Closed += _ => { closed.TrySetResult(); return Task.CompletedTask; };
 
         RegisterSignalingHandlers(hub);
+        RegisterClassroomHandlers(hub);
 
         await hub.StartAsync(ct);
+        _hub = hub;
         // Re-read identity each session: the signed-in user or display layout may have changed.
         await hub.InvokeAsync(Protocol.ServerMethods.RegisterStudent, BuildStudentInfo(), ct);
         _logger.LogInformation("Registered with the classroom server.");
@@ -148,16 +166,18 @@ public sealed class AgentWorker : BackgroundService
         var discovery = new LanDiscoveryClient("student");
         while (!ct.IsCancellationRequested)
         {
-            var server = await discovery.FindServerAsync(TimeSpan.FromSeconds(3), ct, _roomName);
-            if (server is not null) return server;
-
-            // Broadcast blocked or no beacon heard: try the address IT configured, if any.
             if (_serverAddress is not null)
             {
-                var manual = await ManualServer.ResolveAsync(_serverAddress, TimeSpan.FromSeconds(3), ct);
-                if (manual is not null && LanDiscoveryClient.MatchesRoom(manual, _roomName)) return manual;
+                // IT pinned the server: use only that address and never follow broadcast replies,
+                // so a rogue server appearing on the LAN can't attract this agent.
+                var pinned = await ManualServer.ResolveAsync(_serverAddress, TimeSpan.FromSeconds(3), ct);
+                if (pinned is not null && LanDiscoveryClient.MatchesRoom(pinned, _roomName)) return pinned;
+                await SafeDelay(TimeSpan.FromSeconds(3), ct);
+                continue;
             }
 
+            var server = await discovery.FindServerAsync(TimeSpan.FromSeconds(3), ct, _roomName);
+            if (server is not null) return server;
             _logger.LogDebug("No server yet; still searching…");
         }
         return null;
@@ -203,6 +223,67 @@ public sealed class AgentWorker : BackgroundService
             if (_senders.TryGetValue(candidate.FromConnectionId, out var sender))
                 sender.HandleIceCandidate(candidate);
         });
+    }
+
+    private void RegisterClassroomHandlers(HubConnection hub)
+    {
+        hub.On<string, ClassroomCommand>(Protocol.ClientMethods.CommandReceived, (_, command) => HandleCommand(command));
+        hub.On<ClassPolicy>(Protocol.ClientMethods.PolicyUpdated, policy => _enforcer.Apply(policy));
+        hub.On(Protocol.ClientMethods.HandLowered, () => _ui?.ResetHand(showNotice: true));
+    }
+
+    /// <summary>Carry out a teacher's command (already validated by the server; checked again here).</summary>
+    private void HandleCommand(ClassroomCommand command)
+    {
+        var text = ClassroomLimits.CleanText(command.Text);
+        _logger.LogInformation("Teacher command: {Kind}.", command.Kind);
+        switch (command.Kind)
+        {
+            case CommandKind.Message when text is not null:
+                _ui?.ShowMessage(text);
+                break;
+            case CommandKind.Lock:
+                _ui?.Lock(text);
+                break;
+            case CommandKind.Unlock:
+                _ui?.Unlock();
+                break;
+            case CommandKind.OpenUrl when ClassroomLimits.TryCleanUrl(command.Url, out var url):
+                UserSession.OpenUrl(url, _logger);
+                break;
+            case CommandKind.LogOff:
+                _ui?.ShowNotice("Your teacher is signing you out…", TimeSpan.FromSeconds(4));
+                _ = Task.Delay(3000).ContinueWith(_ => UserSession.LogOff(_logger));
+                break;
+            case CommandKind.Restart:
+                _ui?.ShowNotice($"🔄  Your teacher is restarting this computer in {ClassroomLimits.PowerCountdownSeconds} seconds. Save your work.", TimeSpan.FromSeconds(15));
+                UserSession.Restart(_logger);
+                break;
+            case CommandKind.ShutDown:
+                _ui?.ShowNotice($"⏻  Your teacher is shutting down this computer in {ClassroomLimits.PowerCountdownSeconds} seconds. Save your work.", TimeSpan.FromSeconds(15));
+                UserSession.ShutDown(_logger);
+                break;
+        }
+    }
+
+    private async Task SendHandAsync(bool raised)
+    {
+        var hub = _hub;
+        if (hub is not { State: HubConnectionState.Connected }) return;
+        try { await hub.SendAsync(Protocol.ServerMethods.RaiseHand, raised); }
+        catch (Exception ex) { _logger.LogDebug(ex, "Raise hand failed."); }
+    }
+
+    /// <summary>
+    /// Fail-safe when the link to the server is lost: unlock, lift every limit and reset the raised
+    /// hand, so a student is never left locked or restricted with no teacher able to undo it.
+    /// </summary>
+    private void LiftClassroomState()
+    {
+        _hub = null;
+        _ui?.Unlock();
+        _ui?.ResetHand(showNotice: false);
+        _enforcer.Apply(new ClassPolicy());
     }
 
     private async Task StartSenderAsync(HubConnection hub, string teacherId, StreamRequest request)

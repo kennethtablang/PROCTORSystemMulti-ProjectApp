@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="PROCTORSystemMulti_ProjectApp.LimitsPage"
+             Title="Class limits">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="24,20" Spacing="14" MaximumWidthRequest="760">
+
+            <Label Text="Limits for the whole class" FontSize="20" FontAttributes="Bold" />
+            <Label Text="Applied to every student PC in this room, including students who join later. They are lifted automatically when the last teacher disconnects."
+                   FontSize="12" TextColor="Gray" />
+
+            <!-- Web limits (FR-CTRL-06) -->
+            <Label Text="Websites" FontAttributes="Bold" FontSize="15" Margin="0,8,0,0" />
+            <Picker x:Name="WebMode" WidthRequest="320" HorizontalOptions="Start">
+                <Picker.Items>
+                    <x:String>No web limits</x:String>
+                    <x:String>Block these sites</x:String>
+                    <x:String>Allow only these sites</x:String>
+                </Picker.Items>
+            </Picker>
+            <Editor x:Name="WebHosts" HeightRequest="120" AutoSize="Disabled"
+                    Placeholder="One site per line, e.g.&#10;youtube.com&#10;tiktok.com" />
+            <Label Text="A site also covers its sub-domains (youtube.com includes m.youtube.com). A blocked tab is closed and the student sees why."
+                   FontSize="11" TextColor="Gray" />
+
+            <!-- App blocking -->
+            <Label Text="Blocked programs" FontAttributes="Bold" FontSize="15" Margin="0,8,0,0" />
+            <Editor x:Name="Apps" HeightRequest="90" AutoSize="Disabled"
+                    Placeholder="One program per line, e.g.&#10;steam&#10;discord.exe" />
+            <Label Text="Listed programs are closed when they start. Windows itself and ClassInsight can never be blocked."
+                   FontSize="11" TextColor="Gray" />
+
+            <!-- Internet / sound -->
+            <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                    <Label Text="Turn off the internet" FontAttributes="Bold" FontSize="15" />
+                    <Label Text="The lab network and ClassInsight keep working." FontSize="11" TextColor="Gray" />
+                </VerticalStackLayout>
+                <Switch x:Name="BlockInternet" Grid.Column="1" VerticalOptions="Center" />
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto">
+                <Label Grid.Column="0" Text="Mute student sound" FontAttributes="Bold" FontSize="15" VerticalOptions="Center" />
+                <Switch x:Name="Mute" Grid.Column="1" VerticalOptions="Center" />
+            </Grid>
+
+            <Label x:Name="Error" TextColor="#C62828" IsVisible="False" />
+
+            <HorizontalStackLayout Spacing="10" Margin="0,12,0,0">
+                <Button Text="Apply" Clicked="OnApply" Padding="22,6" />
+                <Button Text="Remove all limits" Clicked="OnClear" Padding="16,6" BackgroundColor="Transparent"
+                        TextColor="#C62828" BorderColor="#C62828" BorderWidth="1" />
+                <Button Text="Cancel" Clicked="OnCancel" Padding="16,6" BackgroundColor="Transparent"
+                        TextColor="Gray" />
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

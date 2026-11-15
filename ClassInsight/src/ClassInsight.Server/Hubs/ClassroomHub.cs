@@ -57,6 +57,10 @@ public sealed class ClassroomHub : Hub
 
         await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentJoined, entry.ToSnapshot());
         await BroadcastRosterToTeachers();
+
+        // A student who joins mid-lesson gets the room's current web/app limits straight away.
+        if (!_room.Policy.IsEmpty)
+            await Clients.Caller.SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
     }
 
     /// <summary>
@@ -91,8 +95,106 @@ public sealed class ClassroomHub : Hub
         _room.AddOrUpdateTeacher(Context.ConnectionId, info with { JoinCode = null });
         _logger.LogInformation("Teacher joined: {Device} ({Platform})", info.DeviceName, info.Platform);
 
-        // Give the newly-admitted teacher the full roster immediately.
+        // Give the newly-admitted teacher the full roster and the room's current limits immediately.
         await Clients.Caller.SendAsync(Protocol.ClientMethods.RosterUpdated, _room.BuildRoster());
+        await Clients.Caller.SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
+    }
+
+    // ---- classroom control (P5) -------------------------------------------
+
+    /// <summary>
+    /// A teacher's command to one, several or all students: message, lock/unlock, open a web page,
+    /// log off / restart / shut down. Validated here (the agent validates again) and relayed only
+    /// to registered students. Returns how many students it was sent to.
+    /// </summary>
+    public async Task<int> SendCommand(ClassroomCommand command)
+    {
+        var teacher = Context.ConnectionId;
+        if (!_room.IsTeacher(teacher)) throw new HubException("Only teachers can send classroom commands.");
+        if (command is null || !Enum.IsDefined(command.Kind)) throw new HubException("Unknown command.");
+
+        // Power commands are the most disruptive thing a teacher can send. In open mode anyone on the
+        // network can be a teacher, so they're refused unless IT has explicitly allowed them.
+        if (command.Kind is CommandKind.LogOff or CommandKind.Restart or CommandKind.ShutDown
+            && _identity.AllowOpenTeacherMode && !_identity.AllowPowerControlInOpenMode)
+            throw new HubException("Log off / restart / shut down need a teacher join code on this server (it runs in open mode).");
+
+        var text = ClassroomLimits.CleanText(command.Text);
+        string? url = null;
+        switch (command.Kind)
+        {
+            case CommandKind.Message when text is null:
+                throw new HubException("A message needs some text.");
+            case CommandKind.OpenUrl:
+                if (!ClassroomLimits.TryCleanUrl(command.Url, out var clean))
+                    throw new HubException("Only http:// or https:// web addresses can be opened.");
+                url = clean;
+                break;
+        }
+
+        var targets = ResolveTargets(command.Targets);
+        var relayed = new ClassroomCommand { Kind = command.Kind, Text = text, Url = url };
+
+        foreach (var student in targets)
+        {
+            if (command.Kind == CommandKind.Lock && _room.LockStudent(student, teacher))
+                await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentLockChanged, student, true);
+            else if (command.Kind == CommandKind.Unlock && _room.UnlockStudent(student))
+                await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentLockChanged, student, false);
+        }
+
+        if (targets.Count > 0)
+            await Clients.Clients(targets).SendAsync(Protocol.ClientMethods.CommandReceived, teacher, relayed);
+
+        _logger.LogInformation("Teacher {Teacher} sent {Kind} to {Count} student(s).", teacher, command.Kind, targets.Count);
+        return targets.Count;
+    }
+
+    /// <summary>Set the room-wide web/app/internet/sound limits. An empty policy clears them.</summary>
+    public async Task<ClassPolicy> SetPolicy(ClassPolicy policy)
+    {
+        if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can set limits.");
+        var clean = ClassroomLimits.Clean(policy);
+        _room.Policy = clean;
+        await PushPolicyAsync();
+        _logger.LogInformation("Teacher {Teacher} set limits: web {Mode} ({Hosts} sites), {Apps} blocked apps, internet {Net}, mute {Mute}.",
+            Context.ConnectionId, clean.WebMode, clean.WebHosts.Count, clean.BlockedApps.Count,
+            clean.BlockInternet ? "off" : "on", clean.MuteSound);
+        return clean;
+    }
+
+    /// <summary>A student raises (or lowers) their hand to ask for help.</summary>
+    public async Task RaiseHand(bool raised)
+    {
+        var student = Context.ConnectionId;
+        if (!_room.IsStudent(student)) return;
+        if (_room.SetHand(student, raised))
+            await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentHandChanged, student, raised);
+    }
+
+    /// <summary>A teacher acknowledges a raised hand; the student's request is cleared on their screen too.</summary>
+    public async Task LowerHand(string studentConnectionId)
+    {
+        if (!_room.IsTeacher(Context.ConnectionId) || string.IsNullOrEmpty(studentConnectionId)) return;
+        if (!_room.SetHand(studentConnectionId, false)) return;
+        await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentHandChanged, studentConnectionId, false);
+        await Clients.Client(studentConnectionId).SendAsync(Protocol.ClientMethods.HandLowered);
+    }
+
+    /// <summary>Requested targets that are real students; an empty request means every student.</summary>
+    private IReadOnlyList<string> ResolveTargets(IReadOnlyList<string>? requested)
+    {
+        if (requested is null || requested.Count == 0) return _room.StudentConnectionIds.ToArray();
+        return requested.Where(t => !string.IsNullOrEmpty(t) && _room.IsStudent(t))
+                        .Distinct(StringComparer.Ordinal)
+                        .Take(ClassroomLimits.MaxTargets)
+                        .ToArray();
+    }
+
+    private async Task PushPolicyAsync()
+    {
+        await Clients.Clients(_room.StudentConnectionIds).SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
+        await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
     }
 
     /// <summary>Explicit roster pull (teachers normally rely on the pushed snapshot).</summary>
@@ -216,9 +318,25 @@ public sealed class ClassroomHub : Hub
             await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentLeft, id);
             await BroadcastRosterToTeachers();
         }
-        else if (_room.RemoveTeacher(id, out var watched))
+        else if (_room.RemoveTeacher(id, out var watched, out var unlocked))
         {
             _logger.LogInformation("Teacher left: {Id}", id);
+
+            // Fail-safe: a teacher that leaves (or whose app crashes) releases its screen locks,
+            // and when no teacher is left the room's limits are lifted — a lab is never left
+            // locked or restricted with nobody able to undo it.
+            var unlock = new ClassroomCommand { Kind = CommandKind.Unlock };
+            foreach (var s in unlocked)
+            {
+                await Clients.Client(s).SendAsync(Protocol.ClientMethods.CommandReceived, id, unlock);
+                await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentLockChanged, s, false);
+            }
+            if (_room.TeacherCount == 0 && !_room.Policy.IsEmpty)
+            {
+                _room.Policy = new ClassPolicy();
+                await PushPolicyAsync();
+                _logger.LogInformation("Last teacher left: room limits cleared.");
+            }
 
             // Tell each agent this teacher was watching to stop encoding for it right away,
             // instead of waiting for WebRTC to notice the dead peer (FR-STREAM-06, NFR-REL-03).

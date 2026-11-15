@@ -12,6 +12,8 @@
          UI Automation client (System.Windows.Automation), used to read the foreground browser's
          address bar (FR-AGENT-06). -->
     <UseWPF>true</UseWPF>
+    <!-- WinForms only for the raise-hand tray icon (NotifyIcon). -->
+    <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
@@ -27,6 +29,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ClassInsight.Shared\ClassInsight.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Keep WinForms/System.Drawing out of the global usings so WPF types (Color, Brushes…) stay unambiguous. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
   </ItemGroup>
 
   <ItemGroup>

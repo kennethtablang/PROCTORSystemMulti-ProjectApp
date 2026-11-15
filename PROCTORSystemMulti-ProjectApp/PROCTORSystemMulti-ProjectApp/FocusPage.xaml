@@ -7,7 +7,7 @@
              Shell.NavBarIsVisible="False"
              BackgroundColor="#101114">
 
-    <Grid x:Name="Root" RowDefinitions="Auto,*,Auto" ColumnDefinitions="*,Auto">
+    <Grid x:Name="Root" RowDefinitions="Auto,Auto,*,Auto" ColumnDefinitions="*,Auto">
 
         <!-- Status / identity bar -->
         <Grid Grid.Row="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10"
@@ -25,8 +25,22 @@
                     BackgroundColor="#2A2D34" TextColor="White" />
         </Grid>
 
+        <!-- Per-student classroom controls (P5) -->
+        <FlexLayout Grid.Row="1" Grid.ColumnSpan="2" Wrap="Wrap" AlignItems="Center" Padding="16,6"
+                    BackgroundColor="#14161B">
+            <Button Text="✋ Lower hand" Clicked="OnLowerHand" IsVisible="{Binding HandRaised}" Margin="0,0,8,4"
+                    Padding="12,4" FontSize="13" BackgroundColor="#F9A825" TextColor="Black" />
+            <Button Text="🔒 Lock" Clicked="OnLock" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="🔓 Unlock" Clicked="OnUnlock" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="✉ Message" Clicked="OnMessage" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="🌐 Open site" Clicked="OnOpenSite" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="⏻ Power…" Clicked="OnPower" Margin="0,0,12,4" Padding="12,4" FontSize="13" />
+            <Label Text="{Binding LockText}" TextColor="#EF9A9A" FontAttributes="Bold" VerticalOptions="Center"
+                   IsVisible="{Binding IsLocked}" Margin="0,0,0,4" />
+        </FlexLayout>
+
         <!-- Live video surface (focus-quality stream, FR-TEACH-02) -->
-        <Grid x:Name="VideoArea" Grid.Row="1" Grid.Column="0">
+        <Grid x:Name="VideoArea" Grid.Row="2" Grid.Column="0">
             <ci:LiveScreenView Source="{Binding Frame}" />
             <Label Text="{Binding PlaceholderText}" TextColor="#9AA0A6" FontSize="13"
                    HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True" />
@@ -34,7 +48,7 @@
 
         <!-- Live telemetry detail panel (CPU/RAM/bandwidth + processes). Moves under the video on
              narrow (phone) layouts — see SizeChanged in code-behind (NFR-USE-03). -->
-        <Border x:Name="DetailPanel" Grid.Row="1" Grid.Column="1"
+        <Border x:Name="DetailPanel" Grid.Row="2" Grid.Column="1"
                 WidthRequest="340" BackgroundColor="#15171C" Stroke="#23262D" StrokeThickness="0">
             <ScrollView Padding="14,12">
                 <VerticalStackLayout Spacing="12">

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="PROCTORSystemMulti_ProjectApp.PollPage"
+             Title="Poll">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="24,20" Spacing="14" MaximumWidthRequest="760">
+
+            <Grid ColumnDefinitions="*,Auto">
+                <Label Text="Poll the class" FontSize="20" FontAttributes="Bold" VerticalOptions="Center" />
+                <Button Grid.Column="1" Text="Done" Clicked="OnDone" Padding="16,4" />
+            </Grid>
+
+            <!-- Live results of the current / last poll -->
+            <Border x:Name="ResultsCard" IsVisible="False" Stroke="#B794F6" StrokeThickness="1" Padding="16">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="10" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="10">
+                    <Label x:Name="ResultQuestion" FontSize="16" FontAttributes="Bold" />
+                    <Label x:Name="ResultStatus" FontSize="12" TextColor="Gray" />
+                    <VerticalStackLayout x:Name="Bars" Spacing="8" />
+                    <Label x:Name="ResponsesHeader" Text="Answers" FontAttributes="Bold" FontSize="13" Margin="0,6,0,0" />
+                    <VerticalStackLayout x:Name="Responses" Spacing="2" />
+                    <Button x:Name="CloseButton" Text="Close poll" Clicked="OnClosePoll" HorizontalOptions="Start"
+                            Padding="16,4" Margin="0,6,0,0" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- New poll -->
+            <Label Text="New poll" FontSize="15" FontAttributes="Bold" Margin="0,8,0,0" />
+            <Entry x:Name="Question" Placeholder="Question, e.g. Did everyone finish step 3?" MaxLength="300" />
+            <HorizontalStackLayout Spacing="10">
+                <Picker x:Name="Kind" WidthRequest="220" SelectedIndexChanged="OnKindChanged">
+                    <Picker.Items>
+                        <x:String>Yes / No</x:String>
+                        <x:String>Multiple choice</x:String>
+                        <x:String>Short written answer</x:String>
+                    </Picker.Items>
+                </Picker>
+                <CheckBox x:Name="Anonymous" VerticalOptions="Center" />
+                <Label Text="Anonymous (show totals only)" VerticalOptions="Center" FontSize="13" />
+            </HorizontalStackLayout>
+            <Editor x:Name="Options" IsVisible="False" HeightRequest="110" AutoSize="Disabled"
+                    Placeholder="One option per line (2–6), e.g.&#10;Option A&#10;Option B" />
+            <Label x:Name="Error" TextColor="#C62828" IsVisible="False" />
+            <Button Text="Start poll" Clicked="OnStart" HorizontalOptions="Start" Padding="22,6" />
+            <Label Text="Starting a new poll closes the current one. Students who join later also get the open poll."
+                   FontSize="11" TextColor="Gray" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

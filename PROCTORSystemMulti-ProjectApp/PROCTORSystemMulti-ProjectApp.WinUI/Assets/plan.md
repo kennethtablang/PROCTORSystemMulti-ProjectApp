@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.13 (draft)
+**Version:** 0.14 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -468,6 +468,12 @@ that loses the server unlocks and lifts everything itself.
 - 🟡 **FR-CTRL-08 [P5]** The teacher **may** log off / restart / shut down student PCs. *(30 s
   on-screen warning; refused in open mode without opt-in; agents can refuse locally with
   `AllowPowerCommands=false`. Relay and gating tested; not executed live, on purpose.)*
+- ✅ **FR-CTRL-09 [P5]** The teacher **may** poll the class (yes/no, multiple choice with 2–6
+  options, or a short written answer) and see results live. *(Students get an answer card — also if
+  they join later — and may change their answer until the poll closes; teachers see bars, counts
+  and who answered what, or, for an **anonymous** poll, totals plus unnamed written answers. One poll
+  at a time, in memory only, closed automatically when the last teacher leaves. **Live-verified**:
+  pressing "Yes" on the real student card reached the teacher as 1/1 answered, counts [1, 0].)*
 - ✅ **FR-STREAM-07** The teacher **should** be able to choose the stream resolution. *(Focus view:
   854 / 1280 / 1600 / 1920 / native; grid: 320 / 480 / 640 px thumbnails; remembered per device.
   The agent clamps to its IT ceiling `MaxStreamWidth` (default 1920) and never upscales.
@@ -715,6 +721,11 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.14 — 2026-11-15**
+  - **Polls / voting (FR-CTRL-09 ✅):** teacher "📊 Poll" page with live results; student answer
+    card; anonymous mode; late joiners included; closes when the last teacher leaves. Live-verified
+    through the real student UI. Tests: 89, all passing.
 
 - **0.13 — 2026-11-15**
   - **Repository move:** the back end (Shared, Server, Agent, Tests, installers) now lives in

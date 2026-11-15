@@ -80,6 +80,9 @@ public sealed class Peer : IAsyncDisposable
         Record<string, bool>(Protocol.ClientMethods.StudentLockChanged);
         Record<string, bool>(Protocol.ClientMethods.StudentHandChanged);
         Record<ClassPolicy>(Protocol.ClientMethods.PolicyUpdated);
+        Record<Poll>(Protocol.ClientMethods.PollStarted);
+        Record<string>(Protocol.ClientMethods.PollClosed);
+        Record<PollResults>(Protocol.ClientMethods.PollResultsUpdated);
         Hub.On(Protocol.ClientMethods.HandLowered, () => Push(Protocol.ClientMethods.HandLowered));
     }
 

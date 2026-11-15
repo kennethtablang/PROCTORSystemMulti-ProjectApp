@@ -47,6 +47,12 @@ internal sealed class ClassroomUi : IDisposable
     /// <summary>Raised (on the UI thread) when the student raises or lowers their hand from the tray.</summary>
     public event Action<bool>? HandToggled;
 
+    /// <summary>Raised (on the UI thread) when the student answers the open poll.</summary>
+    public event Action<Shared.Contracts.PollAnswer>? PollAnswered;
+
+    private Window? _pollWindow;
+    private string? _pollId;
+
     public ClassroomUi(ILogger logger)
     {
         _logger = logger;
@@ -119,6 +125,111 @@ internal sealed class ClassroomUi : IDisposable
         _message = window;
         window.Show();
         window.Activate();
+    });
+
+    // ---- polls ---------------------------------------------------------------
+
+    /// <summary>Show the teacher's poll as an answer card (replacing any earlier one).</summary>
+    public void ShowPoll(Shared.Contracts.Poll poll) => Post(() =>
+    {
+        _pollWindow?.Close();
+        _pollId = poll.Id;
+
+        var body = new StackPanel { Margin = new Thickness(24, 20, 24, 20), MaxWidth = 560 };
+        body.Children.Add(new TextBlock
+        {
+            Text = poll.Anonymous ? "Poll from your teacher (anonymous)" : "Poll from your teacher",
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xB7, 0x94, 0xF6)),
+            Margin = new Thickness(0, 0, 0, 10),
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = poll.Question,
+            FontSize = 18,
+            Foreground = Brushes.White,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 14),
+        });
+        var status = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA6)),
+            Margin = new Thickness(0, 12, 0, 0),
+            TextWrapping = TextWrapping.Wrap,
+        };
+
+        void Answered(Shared.Contracts.PollAnswer a, string shown)
+        {
+            PollAnswered?.Invoke(a);
+            status.Text = $"Answer sent: {shown}. You can change it until your teacher closes the poll.";
+        }
+
+        if (poll.Kind == Shared.Contracts.PollKind.ShortText)
+        {
+            var box = new TextBox
+            {
+                MaxLength = Shared.Contracts.PollLimits.MaxTextAnswerLength,
+                FontSize = 15,
+                Padding = new Thickness(6, 4, 6, 4),
+                MinWidth = 380,
+            };
+            var send = new Button { Content = "Send answer", Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Right, IsDefault = true };
+            send.Click += (_, _) =>
+            {
+                var text = box.Text?.Trim();
+                if (string.IsNullOrEmpty(text)) return;
+                Answered(new Shared.Contracts.PollAnswer { PollId = poll.Id, Text = text }, $"\u201c{text}\u201d");
+            };
+            body.Children.Add(box);
+            body.Children.Add(send);
+        }
+        else
+        {
+            var options = Shared.Contracts.PollLimits.EffectiveOptions(poll);
+            var buttons = new WrapPanel();
+            for (var i = 0; i < options.Count; i++)
+            {
+                var index = i;
+                var b = new Button
+                {
+                    Content = options[i],
+                    FontSize = 15,
+                    Padding = new Thickness(18, 8, 18, 8),
+                    Margin = new Thickness(0, 0, 8, 8),
+                    MinWidth = 90,
+                };
+                b.Click += (_, _) => Answered(new Shared.Contracts.PollAnswer { PollId = poll.Id, Choice = index }, options[index]);
+                buttons.Children.Add(b);
+            }
+            body.Children.Add(buttons);
+        }
+        body.Children.Add(status);
+
+        var window = Card(body);
+        window.Closed += (_, _) => { if (ReferenceEquals(_pollWindow, window)) _pollWindow = null; };
+        _pollWindow = window;
+        window.Show();
+        window.Activate();
+    });
+
+    /// <summary>The teacher closed the poll: remove the answer card.</summary>
+    public void ClosePoll(string pollId) => Post(() =>
+    {
+        if (_pollId != pollId) return;
+        _pollWindow?.Close();
+        _pollWindow = null;
+        _pollId = null;
+        ShowNotice("The poll is closed. Thanks for answering!", TimeSpan.FromSeconds(3));
+    });
+
+    /// <summary>Connection lost: drop any open poll card silently.</summary>
+    public void ResetPoll() => Post(() =>
+    {
+        _pollWindow?.Close();
+        _pollWindow = null;
+        _pollId = null;
     });
 
     // ---- lock screen -------------------------------------------------------

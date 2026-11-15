@@ -19,6 +19,7 @@ builder.Services.AddSignalR(options =>
 builder.Services.AddSingleton<ServerIdentity>();
 builder.Services.AddSingleton<RoomRegistry>();
 builder.Services.AddSingleton<TeacherAuthThrottle>();
+builder.Services.AddSingleton<PollBox>();
 builder.Services.AddHostedService<DiscoveryBeaconService>();
 
 var app = builder.Build();

@@ -64,6 +64,7 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
         _client.StudentLockChanged += (id, locked) => OnUi(() => { if (_byConnection.TryGetValue(id, out var t)) t.IsLocked = locked; });
         _client.StudentHandChanged += (id, raised) => OnUi(() => SetHand(id, raised));
         _client.PolicyUpdated += p => OnUi(() => Policy = p);
+        _client.PollResultsUpdated += r => OnUi(() => PollResults = r);
         // A restarted server has forgotten the room's limits: re-apply the ones this teacher set.
         _client.Registered += () => { if (!_lastSetPolicy.IsEmpty) _ = SetPolicyAsync(_lastSetPolicy); };
 
@@ -171,6 +172,31 @@ public sealed class DashboardViewModel : INotifyPropertyChanged
             if (_policy.MuteSound) parts.Add("sound muted");
             return "Limits: " + string.Join(" · ", parts);
         }
+    }
+
+    // ---- polls -------------------------------------------------------------
+
+    private PollResults? _pollResults;
+    /// <summary>Live results of the current (or last) poll; null before the first poll.</summary>
+    public PollResults? PollResults
+    {
+        get => _pollResults;
+        private set { _pollResults = value; Raise(); Raise(nameof(PollBadge)); }
+    }
+
+    /// <summary>Short live status for the dashboard bar, e.g. "Poll: 12/20 answered".</summary>
+    public string PollBadge => _pollResults is { Closed: false } r ? $"📊 Poll open · {r.Answered}/{r.Asked} answered" : "";
+
+    public async Task<string?> StartPollAsync(Poll poll)
+    {
+        try { await _client.StartPollAsync(poll); return null; }
+        catch (Exception ex) { return ex.Message; }
+    }
+
+    public async Task<string?> ClosePollAsync()
+    {
+        try { await _client.ClosePollAsync(); return null; }
+        catch (Exception ex) { return ex.Message; }
     }
 
     public int RaisedHands => Students.Count(s => s.HandRaised);

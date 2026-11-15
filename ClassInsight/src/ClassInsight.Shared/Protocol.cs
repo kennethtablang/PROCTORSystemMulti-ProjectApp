@@ -65,6 +65,11 @@ public static class Protocol
 
         /// <summary>Server → a student: a teacher acknowledged (lowered) their raised hand.</summary>
         public const string HandLowered = nameof(HandLowered);
+
+        // Polls: students get the question and its closing; teachers get live results.
+        public const string PollStarted = nameof(PollStarted);
+        public const string PollClosed = nameof(PollClosed);
+        public const string PollResultsUpdated = nameof(PollResultsUpdated);
     }
 
     /// <summary>Names of hub methods CLIENTS invoke ON the server.</summary>
@@ -96,5 +101,14 @@ public static class Protocol
 
         /// <summary>Teacher → server: acknowledge a student's raised hand.</summary>
         public const string LowerHand = nameof(LowerHand);
+
+        /// <summary>Teacher → server: put a poll to the class (replaces any open poll). Returns it with its id.</summary>
+        public const string StartPoll = nameof(StartPoll);
+
+        /// <summary>Teacher → server: close the open poll.</summary>
+        public const string ClosePoll = nameof(ClosePoll);
+
+        /// <summary>Student → server: answer (or change the answer to) the open poll.</summary>
+        public const string SubmitPollAnswer = nameof(SubmitPollAnswer);
     }
 }

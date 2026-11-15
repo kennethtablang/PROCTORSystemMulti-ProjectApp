@@ -48,6 +48,7 @@ public sealed class TeacherClient : IAsyncDisposable
     public event Action<string, bool>? StudentLockChanged;
     public event Action<string, bool>? StudentHandChanged;
     public event Action<ClassPolicy>? PolicyUpdated;
+    public event Action<PollResults>? PollResultsUpdated;
 
     /// <summary>WebRTC signalling relayed from a student, routed by <see cref="StreamManager"/>.</summary>
     public event Action<SdpMessage>? OfferReceived;
@@ -156,6 +157,7 @@ public sealed class TeacherClient : IAsyncDisposable
         hub.On<string, bool>(Protocol.ClientMethods.StudentLockChanged, (id, locked) => StudentLockChanged?.Invoke(id, locked));
         hub.On<string, bool>(Protocol.ClientMethods.StudentHandChanged, (id, raised) => StudentHandChanged?.Invoke(id, raised));
         hub.On<ClassPolicy>(Protocol.ClientMethods.PolicyUpdated, p => PolicyUpdated?.Invoke(p));
+        hub.On<PollResults>(Protocol.ClientMethods.PollResultsUpdated, r => PollResultsUpdated?.Invoke(r));
         hub.On<SdpMessage>(Protocol.ClientMethods.ReceiveOffer, o => OfferReceived?.Invoke(o));
         hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveIceCandidate, c => IceCandidateReceived?.Invoke(c));
 
@@ -329,6 +331,21 @@ public sealed class TeacherClient : IAsyncDisposable
         {
             throw new InvalidOperationException(ServerMessage(ex), ex);
         }
+    }
+
+    /// <summary>Put a poll to the class; returns it with its id, or throws with the server's reason.</summary>
+    public async Task<Poll> StartPollAsync(Poll poll)
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try { return await hub.InvokeAsync<Poll>(Protocol.ServerMethods.StartPoll, poll); }
+        catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
+    }
+
+    public async Task ClosePollAsync()
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try { await hub.InvokeAsync(Protocol.ServerMethods.ClosePoll); }
+        catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
     }
 
     public Task LowerHandAsync(string studentConnectionId) => SendAsync(Protocol.ServerMethods.LowerHand, studentConnectionId);

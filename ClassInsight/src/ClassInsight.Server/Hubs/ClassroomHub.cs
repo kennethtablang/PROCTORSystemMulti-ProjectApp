@@ -21,14 +21,17 @@ public sealed class ClassroomHub : Hub
     private readonly RoomRegistry _room;
     private readonly ServerIdentity _identity;
     private readonly TeacherAuthThrottle _throttle;
+    private readonly PollBox _polls;
     private readonly ILogger<ClassroomHub> _logger;
 
     public ClassroomHub(
         RoomRegistry room,
         ServerIdentity identity,
         TeacherAuthThrottle throttle,
+        PollBox polls,
         ILogger<ClassroomHub> logger)
     {
+        _polls = polls;
         _room = room;
         _identity = identity;
         _throttle = throttle;
@@ -61,6 +64,13 @@ public sealed class ClassroomHub : Hub
         // A student who joins mid-lesson gets the room's current web/app limits straight away.
         if (!_room.Policy.IsEmpty)
             await Clients.Caller.SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
+
+        // ...and the open poll, if there is one.
+        if (_polls.Open is { } poll)
+        {
+            await Clients.Caller.SendAsync(Protocol.ClientMethods.PollStarted, poll);
+            await PushPollResultsAsync();
+        }
     }
 
     /// <summary>
@@ -98,6 +108,59 @@ public sealed class ClassroomHub : Hub
         // Give the newly-admitted teacher the full roster and the room's current limits immediately.
         await Clients.Caller.SendAsync(Protocol.ClientMethods.RosterUpdated, _room.BuildRoster());
         await Clients.Caller.SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
+        if (_polls.Results(_room.StudentCount) is { } results)
+            await Clients.Caller.SendAsync(Protocol.ClientMethods.PollResultsUpdated, results);
+    }
+
+    // ---- polls ------------------------------------------------------------
+
+    /// <summary>Put a poll to the whole class (replacing any open one). Returns it with its id.</summary>
+    public async Task<Poll> StartPoll(Poll poll)
+    {
+        if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can start a poll.");
+        var clean = PollLimits.Clean(poll, out var error) ?? throw new HubException(error ?? "Invalid poll.");
+
+        if (_polls.Close() is { } previous)
+            await Clients.Clients(_room.StudentConnectionIds).SendAsync(Protocol.ClientMethods.PollClosed, previous);
+
+        var started = _polls.Start(clean);
+        await Clients.Clients(_room.StudentConnectionIds).SendAsync(Protocol.ClientMethods.PollStarted, started);
+        await PushPollResultsAsync();
+        _logger.LogInformation("Teacher {Teacher} started a {Kind} poll for {Count} student(s).",
+            Context.ConnectionId, started.Kind, _room.StudentCount);
+        return started;
+    }
+
+    /// <summary>Close the open poll: students' answer cards disappear; results stay with the teachers.</summary>
+    public async Task ClosePoll()
+    {
+        if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can close a poll.");
+        await ClosePollAsync();
+    }
+
+    /// <summary>A student answers (or changes their answer to) the open poll.</summary>
+    public async Task SubmitPollAnswer(PollAnswer answer)
+    {
+        var id = Context.ConnectionId;
+        if (!_room.TryGetStudent(id, out var student)) return;
+        var name = string.IsNullOrWhiteSpace(student.Info.UserName)
+            ? student.Info.MachineName
+            : $"{student.Info.MachineName} · {student.Info.UserName}";
+        if (_polls.Submit(id, name, answer))
+            await PushPollResultsAsync();
+    }
+
+    private async Task ClosePollAsync()
+    {
+        if (_polls.Close() is not { } closed) return;
+        await Clients.Clients(_room.StudentConnectionIds).SendAsync(Protocol.ClientMethods.PollClosed, closed);
+        await PushPollResultsAsync();
+    }
+
+    private async Task PushPollResultsAsync()
+    {
+        if (_polls.Results(_room.StudentCount) is { } results)
+            await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.PollResultsUpdated, results);
     }
 
     // ---- classroom control (P5) -------------------------------------------
@@ -326,6 +389,7 @@ public sealed class ClassroomHub : Hub
             _logger.LogInformation("Student left: {Name}", student?.Info.MachineName);
             await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentLeft, id);
             await BroadcastRosterToTeachers();
+            if (_polls.Open is not null) await PushPollResultsAsync();
         }
         else if (_room.RemoveTeacher(id, out var watched, out var unlocked))
         {
@@ -340,6 +404,7 @@ public sealed class ClassroomHub : Hub
                 await Clients.Client(s).SendAsync(Protocol.ClientMethods.CommandReceived, id, unlock);
                 await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentLockChanged, s, false);
             }
+            if (_room.TeacherCount == 0) await ClosePollAsync();
             if (_room.TeacherCount == 0 && !_room.Policy.IsEmpty)
             {
                 _room.Policy = new ClassPolicy();

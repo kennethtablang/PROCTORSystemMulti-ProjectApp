@@ -85,6 +85,7 @@ public sealed class AgentWorker : BackgroundService
         {
             _ui = new ClassroomUi(loggerFactory.CreateLogger<ClassroomUi>());
             _ui.HandToggled += raised => _ = SendHandAsync(raised);
+            _ui.PollAnswered += answer => _ = SendPollAnswerAsync(answer);
         }
         _enforcer = new PolicyEnforcer(loggerFactory.CreateLogger<PolicyEnforcer>(), _browser, _ui);
 
@@ -238,6 +239,8 @@ public sealed class AgentWorker : BackgroundService
         hub.On<string, ClassroomCommand>(Protocol.ClientMethods.CommandReceived, (_, command) => HandleCommand(command));
         hub.On<ClassPolicy>(Protocol.ClientMethods.PolicyUpdated, policy => _enforcer.Apply(policy));
         hub.On(Protocol.ClientMethods.HandLowered, () => _ui?.ResetHand(showNotice: true));
+        hub.On<Poll>(Protocol.ClientMethods.PollStarted, poll => _ui?.ShowPoll(poll));
+        hub.On<string>(Protocol.ClientMethods.PollClosed, id => _ui?.ClosePoll(id));
     }
 
     /// <summary>Carry out a teacher's command (already validated by the server; checked again here).</summary>
@@ -279,6 +282,14 @@ public sealed class AgentWorker : BackgroundService
         }
     }
 
+    private async Task SendPollAnswerAsync(PollAnswer answer)
+    {
+        var hub = _hub;
+        if (hub is not { State: HubConnectionState.Connected }) return;
+        try { await hub.SendAsync(Protocol.ServerMethods.SubmitPollAnswer, answer); }
+        catch (Exception ex) { _logger.LogDebug(ex, "Poll answer failed."); }
+    }
+
     private async Task SendHandAsync(bool raised)
     {
         var hub = _hub;
@@ -296,6 +307,7 @@ public sealed class AgentWorker : BackgroundService
         _hub = null;
         _ui?.Unlock();
         _ui?.ResetHand(showNotice: false);
+        _ui?.ResetPoll();
         _enforcer.Apply(new ClassPolicy());
     }
 

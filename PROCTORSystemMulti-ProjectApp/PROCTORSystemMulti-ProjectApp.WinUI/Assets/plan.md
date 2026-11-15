@@ -114,10 +114,12 @@ authorized to manage, under the institution's acceptable-use and privacy policy
 | `ClassInsight.Tests`    | xUnit test project       | 52 unit + in-process SignalR integration tests (discovery codec, roster/pairs, throttle, join code, telemetry math, capture sizing + DXGI mip choice, DTLS-SRTP, hub flows incl. injection cases) | ✅ Built, 52/52 pass |
 | `installer` (WiX v5)    | MSI                      | `ClassInsight.Agent.msi`: self-contained agent, auto-start LocalSystem service with restart-on-failure, protected `%ProgramData%` state folder, in-place upgrade | ✅ Built (install run pending) |
 
-> The teacher app is a **separate MAUI solution** (`PROCTORSystemMulti-ProjectApp`, MAUI
-> multi-project template with WinUI/Droid/Mac/iOS heads); the
-> server and agent stay in the `ClassInsight` solution. Both reference the same
-> `ClassInsight.Shared` contracts.
+> **Repository layout (0.12):** everything lives in the **PROCTORSystemMulti-ProjectApp** repo
+> and solution. The MAUI teacher app (WinUI/Droid/Mac/iOS heads) is under
+> `PROCTORSystemMulti-ProjectApp/`, and the back end is under `ClassInsight/`: `src/` (Shared,
+> Server, Agent), `tests/` (ClassInsight.Tests) and `installer/` (agent MSI + `setup/` for
+> `ClassInsight-Agent-Setup.exe`). The teacher app references `ClassInsight/src/ClassInsight.Shared`
+> directly. (These projects briefly lived in the unrelated SENGEN repository; PROCTOR is their home.)
 
 ### 2.3 Key architectural decisions (locked)
 

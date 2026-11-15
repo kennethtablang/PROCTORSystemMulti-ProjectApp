@@ -48,7 +48,7 @@
 	<ItemGroup>
 		<!-- Shared ClassInsight wire contracts — server, agent and teacher app all
 		     reference this one library so the protocol can never drift (NFR-MAIN-01). -->
-		<ProjectReference Include="..\..\..\SENGENSystem\ClassInsight\src\ClassInsight.Shared\ClassInsight.Shared.csproj" />
+		<ProjectReference Include="..\..\ClassInsight\src\ClassInsight.Shared\ClassInsight.Shared.csproj" />
 	</ItemGroup>
 
 </Project>

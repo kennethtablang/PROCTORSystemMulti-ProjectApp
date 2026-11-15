@@ -1,0 +1,25 @@
+<!--
+  Setup .exe for the ClassInsight student agent. Shows the standard installer window
+  (welcome / progress / finish), elevates once, and installs the MSI, which registers the
+  auto-start "ClassInsightAgent" service. Upgrades in place when a newer setup is run.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle Name="ClassInsight Agent"
+          Manufacturer="ClassInsight"
+          Version="0.2.0"
+          UpgradeCode="3B7A9C21-5D4E-4F60-8A1B-2C3D4E5F6A7B"
+          AboutUrl="https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp">
+
+    <BootstrapperApplication>
+      <!-- No license page: the agent is deployed by the institution on its own machines. -->
+      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="" ShowVersion="yes" />
+    </BootstrapperApplication>
+
+    <Chain>
+      <MsiPackage SourceFile="$(var.ClassInsight.Agent.Installer.TargetPath)"
+                  Vital="yes"
+                  Visible="no" />
+    </Chain>
+  </Bundle>
+</Wix>

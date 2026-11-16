@@ -155,6 +155,9 @@ certificate), so no other program can ever register as that PC.
 * **Open** (default, zero-config): a PC the server hasn't seen is enrolled the first time it registers.
 * **Key**: set the server's `AgentEnrollment` to `Key` and `EnrollmentKey` to a long random secret, and
   install agents with `ENROLLMENTKEY="<that secret>"`. A program without it can't join as a student.
+* **Flood protection:** at most 5 new PCs per address per hour and 200 per 10 minutes may enrol
+  (`EnrollmentsPerAddressPerHour` / `EnrollmentsPerTenMinutes` on the server), so a rogue program
+  can't fill the server with made-up PCs; PCs not seen for 180 days are forgotten.
 * **Re-imaged PC** (new agent key, same PC id): the server refuses it and logs why. Delete that PC's
   entry from `agents.json` (or the file) and restart the server, and it enrols again.
 

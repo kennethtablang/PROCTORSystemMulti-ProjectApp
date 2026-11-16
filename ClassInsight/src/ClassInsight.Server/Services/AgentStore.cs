@@ -16,20 +16,40 @@ namespace ClassInsight.Server.Services;
 /// </summary>
 public sealed class AgentStore
 {
-    public enum Outcome { Known, Enrolled, KeyMismatch, EnrollmentKeyRequired, Full }
+    public enum Outcome { Known, Enrolled, KeyMismatch, EnrollmentKeyRequired, RateLimited, Full }
 
-    private sealed record Entry(string KeyId, string Name, DateTimeOffset Enrolled);
+    private sealed record Entry(string KeyId, string Name, DateTimeOffset Enrolled)
+    {
+        public DateTimeOffset LastSeen { get; set; } = Enrolled;
+    }
 
     private const int MaxAgents = 20_000;
+
+    /// <summary>PCs not seen for this long are forgotten (they enrol again if they come back).</summary>
+    private static readonly TimeSpan Expiry = TimeSpan.FromDays(180);
+
+    // New enrolments are rate-limited per address and server-wide, so a rogue program can't fill the
+    // store with made-up PC ids (which would lock real new PCs out). A lab rollout stays well under.
+    private readonly int _perAddressPerHour;
+    private readonly int _perTenMinutes;
+    private readonly Dictionary<string, Queue<DateTimeOffset>> _recentByAddress = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Queue<DateTimeOffset> _recent = new();
+    private readonly TimeProvider _clock;
+
     private readonly object _gate = new();
     private readonly ILogger<AgentStore> _logger;
     private readonly string _path;
     private readonly Dictionary<string, Entry> _agents;
 
-    public AgentStore(IConfiguration configuration, ILogger<AgentStore> logger)
+    public AgentStore(IConfiguration configuration, ILogger<AgentStore> logger) : this(configuration, logger, TimeProvider.System) { }
+
+    public AgentStore(IConfiguration configuration, ILogger<AgentStore> logger, TimeProvider clock)
     {
         _logger = logger;
+        _clock = clock;
         var section = configuration.GetSection("ClassInsight");
+        _perAddressPerHour = section.GetValue<int?>("EnrollmentsPerAddressPerHour") ?? 5;
+        _perTenMinutes = section.GetValue<int?>("EnrollmentsPerTenMinutes") ?? 200;
         var certPath = section["CertificatePath"];
         _path = section["AgentStorePath"] is { Length: > 0 } configured
             ? configured
@@ -54,21 +74,57 @@ public sealed class AgentStore
     public int Count { get { lock (_gate) return _agents.Count; } }
 
     /// <summary>Decide whether this (already signature-verified) key may register as this PC.</summary>
-    public Outcome Check(string machineId, string keyId, string? proof, string machineName)
+    public Outcome Check(string machineId, string keyId, string? proof, string machineName, string remoteAddress)
     {
+        var now = _clock.GetUtcNow();
         lock (_gate)
         {
             if (_agents.TryGetValue(machineId, out var known))
-                return known.KeyId == keyId ? Outcome.Known : Outcome.KeyMismatch;
+            {
+                if (known.KeyId != keyId) return Outcome.KeyMismatch;
+                // Keep "last seen" current (for expiry), writing at most once a day per PC.
+                var persist = now - known.LastSeen > TimeSpan.FromDays(1);
+                known.LastSeen = now;
+                if (persist) Save();
+                return Outcome.Known;
+            }
 
             if (RequireKey && (EnrollmentKey is null || !AgentEnrollment.ProofMatches(EnrollmentKey, keyId, machineId, proof)))
                 return Outcome.EnrollmentKeyRequired;
-            if (_agents.Count >= MaxAgents) return Outcome.Full;
+            if (!AllowNewEnrolment(remoteAddress, now)) return Outcome.RateLimited;
+            if (_agents.Count >= MaxAgents)
+            {
+                PruneExpired(now);
+                if (_agents.Count >= MaxAgents) return Outcome.Full;
+            }
 
-            _agents[machineId] = new Entry(keyId, machineName, DateTimeOffset.UtcNow);
+            _agents[machineId] = new Entry(keyId, machineName, now);
             Save();
             return Outcome.Enrolled;
         }
+    }
+
+    private bool AllowNewEnrolment(string address, DateTimeOffset now)
+    {
+        while (_recent.Count > 0 && now - _recent.Peek() >= TimeSpan.FromMinutes(10)) _recent.Dequeue();
+        if (!_recentByAddress.TryGetValue(address, out var mine)) _recentByAddress[address] = mine = new Queue<DateTimeOffset>();
+        while (mine.Count > 0 && now - mine.Peek() >= TimeSpan.FromHours(1)) mine.Dequeue();
+        if (mine.Count >= _perAddressPerHour || _recent.Count >= _perTenMinutes)
+        {
+            _logger.LogWarning("Too many new PCs enrolling from {Address} (or overall); refusing for now.", address);
+            return false;
+        }
+        mine.Enqueue(now);
+        _recent.Enqueue(now);
+        if (_recentByAddress.Count > 10_000) _recentByAddress.Clear();   // bounded bookkeeping
+        return true;
+    }
+
+    private void PruneExpired(DateTimeOffset now)
+    {
+        var stale = _agents.Where(kv => now - kv.Value.LastSeen > Expiry).Select(kv => kv.Key).ToList();
+        foreach (var id in stale) _agents.Remove(id);
+        if (stale.Count > 0) _logger.LogInformation("Forgot {Count} PC(s) not seen for {Days} days.", stale.Count, (int)Expiry.TotalDays);
     }
 
     private Dictionary<string, Entry> Load()
@@ -83,8 +139,11 @@ public sealed class AgentStore
                 return new(StringComparer.Ordinal);
             }
             var loaded = JsonSerializer.Deserialize<Dictionary<string, Entry>>(File.ReadAllText(_path));
-            _logger.LogInformation("{Count} enrolled PC(s) loaded.", loaded?.Count ?? 0);
-            return loaded is null ? new(StringComparer.Ordinal) : new(loaded, StringComparer.Ordinal);
+            var agents = loaded is null ? new Dictionary<string, Entry>(StringComparer.Ordinal) : new(loaded, StringComparer.Ordinal);
+            foreach (var id in agents.Where(kv => _clock.GetUtcNow() - kv.Value.LastSeen > Expiry).Select(kv => kv.Key).ToList())
+                agents.Remove(id);
+            _logger.LogInformation("{Count} enrolled PC(s) loaded.", agents.Count);
+            return agents;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {

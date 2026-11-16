@@ -160,15 +160,18 @@ public sealed class ClassroomHub : Hub
             throw new HubException("This PC's identity couldn't be verified.");
 
         var keyId = AgentEnrollment.KeyId(publicKey);
-        switch (_agents.Check(info.MachineId, keyId, info.EnrollmentProof, ClassroomLimits.CleanText(info.MachineName) ?? "?"))
+        var remote = Context.GetHttpContext()?.Connection.RemoteIpAddress;
+        if (remote is { IsIPv4MappedToIPv6: true }) remote = remote.MapToIPv4();
+        switch (_agents.Check(info.MachineId, keyId, info.EnrollmentProof, ClassroomLimits.CleanText(info.MachineName) ?? "?", remote?.ToString() ?? "unknown"))
         {
+            case AgentStore.Outcome.RateLimited:
+                throw new HubException("Too many new PCs are enrolling right now; try again later.");
             case AgentStore.Outcome.KeyMismatch:
                 _logger.LogWarning("Refused {Name} ({Ip}): PC id {Id} is enrolled with a different key (impersonation, or a re-imaged PC — delete its entry in agents.json to re-enrol).",
                     info.MachineName, Context.GetHttpContext()?.Connection.RemoteIpAddress, info.MachineId);
                 throw new HubException("This PC id is enrolled with a different key.");
             case AgentStore.Outcome.EnrollmentKeyRequired:
-                _logger.LogWarning("Refused {Name} ({Ip}): new PC without a valid lab enrolment key.",
-                    info.MachineName, Context.GetHttpContext()?.Connection.RemoteIpAddress);
+                _logger.LogWarning("Refused {Name} ({Ip}): new PC without a valid lab enrolment key.", info.MachineName, remote);
                 throw new HubException("This PC isn't enrolled: install the agent with the lab's enrolment key.");
             case AgentStore.Outcome.Full:
                 throw new HubException("The server can't enrol more PCs.");

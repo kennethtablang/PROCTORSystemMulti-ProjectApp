@@ -32,6 +32,9 @@ public sealed class ServerFactory : WebApplicationFactory<ClassroomHub>
             // Each test server gets its own throwaway TLS identity (never %ProgramData%).
             ["ClassInsight:CertificatePath"] = Path.Combine(Path.GetTempPath(), "ci-test-" + Guid.NewGuid().ToString("N") + ".pfx"),
             ["ClassInsight:AgentStorePath"] = Path.Combine(Path.GetTempPath(), "ci-test-agents-" + Guid.NewGuid().ToString("N") + ".json"),
+            // Every test peer comes from the same in-memory address: don't let the enrolment rate limit get in the way.
+            ["ClassInsight:EnrollmentsPerAddressPerHour"] = "100000",
+            ["ClassInsight:EnrollmentsPerTenMinutes"] = "100000",
         };
         foreach (var (k, v) in settings) _settings[k] = v;
     }

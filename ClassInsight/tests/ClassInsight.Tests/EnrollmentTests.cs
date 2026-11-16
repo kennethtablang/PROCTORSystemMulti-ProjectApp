@@ -80,6 +80,20 @@ public class EnrollmentTests
     }
 
     [Fact]
+    public async Task New_enrolments_are_rate_limited_so_made_up_pcs_cannot_fill_the_server()
+    {
+        await using var factory = new ServerFactory(("ClassInsight:EnrollmentsPerAddressPerHour", "3"));
+        for (var i = 0; i < 3; i++)
+        {
+            await using var pc = await factory.ConnectAsync();
+            await pc.RegisterStudentAsync(Pc(Guid.NewGuid().ToString("N")));
+        }
+        await using var flood = await factory.ConnectAsync();
+        var ex = await Assert.ThrowsAsync<HubException>(() => flood.RegisterStudentAsync(Pc(Guid.NewGuid().ToString("N"))));
+        Assert.Contains("Too many new PCs", ex.Message);
+    }
+
+    [Fact]
     public async Task With_a_lab_key_only_pcs_installed_with_it_can_enrol()
     {
         const string labKey = "correct horse battery staple";

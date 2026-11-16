@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using ClassInsight.Server.Hubs;
+using ClassInsight.Server.Services;
+using Microsoft.Extensions.DependencyInjection;
 using ClassInsight.Shared;
 using ClassInsight.Shared.Contracts;
 using Microsoft.AspNetCore.Hosting;
@@ -29,6 +31,7 @@ public sealed class ServerFactory : WebApplicationFactory<ClassroomHub>
             ["ClassInsight:RoomName"] = "Test Lab",
             // Each test server gets its own throwaway TLS identity (never %ProgramData%).
             ["ClassInsight:CertificatePath"] = Path.Combine(Path.GetTempPath(), "ci-test-" + Guid.NewGuid().ToString("N") + ".pfx"),
+            ["ClassInsight:AgentStorePath"] = Path.Combine(Path.GetTempPath(), "ci-test-agents-" + Guid.NewGuid().ToString("N") + ".json"),
         };
         foreach (var (k, v) in settings) _settings[k] = v;
     }
@@ -50,7 +53,7 @@ public sealed class ServerFactory : WebApplicationFactory<ClassroomHub>
                 o.WebSocketFactory = async (ctx, ct) => await Server.CreateWebSocketClient().ConnectAsync(ctx.Uri, ct);
             })
             .Build();
-        var peer = new Peer(hub);
+        var peer = new Peer(hub, Services.GetRequiredService<ServerIdentity>().Fingerprint);
         await hub.StartAsync();
         return peer;
     }
@@ -65,9 +68,16 @@ public sealed class Peer : IAsyncDisposable
     public HubConnection Hub { get; }
     public string Id => Hub.ConnectionId!;
 
-    public Peer(HubConnection hub)
+    /// <summary>The server's TLS fingerprint, which a real agent knows from its pin.</summary>
+    public string ServerFingerprint { get; }
+
+    // One agent key per PC id, like a real installation (two connections from one PC share it).
+    private static readonly ConcurrentDictionary<string, System.Security.Cryptography.ECDsa> Keys = new();
+
+    public Peer(HubConnection hub, string serverFingerprint = "")
     {
         Hub = hub;
+        ServerFingerprint = serverFingerprint;
         Record<RosterSnapshot>(Protocol.ClientMethods.RosterUpdated);
         Record<StudentSnapshot>(Protocol.ClientMethods.StudentJoined);
         Record<string>(Protocol.ClientMethods.StudentLeft);
@@ -142,12 +152,26 @@ public sealed class Peer : IAsyncDisposable
     }
 
     public Task RegisterStudentAsync(string name = "PC1", string? machineId = null) =>
-        Hub.InvokeAsync(Protocol.ServerMethods.RegisterStudent, new StudentInfo
+        RegisterStudentAsync(new StudentInfo
         {
             MachineId = machineId ?? Guid.NewGuid().ToString("N"),
             MachineName = name,
             Displays = [new DisplayInfo { Index = 0, Width = 1920, Height = 1080, IsPrimary = true }],
         });
+
+    /// <summary>Register like a real agent: get the challenge, sign it with this PC's key.</summary>
+    public async Task RegisterStudentAsync(StudentInfo info, System.Security.Cryptography.ECDsa? key = null, string? enrollmentKey = null)
+    {
+        key ??= Keys.GetOrAdd(info.MachineId, _ => System.Security.Cryptography.ECDsa.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256));
+        var challenge = await Hub.InvokeAsync<EnrollmentChallenge>(Protocol.ServerMethods.GetEnrollmentChallenge);
+        var spki = key.ExportSubjectPublicKeyInfo();
+        await Hub.InvokeAsync(Protocol.ServerMethods.RegisterStudent, info with
+        {
+            PublicKey = Convert.ToBase64String(spki),
+            Signature = Convert.ToBase64String(AgentEnrollment.Sign(key, ServerFingerprint, challenge.Nonce, info.MachineId)),
+            EnrollmentProof = enrollmentKey is null ? null : AgentEnrollment.Proof(enrollmentKey, AgentEnrollment.KeyId(spki), info.MachineId),
+        });
+    }
 
     public Task RegisterTeacherAsync(string? code = null) =>
         Hub.InvokeAsync(Protocol.ServerMethods.RegisterTeacher, new TeacherInfo { DeviceName = "T", JoinCode = code });

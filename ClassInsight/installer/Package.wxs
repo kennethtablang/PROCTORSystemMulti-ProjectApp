@@ -24,6 +24,14 @@
          Each given value is written to classinsight.ini next to the agent (read on top of
          appsettings.json) and remembered in HKLM\Software\ClassInsight\Agent, so a later upgrade
          run without the properties keeps them. -->
+    <!-- Lab enrolment key (NFR-SEC-06): kept only in an admin-only registry key, never in a settings
+         file students can read, and hidden from installer logs. -->
+    <Property Id="ENROLLMENTKEY" Secure="yes" Hidden="yes" />
+    <Property Id="SAVED_ENROLLMENTKEY" Hidden="yes">
+      <RegistrySearch Id="FindEnrollmentKey" Root="HKLM" Key="Software\ClassInsight\Agent\Secret" Name="EnrollmentKey" Type="raw" />
+    </Property>
+    <SetProperty Id="ENROLLMENTKEY" Value="[SAVED_ENROLLMENTKEY]" After="AppSearch" Sequence="first"
+                 Condition="NOT ENROLLMENTKEY AND SAVED_ENROLLMENTKEY" />
     <Property Id="SERVERFINGERPRINT" Secure="yes" />
     <Property Id="SAVED_SERVERFINGERPRINT">
       <RegistrySearch Id="FindServerFingerprint" Root="HKLM" Key="Software\ClassInsight\Agent" Name="ServerFingerprint" Type="raw" />
@@ -84,6 +92,12 @@
           <File Id="AgentAppSettings" Source="$(var.AgentDir)appsettings.json" KeyPath="yes" />
         </Component>
 
+        <Component Id="SettingEnrollmentKey" Condition="ENROLLMENTKEY">
+          <RegistryKey Root="HKLM" Key="Software\ClassInsight\Agent\Secret" ForceCreateOnInstall="yes">
+            <PermissionEx Sddl="O:BAG:SYD:PAI(A;;KA;;;SY)(A;;KA;;;BA)" />
+            <RegistryValue Name="EnrollmentKey" Type="string" Value="[ENROLLMENTKEY]" KeyPath="yes" />
+          </RegistryKey>
+        </Component>
         <Component Id="SettingServerFingerprint" Condition="SERVERFINGERPRINT">
           <RegistryValue Root="HKLM" Key="Software\ClassInsight\Agent" Name="ServerFingerprint" Type="string" Value="[SERVERFINGERPRINT]" KeyPath="yes" />
           <IniFile Id="IniServerFingerprint" Action="addLine" Directory="INSTALLFOLDER" Name="classinsight.ini"
@@ -122,6 +136,7 @@
       <ComponentRef Id="AgentService" />
       <ComponentRef Id="AgentSettings" />
       <ComponentRef Id="StateFolder" />
+      <ComponentRef Id="SettingEnrollmentKey" />
       <ComponentRef Id="SettingServerFingerprint" />
       <ComponentRef Id="SettingServerAddress" />
       <ComponentRef Id="SettingRoomName" />

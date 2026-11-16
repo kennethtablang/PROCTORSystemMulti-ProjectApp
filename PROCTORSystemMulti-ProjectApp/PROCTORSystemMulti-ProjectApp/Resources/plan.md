@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.22 (draft)
+**Version:** 0.23 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -613,7 +613,7 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
 - ✅ **NFR-SEC-05** The agent **shall not** follow a discovery response to an arbitrary
   host or path: it connects only to the datagram's source address on the fixed hub path.
   *(Fixed in 0.11 via the shared `DiscoveryCodec`, which teachers use too. Unit-tested.)*
-- 🟡 **NFR-SEC-06 [P4]** On a shared/untrusted network the system **should** authenticate
+- ✅ **NFR-SEC-06 [P4]** On a shared/untrusted network the system **should** authenticate
   the server to the agent (PSK/HMAC-signed discovery over a probe nonce), use TLS (`wss`)
   with a pinned certificate, and enrol agents with a per-agent key the server binds to
   `MachineId`. *(**TLS + server pinning done** (protocol v2): the server is TLS-only with a
@@ -625,8 +625,16 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
   TLS handshake is what's enforced. Teachers: confirm the fingerprint on first connection (red
   warning if a known room/address presents a new key); the join code is only sent after the
   key is trusted. Remote control requires a strict agent pin. Discovery itself stays unsigned
-  (a rogue reply can no longer be connected to), and **per-agent enrolment keys are not done**
-  (a rogue *agent* can still join as a student). Unit tests for pinning; **live-verified** with
+  (a rogue reply can no longer be connected to, and can't hide the real server). **Agent
+  enrolment:** each agent has its own ECDSA P-256 key (SYSTEM/Administrators-only file) and signs a
+  single-use server nonce bound to the server's TLS fingerprint (a relayed or replayed signature is
+  useless); the server binds each `MachineId` to its key on first registration (`agents.json`,
+  tamper-checked) so no other program can register as that PC; `AgentEnrollment=Key` admits new PCs
+  only with an HMAC made with the lab key (MSI `ENROLLMENTKEY`, kept in an admin-only registry key,
+  hidden from logs). Tests: unsigned / wrong-server / replayed registrations refused, binding kept
+  across a server restart, lab-key mode. **Live-verified**: agent key created locked down, PC
+  enrolled then recognised after an agent restart, and refused by a key-mode server without the
+  lab key. Unit tests for pinning; **live-verified** with
   the real server: plain HTTP refused, agent TOFU-pinned and connected over TLS, a wrong pin
   refused, a file sent over TLS, and the agent refusing a server restarted with another key.
   After security review: the certificate folder/file are created locked down and a certificate
@@ -781,7 +789,7 @@ this document and `README.md` in sync with reality.
 | R-3 | CPU cost of many simultaneous encodes on older lab PCs | Encode only when viewed (FR-STREAM-06, verified), skip unchanged frames, pipelined capture/encode, DXGI GPU capture: thumbnail 5.9 % of one core (NFR-PERF-04). Each extra viewer of the same student is one more encode. |
 | R-4 | Legal/consent notice requirements vary by jurisdiction | FR-SEC-05 monitoring indicator; document admin responsibilities (NFR-PRIV). |
 | R-5 | Rogue device registers as teacher and views screens | Resolved: fail-closed teacher auth — code enforced by default (configured or auto-generated 64-bit), open mode only via explicit `AllowOpenTeacherMode=true`, and failed `RegisterTeacher` attempts are throttled/locked out per IP and globally (FR-SEC-06). Future: QR-code pairing carrying a high-entropy secret. |
-| R-6 | Rogue server on a shared LAN harvests telemetry; plaintext `ws` transport | Mitigated: TLS-only transport with server key pinning (NFR-SEC-06) — strict when IT sets the agents' `ServerFingerprint`, trust-on-first-use otherwise; teachers confirm the key. Remaining: unsigned discovery (harmless now) and no per-agent enrolment, so a rogue *agent* can still appear as a student. |
+| R-6 | Rogue server on a shared LAN harvests telemetry; plaintext `ws` transport | Mitigated: TLS-only transport with server key pinning (NFR-SEC-06) — strict when IT sets the agents' `ServerFingerprint`, trust-on-first-use otherwise; teachers confirm the key. Agents are authenticated too (per-PC keys bound to their PC id; optional lab enrolment key). Remaining: unsigned discovery, which can no longer redirect or hide anything. |
 | R-7 | A Windows service (session 0) can't capture the student's desktop (found in 0.11) | Resolved by design: the service supervises an in-session SYSTEM monitor. Needs one elevated install test on a lab PC before rollout. |
 | Q-1 | Max concurrent viewers per student screen? | Answered: no fixed limit; each viewer is one encode on the agent (two verified). Revisit if labs routinely have several teachers. |
 | Q-2 | Multi-room support in initial release or P4? | Answered: delivered (FR-SRV-05, FR-DISC-04). |
@@ -804,6 +812,11 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.23 — 2026-11-16**
+  - **Agent enrolment** completes NFR-SEC-06 (✅): per-PC agent keys, signed single-use challenge
+    bound to the server key, PC id bound to its key, optional lab enrolment key (MSI
+    `ENROLLMENTKEY`). Discovery hardened against reply floods. Tests: 152.
 
 - **0.22 — 2026-11-16**
   - **Encryption + server authentication** (NFR-SEC-06 🟡): TLS-only server, key pinning for agents

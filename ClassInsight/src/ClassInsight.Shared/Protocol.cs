@@ -182,6 +182,9 @@ public static class Protocol
 
         /// <summary>Teacher → server: take / release control of a student's PC, and send input.</summary>
         public const string StartRemoteControl = nameof(StartRemoteControl);
+
+        /// <summary>Agent → server, before RegisterStudent: get a single-use nonce to sign (NFR-SEC-06).</summary>
+        public const string GetEnrollmentChallenge = nameof(GetEnrollmentChallenge);
         public const string StopRemoteControl = nameof(StopRemoteControl);
         public const string SendRemoteInput = nameof(SendRemoteInput);
     }

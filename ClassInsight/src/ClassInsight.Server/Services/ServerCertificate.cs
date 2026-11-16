@@ -124,6 +124,14 @@ public sealed class ServerCertificate
         | FileSystemRights.WriteExtendedAttributes | FileSystemRights.WriteAttributes | FileSystemRights.Delete
         | FileSystemRights.DeleteSubdirectoriesAndFiles | FileSystemRights.ChangePermissions | FileSystemRights.TakeOwnership;
 
+    /// <summary>The file and its folder are both trusted.</summary>
+    [SupportedOSPlatform("windows")]
+    internal static bool IsTrustedPath(string path) =>
+        IsTrusted(new FileInfo(path)) && IsTrustedDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+
+    [SupportedOSPlatform("windows")]
+    internal static bool IsTrustedDirectory(string dir) => IsTrusted(new DirectoryInfo(dir));
+
     /// <summary>Owned by a trusted account and not writable by anyone else.</summary>
     [SupportedOSPlatform("windows")]
     internal static bool IsTrusted(FileSystemInfo item)

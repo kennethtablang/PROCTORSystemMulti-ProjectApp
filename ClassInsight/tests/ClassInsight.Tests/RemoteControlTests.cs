@@ -96,8 +96,7 @@ public class RemoteControlTests
         await using var student = await factory.ConnectAsync();
         await student.RegisterStudentAsync();
         await using var optedOut = await factory.ConnectAsync();
-        await optedOut.Hub.InvokeAsync(Protocol.ServerMethods.RegisterStudent,
-            new StudentInfo { MachineId = "x", MachineName = "KIOSK", RemoteControlAllowed = false });
+        await optedOut.RegisterStudentAsync(new StudentInfo { MachineId = "x-" + Guid.NewGuid().ToString("N"), MachineName = "KIOSK", RemoteControlAllowed = false });
         await using var teacher = await factory.ConnectAsync();
         await teacher.RegisterTeacherAsync();
 

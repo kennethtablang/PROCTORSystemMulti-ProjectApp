@@ -50,6 +50,15 @@ public sealed record StudentInfo
     /// </summary>
     public IReadOnlyList<string> MacAddresses { get; init; } = Array.Empty<string>();
 
+    /// <summary>The agent's public key (SPKI, base64) — see <see cref="AgentEnrollment"/>.</summary>
+    public string? PublicKey { get; init; }
+
+    /// <summary>Signature over the server's enrolment challenge (base64).</summary>
+    public string? Signature { get; init; }
+
+    /// <summary>HMAC made with the lab enrolment key, when the agent was installed with one.</summary>
+    public string? EnrollmentProof { get; init; }
+
     /// <summary>False when IT has turned remote control off on this PC (agent setting AllowRemoteControl).</summary>
     public bool RemoteControlAllowed { get; init; } = true;
 

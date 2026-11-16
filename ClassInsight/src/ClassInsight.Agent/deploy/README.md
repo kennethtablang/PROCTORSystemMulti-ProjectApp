@@ -39,6 +39,7 @@ overrides `appsettings.json`, and is remembered so later upgrades keep it):
 | `SERVERFINGERPRINT` | `ClassInsight:ServerFingerprint` — the server's TLS key; the agent talks to no other server. |
 | `SERVERADDRESS` | `ClassInsight:ServerAddress` — `host` or `host:port` when broadcast discovery is blocked. |
 | `ROOMNAME` | `ClassInsight:RoomName` — join only this room. |
+| `ENROLLMENTKEY` | The lab enrolment key, when the server runs with `AgentEnrollment=Key`. Stored only in an admin-only registry key (never a settings file) and hidden from installer logs. |
 | `ALLOWREMOTECONTROL` | `ClassInsight:AllowRemoteControl` — `true` to allow remote control (also needs `SERVERFINGERPRINT`). |
 
 The MSI installs into `%ProgramFiles%\ClassInsight`, registers the same `ClassInsightAgent` service
@@ -143,6 +144,19 @@ the server creates its own certificate in `%ProgramData%\ClassInsight\Server\ser
   server until you re-pin them (re-run the MSI with the new `SERVERFINGERPRINT`, or delete
   the `TrustedServerFingerprint` registry value under `HKLM\SOFTWARE\ClassInsight\Agent` on PCs
   that trusted on first use).
+
+### Which PCs may join (agent enrolment)
+
+Every agent has its own key (`%ProgramData%\ClassInsight\agent-key`, readable only by SYSTEM and
+Administrators) and proves it at each registration by signing a single-use challenge bound to the
+server's fingerprint. The server remembers which key each PC enrolled with (`agents.json` beside its
+certificate), so no other program can ever register as that PC.
+
+* **Open** (default, zero-config): a PC the server hasn't seen is enrolled the first time it registers.
+* **Key**: set the server's `AgentEnrollment` to `Key` and `EnrollmentKey` to a long random secret, and
+  install agents with `ENROLLMENTKEY="<that secret>"`. A program without it can't join as a student.
+* **Re-imaged PC** (new agent key, same PC id): the server refuses it and logs why. Delete that PC's
+  entry from `agents.json` (or the file) and restart the server, and it enrols again.
 
 ## 3. Verify / manage
 

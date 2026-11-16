@@ -28,6 +28,8 @@ public sealed class ClassroomHub : Hub
     private readonly ChatThrottle _chat;
     private readonly FileTransfers _files;
     private readonly RemoteControlState _remote;
+    private readonly AgentStore _agents;
+    private const string NonceItem = "enrol-nonce";
     private readonly ILogger<ClassroomHub> _logger;
 
     public ClassroomHub(
@@ -41,8 +43,10 @@ public sealed class ClassroomHub : Hub
         ChatThrottle chat,
         FileTransfers files,
         RemoteControlState remote,
+        AgentStore agents,
         ILogger<ClassroomHub> logger)
     {
+        _agents = agents;
         _remote = remote;
         _files = files;
         _chat = chat;
@@ -58,12 +62,28 @@ public sealed class ClassroomHub : Hub
 
     // ---- registration -----------------------------------------------------
 
-    /// <summary>A student agent announces itself. No code, no login (FR-SEC-01).</summary>
+    /// <summary>
+    /// Step 1 of a student registering (NFR-SEC-06): a single-use nonce the agent signs with its own
+    /// key. Kept on this connection only, and consumed by the next RegisterStudent.
+    /// </summary>
+    public EnrollmentChallenge GetEnrollmentChallenge()
+    {
+        var nonce = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+        Context.Items[NonceItem] = nonce;
+        return new EnrollmentChallenge { Nonce = nonce, KeyRequired = _agents.RequireKey };
+    }
+
+    /// <summary>
+    /// A student agent announces itself. No login for students (FR-SEC-01), but the agent must prove
+    /// which PC it is (NFR-SEC-06): it signs the challenge, bound to this server's TLS key, with its
+    /// own key, and a PC id can only ever register with the key it first enrolled with.
+    /// </summary>
     public async Task RegisterStudent(StudentInfo info)
     {
         RejectIfIncompatible(info.ProtocolVersion);
         if (_room.IsTeacher(Context.ConnectionId))
             throw new HubException("This connection is already registered as a teacher.");
+        VerifyAgent(info);
 
         // A connection's identity is fixed once registered: re-registering under a different
         // install id (e.g. to answer a poll several times) is refused.
@@ -115,6 +135,46 @@ public sealed class ClassroomHub : Hub
         {
             await Clients.Caller.SendAsync(Protocol.ClientMethods.PollStarted, poll);
             await PushPollResultsAsync();
+        }
+    }
+
+    private void VerifyAgent(StudentInfo info)
+    {
+        if (!Context.Items.Remove(NonceItem, out var item) || item is not string nonce)
+            throw new HubException("Ask for an enrolment challenge before registering.");
+        if (string.IsNullOrEmpty(info.MachineId) || info.MachineId.Length > 64)
+            throw new HubException("Missing PC id.");
+
+        byte[] publicKey, signature;
+        try
+        {
+            publicKey = Convert.FromBase64String(info.PublicKey ?? "");
+            signature = Convert.FromBase64String(info.Signature ?? "");
+        }
+        catch (FormatException)
+        {
+            throw new HubException("This PC's identity couldn't be verified.");
+        }
+        if (publicKey.Length is 0 or > 512 || signature.Length is 0 or > 256
+            || !AgentEnrollment.Verify(publicKey, signature, _identity.Fingerprint, nonce, info.MachineId))
+            throw new HubException("This PC's identity couldn't be verified.");
+
+        var keyId = AgentEnrollment.KeyId(publicKey);
+        switch (_agents.Check(info.MachineId, keyId, info.EnrollmentProof, ClassroomLimits.CleanText(info.MachineName) ?? "?"))
+        {
+            case AgentStore.Outcome.KeyMismatch:
+                _logger.LogWarning("Refused {Name} ({Ip}): PC id {Id} is enrolled with a different key (impersonation, or a re-imaged PC — delete its entry in agents.json to re-enrol).",
+                    info.MachineName, Context.GetHttpContext()?.Connection.RemoteIpAddress, info.MachineId);
+                throw new HubException("This PC id is enrolled with a different key.");
+            case AgentStore.Outcome.EnrollmentKeyRequired:
+                _logger.LogWarning("Refused {Name} ({Ip}): new PC without a valid lab enrolment key.",
+                    info.MachineName, Context.GetHttpContext()?.Connection.RemoteIpAddress);
+                throw new HubException("This PC isn't enrolled: install the agent with the lab's enrolment key.");
+            case AgentStore.Outcome.Full:
+                throw new HubException("The server can't enrol more PCs.");
+            case AgentStore.Outcome.Enrolled:
+                _logger.LogInformation("Enrolled a new PC: {Name} (key {Key}).", info.MachineName, ServerTrust.Short(keyId));
+                break;
         }
     }
 

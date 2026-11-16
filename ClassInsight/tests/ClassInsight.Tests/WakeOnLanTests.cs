@@ -62,9 +62,9 @@ public class WakeHubTests : IAsyncLifetime
         await using var teacher = await _factory.ConnectAsync();
         await teacher.RegisterTeacherAsync();
         await using var student = await _factory.ConnectAsync();
-        await student.Hub.InvokeAsync(Protocol.ServerMethods.RegisterStudent, new StudentInfo
+        await student.RegisterStudentAsync(new StudentInfo
         {
-            MachineId = "m1",
+            MachineId = "m1-" + Guid.NewGuid().ToString("N"),
             MachineName = "LAB-01",
             MacAddresses = ["02:00:00:aa:bb:01", "junk", "FF-FF-FF-FF-FF-FF", "02-00-00-AA-BB-01", "02-00-00-AA-BB-02",
                             "02-00-00-AA-BB-03", "02-00-00-AA-BB-04", "02-00-00-AA-BB-05"],

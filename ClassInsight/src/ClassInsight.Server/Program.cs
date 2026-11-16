@@ -33,6 +33,7 @@ builder.Services.AddSingleton<WakeSender>();
 builder.Services.AddSingleton<ChatThrottle>();
 builder.Services.AddSingleton<FileTransfers>();
 builder.Services.AddSingleton<RemoteControlState>();
+builder.Services.AddSingleton<AgentStore>();
 builder.Services.AddHostedService<DiscoveryBeaconService>();
 
 var app = builder.Build();
@@ -40,6 +41,7 @@ var app = builder.Build();
 // Force ServerIdentity to resolve now so its startup banner (and any generated join code)
 // prints before the first client connects.
 _ = app.Services.GetRequiredService<ServerIdentity>();
+_ = app.Services.GetRequiredService<AgentStore>();
 
 app.MapHub<ClassroomHub>(Protocol.HubPath);
 app.MapGet("/", () => Results.Ok(new { service = "ClassInsight", status = "ok" }));

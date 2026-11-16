@@ -63,8 +63,9 @@ public sealed class AgentWorker : BackgroundService
     // File transfer: files from the teacher and handing work in (null when turned off by IT).
     private readonly StudentFiles? _files;
 
-    // Which server's TLS key this agent trusts (NFR-SEC-06).
+    // Which server's TLS key this agent trusts, and this PC's own key (NFR-SEC-06).
     private readonly ServerPin _pin;
+    private readonly AgentIdentity _identity;
 
     // Remote control (FR-CTRL-05): null unless IT opted in (see the constructor).
     private readonly RemoteInput? _remote;
@@ -82,6 +83,7 @@ public sealed class AgentWorker : BackgroundService
         ScreenCapture.DisableDxgi = string.Equals(section["CaptureBackend"], "GDI", StringComparison.OrdinalIgnoreCase);
         _serverAddress = NullIfBlank(section["ServerAddress"]);
         _pin = new ServerPin(section["ServerFingerprint"], logger);
+        _identity = new AgentIdentity(section["EnrollmentKey"], logger);
 
         if (section.GetValue<bool?>("ReportBrowserActivity") ?? true)
             _browser = new BrowserActivityProbe(loggerFactory.CreateLogger<BrowserActivityProbe>());
@@ -200,7 +202,18 @@ public sealed class AgentWorker : BackgroundService
         await hub.StartAsync(ct);
         _hub = hub;
         // Re-read identity each session: the signed-in user or display layout may have changed.
-        await hub.InvokeAsync(Protocol.ServerMethods.RegisterStudent, BuildStudentInfo(), ct);
+        // Prove which PC this is (NFR-SEC-06): sign the server's single-use challenge, bound to the TLS
+        // key we pinned ourselves (not anything the server says about itself).
+        var challenge = await hub.InvokeAsync<EnrollmentChallenge>(Protocol.ServerMethods.GetEnrollmentChallenge, ct);
+        try
+        {
+            await hub.InvokeAsync(Protocol.ServerMethods.RegisterStudent, _identity.Sign(BuildStudentInfo(), presented, challenge.Nonce), ct);
+        }
+        catch (Microsoft.AspNetCore.SignalR.HubException ex) when (ex.Message.Contains("enrol", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogError("The classroom server refused this PC: {Reason} (agent key {Key}).", ex.Message, ServerTrust.Short(_identity.KeyId));
+            throw;
+        }
         _logger.LogInformation("Registered with the classroom server.");
 
         try

@@ -114,13 +114,43 @@ internal sealed class AgentIdentity
         return true;
     }
 
+    /// <summary>Owned by SYSTEM/Administrators, and nobody else may read or change it.</summary>
+    private static bool IsPrivate(RegistrySecurity security)
+    {
+        var trusted = new[]
+        {
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+        };
+        if (security.GetOwner(typeof(SecurityIdentifier)) is not SecurityIdentifier owner || !trusted.Contains(owner)) return false;
+        foreach (RegistryAccessRule rule in security.GetAccessRules(true, true, typeof(SecurityIdentifier)))
+        {
+            if (rule.AccessControlType != AccessControlType.Allow) continue;
+            if (rule.IdentityReference is SecurityIdentifier sid && trusted.Contains(sid)) continue;
+            if ((rule.RegistryRights & (RegistryRights.QueryValues | RegistryRights.SetValue | RegistryRights.CreateSubKey
+                 | RegistryRights.ChangePermissions | RegistryRights.TakeOwnership | RegistryRights.Delete)) != 0) return false;
+        }
+        return true;
+    }
+
     private static string? ReadSecret(ILogger logger)
     {
         try
         {
             using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
             using var key = hklm.OpenSubKey(SecretKeyPath);
-            return key?.GetValue("EnrollmentKey") is string { Length: > 0 } s ? s.Trim() : null;
+            if (key?.GetValue("EnrollmentKey") is not string { Length: > 0 } value) return null;
+
+            // The MSI creates this key readable only by SYSTEM and Administrators. If anyone else can
+            // read (or change) it, the secret must be treated as exposed: refuse it so IT notices.
+            if (!IsPrivate(key.GetAccessControl()))
+            {
+                logger.LogError("Ignoring the lab enrolment key: HKLM\\{Path} can be read or changed by accounts other than " +
+                                "SYSTEM and Administrators, so it may have been exposed. Reinstall with ENROLLMENTKEY (which " +
+                                "protects the key) and consider changing the lab key on the server.", SecretKeyPath);
+                return null;
+            }
+            return value.Trim();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {

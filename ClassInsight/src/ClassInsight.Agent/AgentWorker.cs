@@ -428,6 +428,36 @@ public sealed class AgentWorker : BackgroundService
         catch (OperationCanceledException) { }
     }
 
+    /// <summary>
+    /// Physical adapters' MACs for Wake-on-LAN, wired first (Wi-Fi rarely wakes from off). Virtual,
+    /// loopback and tunnel adapters are skipped.
+    /// </summary>
+    private static string[] MacAddresses()
+    {
+        try
+        {
+            return System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                .Where(n => n.NetworkInterfaceType is System.Net.NetworkInformation.NetworkInterfaceType.Ethernet
+                                                    or System.Net.NetworkInformation.NetworkInterfaceType.GigabitEthernet
+                                                    or System.Net.NetworkInformation.NetworkInterfaceType.Wireless80211)
+                .Where(n => !IsVirtual(n.Description))
+                .OrderBy(n => n.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Wireless80211 ? 1 : 0)
+                .ThenBy(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up ? 0 : 1)
+                .Select(n => WakeOnLan.Normalize(n.GetPhysicalAddress().ToString()))
+                .OfType<string>()
+                .Distinct()
+                .Take(WakeOnLan.MaxPerMachine)
+                .ToArray();
+        }
+        catch { return []; }
+
+        static bool IsVirtual(string d) =>
+            d.Contains("Virtual", StringComparison.OrdinalIgnoreCase) || d.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase)
+            || d.Contains("VMware", StringComparison.OrdinalIgnoreCase) || d.Contains("VirtualBox", StringComparison.OrdinalIgnoreCase)
+            || d.Contains("TAP", StringComparison.Ordinal) || d.Contains("Bluetooth", StringComparison.OrdinalIgnoreCase)
+            || d.Contains("WAN Miniport", StringComparison.OrdinalIgnoreCase);
+    }
+
     private StudentInfo BuildStudentInfo()
     {
         var displays = DisplayEnumerator.GetDisplays();
@@ -443,6 +473,7 @@ public sealed class AgentWorker : BackgroundService
             ScreenWidth = primary.Width,
             ScreenHeight = primary.Height,
             Displays = displays.Select(d => d.Info).ToArray(),
+            MacAddresses = MacAddresses(),
             AgentVersion = AgentVersion,
         };
     }

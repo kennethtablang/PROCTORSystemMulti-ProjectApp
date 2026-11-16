@@ -108,6 +108,27 @@ public sealed partial class DashboardViewModel
         row.LastSeen = now;
         row.Online = true;
         _attendanceByConnection[s.ConnectionId] = key;
+        if (_client.CurrentServer?.ServerId is { Length: > 0 } server)
+            KnownComputers.Remember(server, key, s.MachineName, s.MacAddresses);
+    }
+
+    // ---- wake-on-LAN --------------------------------------------------------
+
+    /// <summary>Computers seen in this room before (on this device) that aren't connected now and can be woken.</summary>
+    public IReadOnlyList<KnownComputer> OfflineComputers()
+    {
+        if (_client.CurrentServer?.ServerId is not { Length: > 0 } server) return [];
+        var online = _attendance.Where(kv => kv.Value.Online).Select(kv => kv.Key).ToHashSet(StringComparer.Ordinal);
+        return KnownComputers.For(server).Where(k => !online.Contains(k.MachineId) && k.MacAddresses.Count > 0)
+                             .OrderBy(k => k.MachineName, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Wake the given computers; returns (count, error).</summary>
+    public async Task<(int Count, string? Error)> WakeAsync(IEnumerable<KnownComputer> computers)
+    {
+        var macs = computers.SelectMany(c => c.MacAddresses).Distinct().Take(WakeOnLan.MaxPerRequest).ToArray();
+        try { return (await _client.WakeComputersAsync(new WakeRequest { MacAddresses = macs }), null); }
+        catch (Exception ex) { return (0, ex.Message); }
     }
 
     private void TrackLeave(string connectionId)

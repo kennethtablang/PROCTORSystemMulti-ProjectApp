@@ -366,6 +366,13 @@ public sealed class TeacherClient : IAsyncDisposable
         await hub.InvokeAsync(Protocol.ServerMethods.StopBroadcast);
     }
 
+    public async Task<int> WakeComputersAsync(WakeRequest request)
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try { return await hub.InvokeAsync<int>(Protocol.ServerMethods.WakeComputers, request); }
+        catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
+    }
+
     public async Task StartTimerAsync(TimerRequest request)
     {
         var hub = _hub ?? throw new InvalidOperationException("Not connected.");

@@ -46,6 +46,7 @@ public sealed class RoomRegistry
             ScreenWidth = Info.ScreenWidth,
             ScreenHeight = Info.ScreenHeight,
             Displays = Info.Displays,
+            MacAddresses = Info.MacAddresses,
             State = State,
             ConnectedAt = ConnectedAt,
             LastTelemetry = LastTelemetry,

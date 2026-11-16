@@ -44,6 +44,12 @@ public sealed record StudentInfo
     /// </summary>
     public IReadOnlyList<DisplayInfo> Displays { get; init; } = Array.Empty<DisplayInfo>();
 
+    /// <summary>
+    /// MAC addresses of the PC's network adapters (wired first), so a teacher can switch it on
+    /// later with Wake-on-LAN. At most <see cref="WakeOnLan.MaxPerMachine"/>.
+    /// </summary>
+    public IReadOnlyList<string> MacAddresses { get; init; } = Array.Empty<string>();
+
     public string AgentVersion { get; init; } = string.Empty;
 
     /// <summary>
@@ -101,6 +107,7 @@ public sealed record StudentSnapshot
     public int ScreenWidth { get; init; }
     public int ScreenHeight { get; init; }
     public IReadOnlyList<DisplayInfo> Displays { get; init; } = Array.Empty<DisplayInfo>();
+    public IReadOnlyList<string> MacAddresses { get; init; } = Array.Empty<string>();
     public StudentState State { get; init; } = StudentState.Online;
     public DateTimeOffset ConnectedAt { get; init; }
 

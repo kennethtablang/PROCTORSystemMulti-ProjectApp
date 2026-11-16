@@ -39,7 +39,16 @@ public static class ClassActions
     public static async Task PowerAsync(Page page, DashboardViewModel vm, IReadOnlyList<string>? targets, string who)
     {
         const string logOff = "Log off", restart = "Restart", shutDown = "Shut down";
-        var choice = await page.DisplayActionSheetAsync($"Power — {who}", "Cancel", null, logOff, restart, shutDown);
+        // Whole class: also offer to switch on the lab PCs that are off (Wake-on-LAN).
+        var offline = targets is null ? vm.OfflineComputers() : [];
+        var wake = $"⚡ Switch on offline computers ({offline.Count})";
+        var options = offline.Count > 0 ? new[] { wake, logOff, restart, shutDown } : new[] { logOff, restart, shutDown };
+        var choice = await page.DisplayActionSheetAsync($"Power — {who}", "Cancel", null, options);
+        if (choice == wake)
+        {
+            await WakeAsync(page, vm, offline);
+            return;
+        }
         var kind = choice switch
         {
             logOff => CommandKind.LogOff,
@@ -54,6 +63,21 @@ public static class ClassActions
             : $"Students get a {ClassroomLimits.PowerCountdownSeconds}-second warning to save their work.";
         if (!await page.DisplayAlertAsync($"{choice} {who}?", warn, choice, "Cancel")) return;
         await Send(page, vm, kind.Value, targets);
+    }
+
+    private static async Task WakeAsync(Page page, DashboardViewModel vm, IReadOnlyList<KnownComputer> offline)
+    {
+        if (!vm.IsConnected)
+        {
+            await page.DisplayAlertAsync("Not connected", "Connect to the classroom server first.", "OK");
+            return;
+        }
+        var names = string.Join(", ", offline.Take(8).Select(c => c.MachineName)) + (offline.Count > 8 ? $" and {offline.Count - 8} more" : "");
+        if (!await page.DisplayAlertAsync("Switch on offline computers?", names, "Switch on", "Cancel")) return;
+        var (count, error) = await vm.WakeAsync(offline);
+        await page.DisplayAlertAsync(error is null ? "Wake-up sent" : "Couldn't wake computers",
+            error ?? $"Sent a wake-up to {count} computer(s). They usually appear within a minute or two."
+                     + " (Wake-on-LAN must be enabled in each PC's BIOS/network settings.)", "OK");
     }
 
     private static async Task Send(Page page, DashboardViewModel vm, CommandKind kind, IReadOnlyList<string>? targets,

@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.16 (draft)
+**Version:** 0.17 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -482,6 +482,14 @@ that loses the server unlocks and lifts everything itself.
   and who answered what, or, for an **anonymous** poll, totals plus unnamed written answers. One poll
   at a time, in memory only, closed automatically when the last teacher leaves. **Live-verified**:
   pressing "Yes" on the real student card reached the teacher as 1/1 answered, counts [1, 0].)*
+- ✅ **FR-CTRL-11 [P5]** The teacher **may** switch lab PCs **on** with Wake-on-LAN.
+  *(Agents report their physical adapters' MACs (wired first, max 4; validated server-side). The
+  teacher app remembers PCs per server on its own device (120 days, max 500) and **Power… →
+  Switch on offline computers** asks the server — which is on the lab network — to broadcast magic
+  packets (limited + each subnet's directed broadcast, UDP 9 and 7). Allowed in open mode (waking
+  is harmless); rate-limited server-wide to one request per 3 s, max 128 PCs. Needs WoL enabled in
+  BIOS/NIC settings; see the agent deploy README. Unit + hub tests; actual wake-from-off not
+  verifiable on the dev PC (Wi-Fi only).)*
 - ✅ **FR-CTRL-10 [P5]** The teacher **may** run a **lesson timer** shown on every student screen.
   *(Optional label; students see a top-right countdown (amber in the last minute) and "Time's up!";
   counts down from each device's own clock; late joiners included; stops when the last teacher leaves.
@@ -741,6 +749,9 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.17 — 2026-11-16**
+  - **Wake-on-LAN** (FR-CTRL-11 ✅): switch offline lab PCs on from the teacher app. Tests: 110.
 
 - **0.16 — 2026-11-15**
   - **Quick wins:** lesson timer (FR-CTRL-10 ✅), random picker / snapshot all / screenshot /

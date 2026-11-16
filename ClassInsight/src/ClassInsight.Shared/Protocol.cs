@@ -133,5 +133,8 @@ public static class Protocol
         /// <summary>Teacher → server: start (or replace) / stop the class countdown.</summary>
         public const string StartTimer = nameof(StartTimer);
         public const string StopTimer = nameof(StopTimer);
+
+        /// <summary>Teacher → server: send Wake-on-LAN packets to switched-off lab PCs.</summary>
+        public const string WakeComputers = nameof(WakeComputers);
     }
 }

@@ -85,6 +85,20 @@ At the Windows logon screen there is no user desktop to capture; the agent stays
 The agent's identity is a random per-install id kept in `%ProgramData%\ClassInsight\agent-id`
 (the installer protects that folder).
 
+### Switching PCs on from the teacher app (Wake-on-LAN)
+
+The teacher app can switch on lab PCs it has seen before (**Power… → Switch on offline
+computers**). The ClassInsight server sends the wake-up packet, so it must be on the same network
+(VLAN) as the lab PCs, or the routers must forward directed broadcasts. On each PC:
+
+1. **BIOS/UEFI:** enable *Wake on LAN* / *Power on by PCI-E* (and disable *Deep Sleep / ErP*).
+2. **Network adapter** (Device Manager → adapter → *Power Management* / *Advanced*): enable
+   *Allow this device to wake the computer*, *Only allow a magic packet*, and *Wake on Magic Packet*.
+3. **Windows Fast Startup** often stops wake-from-shutdown; turn it off for lab images:
+   `powercfg /hibernate off` (or Control Panel → Power Options → *Turn on fast startup* off).
+
+Wired Ethernet is needed; Wi-Fi adapters generally can't wake a PC that is switched off.
+
 ## 3. Verify / manage
 
 ```powershell

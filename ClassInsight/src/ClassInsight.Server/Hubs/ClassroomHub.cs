@@ -24,6 +24,7 @@ public sealed class ClassroomHub : Hub
     private readonly PollBox _polls;
     private readonly BroadcastState _broadcast;
     private readonly TimerState _timer;
+    private readonly WakeSender _wake;
     private readonly ILogger<ClassroomHub> _logger;
 
     public ClassroomHub(
@@ -33,8 +34,10 @@ public sealed class ClassroomHub : Hub
         PollBox polls,
         BroadcastState broadcast,
         TimerState timer,
+        WakeSender wake,
         ILogger<ClassroomHub> logger)
     {
+        _wake = wake;
         _timer = timer;
         _broadcast = broadcast;
         _polls = polls;
@@ -68,7 +71,13 @@ public sealed class ClassroomHub : Hub
             info = info with { IpAddress = ip };
 
         // Bound what an agent can make every teacher render.
-        info = info with { Displays = info.Displays.Take(16).ToArray() };
+        info = info with
+        {
+            Displays = info.Displays.Take(16).ToArray(),
+            MacAddresses = (info.MacAddresses ?? [])
+                .Select(WakeOnLan.Normalize).OfType<string>()
+                .Distinct(StringComparer.Ordinal).Take(WakeOnLan.MaxPerMachine).ToArray(),
+        };
 
         var entry = _room.AddOrUpdateStudent(Context.ConnectionId, info);
         _logger.LogInformation("Student joined: {Name} ({Ip})", info.MachineName, info.IpAddress);
@@ -138,6 +147,27 @@ public sealed class ClassroomHub : Hub
         if (_polls.Results(_room.StudentCount) is { } results)
             await Clients.Caller.SendAsync(Protocol.ClientMethods.PollResultsUpdated, results);
         await Clients.Caller.SendAsync(Protocol.ClientMethods.TimerUpdated, _timer.Snapshot());
+    }
+
+    // ---- wake-on-LAN ----------------------------------------------------------
+
+    /// <summary>
+    /// Switch lab PCs on: the server (on the lab network) broadcasts a magic packet for each MAC.
+    /// Waking a PC is harmless, so it's allowed in open mode too; it is rate-limited server-wide.
+    /// Returns how many computers a packet was sent for.
+    /// </summary>
+    public async Task<int> WakeComputers(WakeRequest request)
+    {
+        if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can wake computers.");
+        var macs = (request?.MacAddresses ?? [])
+            .Select(m => WakeOnLan.TryParseMac(m, out var mac) ? mac : null).OfType<byte[]>()
+            .DistinctBy(Convert.ToHexString).ToList();
+        if (macs.Count == 0) throw new HubException("No valid network (MAC) addresses to wake.");
+        if (macs.Count > WakeOnLan.MaxPerRequest) throw new HubException($"Wake at most {WakeOnLan.MaxPerRequest} computers at a time.");
+        if (!_wake.TryReserve()) throw new HubException("Computers were just woken; wait a few seconds and try again.");
+        var sent = await _wake.SendAsync(macs, _logger);
+        _logger.LogInformation("Teacher {Teacher} sent Wake-on-LAN to {Count} computer(s).", Context.ConnectionId, sent);
+        return sent;
     }
 
     // ---- lesson timer -----------------------------------------------------

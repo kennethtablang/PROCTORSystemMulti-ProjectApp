@@ -50,6 +50,9 @@ public sealed record StudentInfo
     /// </summary>
     public IReadOnlyList<string> MacAddresses { get; init; } = Array.Empty<string>();
 
+    /// <summary>False when IT has turned remote control off on this PC (agent setting AllowRemoteControl).</summary>
+    public bool RemoteControlAllowed { get; init; } = true;
+
     public string AgentVersion { get; init; } = string.Empty;
 
     /// <summary>

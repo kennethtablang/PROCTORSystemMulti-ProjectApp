@@ -56,6 +56,7 @@ public sealed class TeacherClient : IAsyncDisposable
     public event Action<FileFinish>? FileFinished;
     public event Action<string>? FileCancelled;
     public event Action<FileReceipt>? FileResultReceived;
+    public event Action<string>? RemoteControlEnded;
 
     /// <summary>Screen broadcast signalling (FR-CTRL-02), routed to <see cref="ScreenBroadcaster"/>.</summary>
     public event Action<SdpMessage>? BroadcastAnswerReceived;
@@ -177,6 +178,7 @@ public sealed class TeacherClient : IAsyncDisposable
         hub.On<FileFinish>(Protocol.ClientMethods.FileFinished, f => FileFinished?.Invoke(f));
         hub.On<string>(Protocol.ClientMethods.FileCancelled, id => FileCancelled?.Invoke(id));
         hub.On<FileReceipt>(Protocol.ClientMethods.FileResultReceived, r => FileResultReceived?.Invoke(r));
+        hub.On<string>(Protocol.ClientMethods.RemoteControlEnded, s => RemoteControlEnded?.Invoke(s));
         hub.On<SdpMessage>(Protocol.ClientMethods.ReceiveBroadcastAnswer, a => BroadcastAnswerReceived?.Invoke(a));
         hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveBroadcastIce, c => BroadcastIceReceived?.Invoke(c));
         hub.On<string>(Protocol.ClientMethods.BroadcastStudentJoined, id => BroadcastStudentJoined?.Invoke(id));
@@ -393,6 +395,10 @@ public sealed class TeacherClient : IAsyncDisposable
         try { await hub.InvokeAsync(method, arg); }
         catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
     }
+
+    public Task StartRemoteControlAsync(string student) => Call(Protocol.ServerMethods.StartRemoteControl, student);
+    public Task StopRemoteControlAsync(string student) => Call(Protocol.ServerMethods.StopRemoteControl, student);
+    public Task SendRemoteInputAsync(RemoteInputBatch batch) => Call(Protocol.ServerMethods.SendRemoteInput, batch);
 
     public Task<FileOffer> OfferFileAsync(FileOffer offer) => Call<FileOffer>(Protocol.ServerMethods.OfferFile, offer);
     public Task SendFileChunkAsync(FileChunk chunk) => Call(Protocol.ServerMethods.SendFileChunk, chunk);

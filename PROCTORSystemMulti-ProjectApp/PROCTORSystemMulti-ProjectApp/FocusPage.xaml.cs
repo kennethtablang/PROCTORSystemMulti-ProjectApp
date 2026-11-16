@@ -57,6 +57,7 @@ public partial class FocusPage : ContentPage
         }
         _vm.Streams.SetFocus(_tile.ConnectionId, _display);
         _infoTimer.Start();
+        _vm.Client.RemoteControlEnded += OnRemoteControlEnded;
     }
 
     protected override void OnDisappearing()
@@ -64,6 +65,8 @@ public partial class FocusPage : ContentPage
         base.OnDisappearing();
         _infoTimer.Stop();
         _vm.Streams.SetFocus(null);
+        _vm.Client.RemoteControlEnded -= OnRemoteControlEnded;
+        if (_control is not null) _ = StopControlAsync(null);   // leaving the view always hands control back
     }
 
     private void OnDisplayChanged(object? sender, EventArgs e)
@@ -88,6 +91,70 @@ public partial class FocusPage : ContentPage
     private async void OnOpenSite(object? sender, EventArgs e) => await ClassActions.OpenSiteAsync(this, _vm, Me, _tile.MachineName);
     private async void OnPower(object? sender, EventArgs e) => await ClassActions.PowerAsync(this, _vm, Me, _tile.MachineName);
     private async void OnLowerHand(object? sender, EventArgs e) => await _vm.LowerHandAsync(_tile);
+
+    // ---- remote control (FR-CTRL-05) ----
+    private RemoteControlSession? _control;
+    private IDisposable? _capture;
+
+    private async void OnControl(object? sender, EventArgs e)
+    {
+        if (_control is not null) { await StopControlAsync(null); return; }
+        var input = PlatformServices.RemoteInput;
+        if (!input.IsSupported)
+        {
+            await DisplayAlertAsync("Not available here", "Remote control is available on the Windows teacher app.", "OK");
+            return;
+        }
+        if (!await DisplayAlertAsync($"Control {_tile.MachineName}?",
+                "Your mouse (over the picture) and keyboard will work this PC. The student sees a red \u201Cyour teacher is controlling this computer\u201D banner. Press \u201CStop control\u201D to end.",
+                "Take control", "Cancel"))
+            return;
+        try
+        {
+            _control = await RemoteControlSession.StartAsync(_vm.Client, _tile.ConnectionId, _display);
+            _control.Failed += reason => MainThread.BeginInvokeOnMainThread(async () => await StopControlAsync("Control ended: " + reason));
+            _capture = input.Attach(Screen, ToFrame, _control.Post);
+            ControlButton.Text = "⏹ Stop control";
+            ControlButton.BackgroundColor = Color.FromArgb("#C62828");
+            ControlButton.TextColor = Colors.White;
+        }
+        catch (Exception ex)
+        {
+            await StopControlAsync(null);
+            await DisplayAlertAsync("Couldn't take control", ex.Message, "OK");
+        }
+    }
+
+    private async Task StopControlAsync(string? message)
+    {
+        _capture?.Dispose();
+        _capture = null;
+        var session = _control;
+        _control = null;
+        if (session is not null) await session.StopAsync();
+        ControlButton.Text = "🖱 Control";
+        ControlButton.ClearValue(Button.BackgroundColorProperty);
+        ControlButton.ClearValue(Button.TextColorProperty);
+        if (message is not null) await DisplayAlertAsync("Remote control", message, "OK");
+    }
+
+    private void OnRemoteControlEnded(string student)
+    {
+        if (student == _tile.ConnectionId && _control is not null)
+            MainThread.BeginInvokeOnMainThread(async () => await StopControlAsync("Control ended: another teacher took over, or the student disconnected."));
+    }
+
+    /// <summary>View point → normalised point on the student's screen (the picture is letterboxed).</summary>
+    private Point? ToFrame(Point p)
+    {
+        double fw = _tile.Frame.Width, fh = _tile.Frame.Height, vw = Screen.Width, vh = Screen.Height;
+        if (fw <= 0 || fh <= 0 || vw <= 0 || vh <= 0) return null;
+        var scale = Math.Min(vw / fw, vh / fh);
+        double w = fw * scale, h = fh * scale;
+        var x = (p.X - (vw - w) / 2) / w;
+        var y = (p.Y - (vh - h) / 2) / h;
+        return x is < 0 or > 1 || y is < 0 or > 1 ? null : new Point(x, y);
+    }
 
     private async void OnSendFile(object? sender, EventArgs e) =>
         await ClassActions.SendFilesAsync(this, _vm, [_tile.ConnectionId], _tile.MachineName);

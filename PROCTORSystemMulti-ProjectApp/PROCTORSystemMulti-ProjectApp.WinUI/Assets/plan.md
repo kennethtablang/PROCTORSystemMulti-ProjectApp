@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.20 (draft)
+**Version:** 0.21 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -462,8 +462,18 @@ that loses the server unlocks and lifts everything itself.
   *(**Web pages only** (http/https, validated twice), opened as the signed-in student — never as
   SYSTEM. Launching arbitrary programs is deliberately not offered (remote code execution risk).
   Live-verified.)*
-- ⬜ **FR-CTRL-05 [P5]** The teacher **may** take remote keyboard/mouse control of a
-  focused student (with on-screen indication).
+- 🟡 **FR-CTRL-05 [P5]** The teacher **may** take remote keyboard/mouse control of a
+  focused student (with on-screen indication). *(Focus view → "🖱 Control" (Windows teacher app).
+  Mouse over the picture and every key go to the student's PC as normalised positions and
+  virtual-key codes, batched every ~30 ms and played with SendInput on the streamed display. A
+  **strong control**: refused in open mode unless IT opts in, and per PC with the agent setting
+  `AllowRemoteControl=false`. One controller per student (another teacher takes over; the first is
+  told). Input is relayed only from the controlling teacher, validated (positions 0–1, real keys,
+  ≤ 64 events/batch) and rate-limited. The student sees a red "Your teacher is controlling this
+  computer" banner the whole time; the agent ignores input unless control was announced, and
+  releases every held key/button when control ends, the teacher leaves or the connection drops.
+  Leaving the focus view always hands control back. Hub tests; **needs a live check on a lab PC**
+  (not exercised on the dev PC to avoid driving its user's desktop).)*
 - 🟡 **FR-CTRL-06 [P5]** The teacher **may** apply a web-access allow/block policy. *(Room-wide
   limits: block-list or allow-only list of sites (sub-domains included); a blocked tab in front is
   closed with an explanation — rules unit-tested, live tab-close check pending (a Windows prompt held
@@ -775,6 +785,11 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.21 — 2026-11-16**
+  - **Remote control** (FR-CTRL-05 🟡). File-transfer hardening after security review: wider
+    blocked-type list, Mark-of-the-Web on saved files, no hijacking another teacher's collection.
+    Tests: 143.
 
 - **0.20 — 2026-11-16**
   - **File transfer**: send files + collect work (FR-CTRL-14 ✅). Tests: 127.

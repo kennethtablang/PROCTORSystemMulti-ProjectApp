@@ -98,6 +98,9 @@ public sealed class Peer : IAsyncDisposable
         Record<string>(Protocol.ClientMethods.FileCancelled);
         Record<FileReceipt>(Protocol.ClientMethods.FileResultReceived);
         Record<HandInInfo>(Protocol.ClientMethods.HandInRequested);
+        Record<RemoteControlInfo>(Protocol.ClientMethods.RemoteControlChanged);
+        Record<RemoteInputBatch>(Protocol.ClientMethods.RemoteInputReceived);
+        Record<string>(Protocol.ClientMethods.RemoteControlEnded);
         Hub.On(Protocol.ClientMethods.HandLowered, () => Push(Protocol.ClientMethods.HandLowered));
     }
 

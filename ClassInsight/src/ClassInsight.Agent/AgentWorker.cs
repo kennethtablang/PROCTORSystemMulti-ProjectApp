@@ -63,6 +63,10 @@ public sealed class AgentWorker : BackgroundService
     // File transfer: files from the teacher and handing work in (null when turned off by IT).
     private readonly StudentFiles? _files;
 
+    // Remote control (FR-CTRL-05): null when IT turned it off (AllowRemoteControl=false).
+    private readonly RemoteInput? _remote;
+    private volatile string? _remoteTeacher;
+
     public AgentWorker(ILogger<AgentWorker> logger, ILoggerFactory loggerFactory, IConfiguration configuration)
     {
         _logger = logger;
@@ -91,6 +95,9 @@ public sealed class AgentWorker : BackgroundService
             _ui.HandToggled += raised => _ = SendHandAsync(raised);
             _ui.PollAnswered += answer => _ = SendPollAnswerAsync(answer);
             _ui.ChatSent += text => _ = SendChatAsync(text);
+
+            if (section.GetValue<bool?>("AllowRemoteControl") ?? true)
+                _remote = new RemoteInput(loggerFactory.CreateLogger<RemoteInput>());
 
             if (section.GetValue<bool?>("AllowFileTransfer") ?? true)
             {
@@ -298,6 +305,30 @@ public sealed class AgentWorker : BackgroundService
             await ReportFileAsync(hub, finish.TransferId, error);
         });
         hub.On<string>(Protocol.ClientMethods.FileCancelled, id => _files?.Cancelled(id));
+        // Remote control: the server only relays input from the teacher holding control; the agent
+        // also ignores input unless control was announced, and lets go of everything when it ends.
+        hub.On<RemoteControlInfo>(Protocol.ClientMethods.RemoteControlChanged, info =>
+        {
+            if (_remote is null) return;
+            if (info.Active)
+            {
+                _remoteTeacher = info.TeacherConnectionId;
+                _ui?.ShowRemoteControl(true);
+            }
+            else if (_remoteTeacher == info.TeacherConnectionId)
+            {
+                _remoteTeacher = null;
+                _remote.ReleaseAll();
+                _ui?.ShowRemoteControl(false);
+            }
+        });
+        hub.On<RemoteInputBatch>(Protocol.ClientMethods.RemoteInputReceived, batch =>
+        {
+            if (_remote is null || _remoteTeacher is null) return;
+            try { _remote.Apply(batch); }
+            catch (Exception ex) { _logger.LogDebug(ex, "Remote input failed."); }
+        });
+
         hub.On<HandInInfo>(Protocol.ClientMethods.HandInRequested, info => { if (_files is not null) _ui?.ShowHandIn(info); });
         hub.On<FileReceipt>(Protocol.ClientMethods.FileResultReceived, r =>
             _ui?.SetHandInStatus(r.Ok ? "\u2714 Your teacher received your work." : "Your teacher couldn't save a file: " + (r.Error ?? "unknown error") + ". Try again."));
@@ -448,6 +479,9 @@ public sealed class AgentWorker : BackgroundService
         _ui?.ResetPoll();
         _ui?.ChatDisconnected();
         _ui?.ResetHandIn();
+        _remoteTeacher = null;
+        _remote?.ReleaseAll();
+        _ui?.ShowRemoteControl(false);
         _files?.Clear();
         _ui?.ShowTimer(new LessonTimer());
         _ = StopBroadcastViewerAsync();
@@ -586,6 +620,7 @@ public sealed class AgentWorker : BackgroundService
             ScreenHeight = primary.Height,
             Displays = displays.Select(d => d.Info).ToArray(),
             MacAddresses = MacAddresses(),
+            RemoteControlAllowed = _remote is not null,
             AgentVersion = AgentVersion,
         };
     }

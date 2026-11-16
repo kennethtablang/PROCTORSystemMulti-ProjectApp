@@ -25,6 +25,7 @@ builder.Services.AddSingleton<TimerState>();
 builder.Services.AddSingleton<WakeSender>();
 builder.Services.AddSingleton<ChatThrottle>();
 builder.Services.AddSingleton<FileTransfers>();
+builder.Services.AddSingleton<RemoteControlState>();
 builder.Services.AddHostedService<DiscoveryBeaconService>();
 
 var app = builder.Build();

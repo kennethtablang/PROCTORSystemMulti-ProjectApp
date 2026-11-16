@@ -38,6 +38,7 @@
             <Button Text="✉ Message" Clicked="OnMessage" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="💬 Chat" Clicked="OnChat" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="📁 Send file" Clicked="OnSendFile" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button x:Name="ControlButton" Text="🖱 Control" Clicked="OnControl" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="🌐 Open site" Clicked="OnOpenSite" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="⏻ Power…" Clicked="OnPower" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="📷 Screenshot" Clicked="OnScreenshot" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
@@ -48,7 +49,7 @@
 
         <!-- Live video surface (focus-quality stream, FR-TEACH-02) -->
         <Grid x:Name="VideoArea" Grid.Row="2" Grid.Column="0">
-            <ci:LiveScreenView Source="{Binding Frame}" />
+            <ci:LiveScreenView x:Name="Screen" Source="{Binding Frame}" />
             <Label Text="{Binding PlaceholderText}" TextColor="#9AA0A6" FontSize="13"
                    HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True" />
         </Grid>

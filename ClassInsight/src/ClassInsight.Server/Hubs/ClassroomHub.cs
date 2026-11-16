@@ -27,6 +27,7 @@ public sealed class ClassroomHub : Hub
     private readonly WakeSender _wake;
     private readonly ChatThrottle _chat;
     private readonly FileTransfers _files;
+    private readonly RemoteControlState _remote;
     private readonly ILogger<ClassroomHub> _logger;
 
     public ClassroomHub(
@@ -39,8 +40,10 @@ public sealed class ClassroomHub : Hub
         WakeSender wake,
         ChatThrottle chat,
         FileTransfers files,
+        RemoteControlState remote,
         ILogger<ClassroomHub> logger)
     {
+        _remote = remote;
         _files = files;
         _chat = chat;
         _wake = wake;
@@ -198,6 +201,52 @@ public sealed class ClassroomHub : Hub
         _room.TryGetStudent(connectionId, out var entry) && entry is not null
             ? entry.Info.UserName is { Length: > 0 } user ? $"{entry.Info.MachineName} · {user}" : entry.Info.MachineName
             : "Student";
+
+    // ---- remote control (FR-CTRL-05) ------------------------------------------
+
+    /// <summary>
+    /// Take control of a student's keyboard and mouse. A strong control: refused in open mode unless
+    /// IT opted in, and refused when the PC has it turned off. One controller per student (a second
+    /// teacher takes over and the first is told). The student sees a banner the whole time.
+    /// </summary>
+    public async Task StartRemoteControl(string studentConnectionId)
+    {
+        var teacher = Context.ConnectionId;
+        if (!_room.IsTeacher(teacher)) throw new HubException("Only teachers can take control.");
+        if (StrongControlsBlocked)
+            throw new HubException("Remote control needs a teacher join code on this server (it runs in open mode).");
+        if (string.IsNullOrEmpty(studentConnectionId) || !_room.TryGetStudent(studentConnectionId, out var student) || student is null)
+            throw new HubException("That student isn't connected.");
+        if (!student.Info.RemoteControlAllowed) throw new HubException("Remote control is turned off on that PC.");
+
+        if (_remote.Take(studentConnectionId, teacher) is { } previous)
+            await Clients.Client(previous).SendAsync(Protocol.ClientMethods.RemoteControlEnded, studentConnectionId);
+        await Clients.Client(studentConnectionId).SendAsync(Protocol.ClientMethods.RemoteControlChanged,
+            new RemoteControlInfo { TeacherConnectionId = teacher, Active = true });
+        _logger.LogInformation("Teacher {Teacher} took control of {Student}.", teacher, student.Info.MachineName);
+    }
+
+    public async Task StopRemoteControl(string studentConnectionId)
+    {
+        var teacher = Context.ConnectionId;
+        if (!_remote.Release(studentConnectionId ?? "", teacher)) return;
+        await Clients.Client(studentConnectionId!).SendAsync(Protocol.ClientMethods.RemoteControlChanged,
+            new RemoteControlInfo { TeacherConnectionId = teacher, Active = false });
+        _logger.LogInformation("Teacher {Teacher} released control of {Student}.", teacher, studentConnectionId);
+    }
+
+    /// <summary>Relay input — only from the teacher holding control, validated, rate-limited.</summary>
+    public async Task SendRemoteInput(RemoteInputBatch batch)
+    {
+        var teacher = Context.ConnectionId;
+        if (batch is null || !_remote.IsController(batch.StudentConnectionId ?? "", teacher))
+            throw new HubException("You're not controlling that PC.");
+        if (batch.Events is null || batch.Events.Count > RemoteControlLimits.MaxEventsPerBatch || !batch.Events.All(RemoteControlLimits.IsValid))
+            throw new HubException("Invalid input.");
+        if (!_remote.AllowBatch(teacher, RemoteControlLimits.MaxBatchesPerSecond)) return;   // over the rate: drop
+        await Clients.Client(batch.StudentConnectionId!).SendAsync(Protocol.ClientMethods.RemoteInputReceived,
+            batch with { DisplayIndex = Math.Clamp(batch.DisplayIndex, 0, 15) });
+    }
 
     // ---- file transfer --------------------------------------------------------
 
@@ -732,6 +781,8 @@ public sealed class ClassroomHub : Hub
             _broadcast.RemoveStudent(id);
             _chat.Remove(id);
             await CleanUpFilesOf(id);
+            if (_remote.RemoveStudent(id) is { } controller)
+                await Clients.Client(controller).SendAsync(Protocol.ClientMethods.RemoteControlEnded, id);
             // The student whose screen was on show left: end that broadcast (viewers would only see a frozen picture).
             if (_broadcast.SourceStudent == id && _broadcast.Teacher is { } showing)
                 await StopBroadcastOf(showing);
@@ -756,6 +807,10 @@ public sealed class ClassroomHub : Hub
             _chat.Remove(id);
             await EndHandInOf(id);
             await CleanUpFilesOf(id);
+            // Fail-safe: a teacher that leaves releases every PC it was controlling.
+            foreach (var s in _remote.RemoveTeacher(id))
+                await Clients.Client(s).SendAsync(Protocol.ClientMethods.RemoteControlChanged,
+                    new RemoteControlInfo { TeacherConnectionId = id, Active = false });
             if (_room.TeacherCount == 0) await ClosePollAsync();
             if (_room.TeacherCount == 0 && _timer.Stop()) await PushTimerAsync();
             if (_room.TeacherCount == 0 && !_room.Policy.IsEmpty)

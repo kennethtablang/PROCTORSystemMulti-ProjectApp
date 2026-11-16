@@ -100,6 +100,13 @@ public static class Protocol
 
         /// <summary>Server → students: a teacher started / stopped collecting work.</summary>
         public const string HandInRequested = nameof(HandInRequested);
+
+        /// <summary>Server → student: a teacher took / released control; and the input to play.</summary>
+        public const string RemoteControlChanged = nameof(RemoteControlChanged);
+        public const string RemoteInputReceived = nameof(RemoteInputReceived);
+
+        /// <summary>Server → teacher: your control of this student ended (taken over, or the student left).</summary>
+        public const string RemoteControlEnded = nameof(RemoteControlEnded);
     }
 
     /// <summary>Names of hub methods CLIENTS invoke ON the server.</summary>
@@ -168,5 +175,10 @@ public static class Protocol
         /// <summary>Teacher → students: start / stop collecting work.</summary>
         public const string RequestHandIn = nameof(RequestHandIn);
         public const string EndHandIn = nameof(EndHandIn);
+
+        /// <summary>Teacher → server: take / release control of a student's PC, and send input.</summary>
+        public const string StartRemoteControl = nameof(StartRemoteControl);
+        public const string StopRemoteControl = nameof(StopRemoteControl);
+        public const string SendRemoteInput = nameof(SendRemoteInput);
     }
 }

@@ -466,8 +466,10 @@ that loses the server unlocks and lifts everything itself.
   focused student (with on-screen indication). *(Focus view → "🖱 Control" (Windows teacher app).
   Mouse over the picture and every key go to the student's PC as normalised positions and
   virtual-key codes, batched every ~30 ms and played with SendInput on the streamed display. A
-  **strong control**: refused in open mode unless IT opts in, and per PC with the agent setting
-  `AllowRemoteControl=false`. One controller per student (another teacher takes over; the first is
+  **strong control**: refused in open mode unless IT opts in, and **off on every PC unless IT
+  sets `AllowRemoteControl=true` together with `ServerAddress`** (agents trust whichever server
+  answers discovery and the link isn't authenticated yet, NFR-SEC-06, so a rogue server must not
+  be able to drive desktops). One controller per student (another teacher takes over; the first is
   told). Input is relayed only from the controlling teacher, validated (positions 0–1, real keys,
   ≤ 64 events/batch) and rate-limited. The student sees a red "Your teacher is controlling this
   computer" banner the whole time; the agent ignores input unless control was announced, and
@@ -787,7 +789,7 @@ Newest first. Each entry records what moved and why, so the status markers above
 traceable to real work.
 
 - **0.21 — 2026-11-16**
-  - **Remote control** (FR-CTRL-05 🟡). File-transfer hardening after security review: wider
+  - **Remote control** (FR-CTRL-05 🟡; opt-in per PC, pinned server only — security review). File-transfer hardening after security review: wider
     blocked-type list, Mark-of-the-Web on saved files, no hijacking another teacher's collection.
     Tests: 143.
 

@@ -63,7 +63,7 @@ public sealed class AgentWorker : BackgroundService
     // File transfer: files from the teacher and handing work in (null when turned off by IT).
     private readonly StudentFiles? _files;
 
-    // Remote control (FR-CTRL-05): null when IT turned it off (AllowRemoteControl=false).
+    // Remote control (FR-CTRL-05): null unless IT opted in (see the constructor).
     private readonly RemoteInput? _remote;
     private volatile string? _remoteTeacher;
 
@@ -96,8 +96,17 @@ public sealed class AgentWorker : BackgroundService
             _ui.PollAnswered += answer => _ = SendPollAnswerAsync(answer);
             _ui.ChatSent += text => _ = SendChatAsync(text);
 
-            if (section.GetValue<bool?>("AllowRemoteControl") ?? true)
-                _remote = new RemoteInput(loggerFactory.CreateLogger<RemoteInput>());
+            // Remote control is opt-in, and only towards a pinned server. Discovery trusts whichever
+            // server answers on the LAN and the connection isn't authenticated yet (NFR-SEC-06), so a
+            // rogue server must never be able to type and click on student desktops.
+            if (section.GetValue<bool?>("AllowRemoteControl") ?? false)
+            {
+                if (_serverAddress is not null)
+                    _remote = new RemoteInput(loggerFactory.CreateLogger<RemoteInput>());
+                else
+                    logger.LogWarning("AllowRemoteControl is on but ignored: remote control also needs ClassInsight:ServerAddress " +
+                                      "(pin the agent to your classroom server).");
+            }
 
             if (section.GetValue<bool?>("AllowFileTransfer") ?? true)
             {
@@ -312,6 +321,8 @@ public sealed class AgentWorker : BackgroundService
             if (_remote is null) return;
             if (info.Active)
             {
+                // Another teacher taking over starts clean: let go of anything the previous one held.
+                if (_remoteTeacher is not null && _remoteTeacher != info.TeacherConnectionId) _remote.ReleaseAll();
                 _remoteTeacher = info.TeacherConnectionId;
                 _ui?.ShowRemoteControl(true);
             }

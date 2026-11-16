@@ -42,16 +42,25 @@ public sealed class LanDiscoveryClient
     }
 
     /// <summary>
-    /// Broadcast a probe and collect every distinct server (by <see cref="DiscoveryResponse.ServerId"/>)
-    /// heard within <paramref name="window"/>. Beacons repeat every
-    /// <see cref="Protocol.BeaconIntervalMs"/>, so a window a little longer than that sees every room.
+    /// Broadcast a probe and collect every distinct server heard within <paramref name="window"/>.
+    /// Beacons repeat every <see cref="Protocol.BeaconIntervalMs"/>, so a window a little longer than
+    /// that sees every room. Replies are keyed by their real source address <i>and</i> server id (a
+    /// reply from one machine can't shadow a server first heard from another), with at most
+    /// <see cref="MaxRepliesPerHost"/> per address and <see cref="MaxReplies"/> in total, so one noisy
+    /// host can't flood the list.
     /// </summary>
     public async Task<IReadOnlyList<DiscoveryResponse>> FindServersAsync(TimeSpan window, CancellationToken ct)
     {
         var found = new Dictionary<string, DiscoveryResponse>(StringComparer.Ordinal);
+        var perHost = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         await ListenAsync(window, ct, r =>
         {
-            found.TryAdd(r.ServerId, r);
+            var key = r.Host + "|" + r.ServerId;
+            if (found.ContainsKey(key) || found.Count >= MaxReplies) return true;
+            var n = perHost.GetValueOrDefault(r.Host);
+            if (n >= MaxRepliesPerHost) return true;
+            perHost[r.Host] = n + 1;
+            found[key] = r;
             return true;
         });
         return found.Values
@@ -59,6 +68,12 @@ public sealed class LanDiscoveryClient
             .ThenBy(r => r.Host, StringComparer.Ordinal)
             .ToArray();
     }
+
+    /// <summary>Most servers one machine (source address) can contribute — two rooms on one PC is normal.</summary>
+    public const int MaxRepliesPerHost = 2;
+
+    /// <summary>Most replies kept from one discovery round.</summary>
+    public const int MaxReplies = 256;
 
     public static bool MatchesRoom(DiscoveryResponse response, string? roomName) =>
         string.IsNullOrWhiteSpace(roomName)

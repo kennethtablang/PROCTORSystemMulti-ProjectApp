@@ -219,8 +219,6 @@ public sealed class AgentWorker : BackgroundService
     // Servers already reported as presenting the wrong key (logged once each, not every retry).
     private readonly HashSet<string> _refusedServers = new(StringComparer.Ordinal);
 
-    // Where the trusted server was last reached: tried first, so discovery noise can't hide it.
-    private string? _lastGoodEndpoint;
     private const int MaxProbedHosts = 64;
 
     /// <summary>
@@ -244,15 +242,23 @@ public sealed class AgentWorker : BackgroundService
             }
             else
             {
-                // Every reply's Host is the datagram's real source address (DiscoveryCodec), so keep one
-                // candidate per address: one noisy host can't crowd others out with fake replies. The
-                // last address that worked goes first; the advertised fingerprint only orders the rest.
+                // Every reply's Host is the datagram's real source address (DiscoveryCodec); the port and
+                // everything else in it are the sender's claim. So candidates are grouped by address only
+                // (at most two per machine — two rooms on one PC — whatever ports it advertises), and one
+                // noisy host can't crowd others out. The address that worked last time (kept in HKLM, so
+                // also after a restart) goes first; the advertised fingerprint only orders the rest.
                 var pin = _pin.Current;
+                var last = _pin.LastServerEndpoint;
                 candidates = (await discovery.FindServersAsync(TimeSpan.FromSeconds(3), ct))
                     .Where(r => LanDiscoveryClient.MatchesRoom(r, _roomName))
-                    .GroupBy(r => $"{r.Host}:{r.Port}", StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.OrderBy(r => pin is not null && r.Fingerprint == pin ? 0 : 1).First())
-                    .OrderBy(r => $"{r.Host}:{r.Port}" == _lastGoodEndpoint ? 0 : 1)
+                    .GroupBy(r => r.Host, StringComparer.OrdinalIgnoreCase)
+                    .SelectMany(g => g
+                        .OrderBy(r => $"{r.Host}:{r.Port}" == last ? 0 : 1)
+                        .ThenBy(r => pin is not null && r.Fingerprint == pin ? 0 : 1)
+                        .ThenBy(r => r.Port == Protocol.DefaultServerPort ? 0 : 1)
+                        .DistinctBy(r => r.Port)
+                        .Take(LanDiscoveryClient.MaxRepliesPerHost))
+                    .OrderBy(r => $"{r.Host}:{r.Port}" == last ? 0 : 1)
                     .ThenBy(r => pin is not null && r.Fingerprint == pin ? 0 : 1)
                     .Take(MaxProbedHosts)
                     .ToList();
@@ -287,7 +293,7 @@ public sealed class AgentWorker : BackgroundService
                     continue;
                 }
                 _logger.LogInformation("Found \"{Room}\" at {Url}.", server.RoomName, server.HubUrl);
-                _lastGoodEndpoint = $"{server.Host}:{server.Port}";
+                _pin.LastServerEndpoint = $"{server.Host}:{server.Port}";
                 return (server, presented);
             }
 

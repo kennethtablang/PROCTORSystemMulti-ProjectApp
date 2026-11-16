@@ -22,6 +22,8 @@ internal sealed class ServerPin
 {
     private const string KeyPath = @"SOFTWARE\ClassInsight\Agent";
     private const string ValueName = "TrustedServerFingerprint";
+    private const string EndpointValueName = "LastServerEndpoint";
+    private string? _lastEndpoint;
     private readonly ILogger _logger;
     private string? _remembered;
 
@@ -36,6 +38,22 @@ internal sealed class ServerPin
         }
 
         _remembered = ReadRegistry() ?? ImportLegacyFile();
+        _lastEndpoint = ReadValue(EndpointValueName);
+    }
+
+    /// <summary>
+    /// host:port where the trusted server was last reached (HKLM, so it survives restarts): probed first,
+    /// so discovery noise can't hide it.
+    /// </summary>
+    public string? LastServerEndpoint
+    {
+        get => _lastEndpoint;
+        set
+        {
+            if (value is null || value == _lastEndpoint) return;
+            _lastEndpoint = value;
+            WriteValue(EndpointValueName, value);
+        }
     }
 
     /// <summary>The fingerprint IT configured, if any (strict pinning).</summary>
@@ -58,33 +76,37 @@ internal sealed class ServerPin
                            "Set ClassInsight:ServerFingerprint to pin it explicitly.", ServerTrust.Format(fingerprint));
     }
 
-    private string? ReadRegistry()
+    private string? ReadRegistry() => ServerTrust.Normalize(ReadValue(ValueName));
+
+    private bool WriteRegistry(string fingerprint) => WriteValue(ValueName, fingerprint);
+
+    private string? ReadValue(string name)
     {
         try
         {
             using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
             using var key = hklm.OpenSubKey(KeyPath);
-            return ServerTrust.Normalize(key?.GetValue(ValueName) as string);
+            return key?.GetValue(name) as string;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
-            _logger.LogDebug(ex, "Couldn't read the trusted server from the registry.");
+            _logger.LogDebug(ex, "Couldn't read {Name} from the registry.", name);
             return null;
         }
     }
 
-    private bool WriteRegistry(string fingerprint)
+    private bool WriteValue(string name, string value)
     {
         try
         {
             using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
             using var key = hklm.CreateSubKey(KeyPath, writable: true);
-            key.SetValue(ValueName, fingerprint, RegistryValueKind.String);
+            key.SetValue(name, value, RegistryValueKind.String);
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
-            _logger.LogDebug(ex, "Couldn't write the trusted server to the registry.");
+            _logger.LogDebug(ex, "Couldn't write {Name} to the registry.", name);
             return false;
         }
     }

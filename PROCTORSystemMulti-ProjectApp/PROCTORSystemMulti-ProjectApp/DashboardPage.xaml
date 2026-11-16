@@ -163,14 +163,16 @@
                             <TapGestureRecognizer Tapped="OnTileTapped" />
                         </Border.GestureRecognizers>
                         <VerticalStackLayout Spacing="6">
-                            <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6">
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="6">
                                 <Label Grid.Column="0" Text="{Binding Header}" FontAttributes="Bold"
                                        LineBreakMode="TailTruncation" />
                                 <Label Grid.Column="1" Text="✋" FontSize="13" VerticalOptions="Center"
                                        IsVisible="{Binding HandRaised}" />
                                 <Label Grid.Column="2" Text="{Binding LockText}" FontSize="11" TextColor="#C62828"
                                        FontAttributes="Bold" VerticalOptions="Center" IsVisible="{Binding IsLocked}" />
-                                <Label Grid.Column="3" Text="{Binding StateText}" TextColor="{Binding StateColor}"
+                                <Label Grid.Column="3" Text="{Binding ChatBadge}" FontSize="11" TextColor="#5B2C9E"
+                                       FontAttributes="Bold" VerticalOptions="Center" IsVisible="{Binding HasUnreadChat}" />
+                                <Label Grid.Column="4" Text="{Binding StateText}" TextColor="{Binding StateColor}"
                                        FontSize="11" FontAttributes="Bold" VerticalOptions="Center" />
                             </Grid>
 

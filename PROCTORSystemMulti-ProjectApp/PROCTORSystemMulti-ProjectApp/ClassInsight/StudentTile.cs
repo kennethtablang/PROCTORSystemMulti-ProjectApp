@@ -70,6 +70,16 @@ public sealed class StudentTile : INotifyPropertyChanged
         set { if (_handRaised != value) { _handRaised = value; Raise(); Raise(nameof(TileBorderColor)); } }
     }
 
+    private int _unreadChat;
+    /// <summary>Chat lines from this student the teacher hasn't read yet.</summary>
+    public int UnreadChat
+    {
+        get => _unreadChat;
+        set { if (_unreadChat != value) { _unreadChat = value; Raise(); Raise(nameof(ChatBadge)); Raise(nameof(HasUnreadChat)); } }
+    }
+    public bool HasUnreadChat => _unreadChat > 0;
+    public string ChatBadge => _unreadChat > 0 ? $"💬 {_unreadChat}" : "";
+
     /// <summary>Tile outline: amber while the student's hand is up, so it stands out in the grid.</summary>
     public Color TileBorderColor => _handRaised ? Color.FromArgb("#F9A825") : Color.FromArgb("#DDDDDD");
 

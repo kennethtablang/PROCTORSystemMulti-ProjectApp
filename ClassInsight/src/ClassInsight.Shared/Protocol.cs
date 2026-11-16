@@ -85,6 +85,9 @@ public static class Protocol
 
         /// <summary>Server → one student: your screen is now (true) / no longer (false) being shown to the class.</summary>
         public const string ScreenShownToClass = nameof(ScreenShownToClass);
+
+        /// <summary>Server → a student and the teachers: one chat line.</summary>
+        public const string ChatReceived = nameof(ChatReceived);
     }
 
     /// <summary>Names of hub methods CLIENTS invoke ON the server.</summary>
@@ -139,5 +142,8 @@ public static class Protocol
 
         /// <summary>Teacher → server: send Wake-on-LAN packets to switched-off lab PCs.</summary>
         public const string WakeComputers = nameof(WakeComputers);
+
+        /// <summary>Teacher → one student, or student → teachers: a chat line.</summary>
+        public const string SendChat = nameof(SendChat);
     }
 }

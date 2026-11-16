@@ -25,6 +25,7 @@ public sealed class ClassroomHub : Hub
     private readonly BroadcastState _broadcast;
     private readonly TimerState _timer;
     private readonly WakeSender _wake;
+    private readonly ChatThrottle _chat;
     private readonly ILogger<ClassroomHub> _logger;
 
     public ClassroomHub(
@@ -35,8 +36,10 @@ public sealed class ClassroomHub : Hub
         BroadcastState broadcast,
         TimerState timer,
         WakeSender wake,
+        ChatThrottle chat,
         ILogger<ClassroomHub> logger)
     {
+        _chat = chat;
         _wake = wake;
         _timer = timer;
         _broadcast = broadcast;
@@ -147,6 +150,46 @@ public sealed class ClassroomHub : Hub
         if (_polls.Results(_room.StudentCount) is { } results)
             await Clients.Caller.SendAsync(Protocol.ClientMethods.PollResultsUpdated, results);
         await Clients.Caller.SendAsync(Protocol.ClientMethods.TimerUpdated, _timer.Snapshot());
+    }
+
+    // ---- chat ------------------------------------------------------------------
+
+    /// <summary>
+    /// Teacher → one student, or student → the teachers. Every teacher sees every conversation (so
+    /// two teachers in a room stay in step); a student only ever sees their own. Relayed, never stored.
+    /// </summary>
+    public async Task SendChat(ChatSend send)
+    {
+        var me = Context.ConnectionId;
+        var teacher = _room.IsTeacher(me);
+        if (!teacher && !_room.IsStudent(me)) throw new HubException("Register first.");
+        var text = ClassroomLimits.CleanText(send?.Text) ?? throw new HubException("A message needs some text.");
+        if (!_chat.Allow(me, teacher)) throw new HubException("You're sending messages too quickly. Wait a few seconds.");
+
+        ChatMessage message;
+        if (teacher)
+        {
+            var student = send!.ToConnectionId;
+            if (string.IsNullOrEmpty(student) || !_room.IsStudent(student)) throw new HubException("That student isn't connected.");
+            message = new ChatMessage { StudentConnectionId = student, FromTeacher = true, FromName = "Teacher", Text = text };
+            message = message with { Id = Guid.NewGuid().ToString("N"), SentAt = DateTimeOffset.UtcNow };
+            await Clients.Client(student).SendAsync(Protocol.ClientMethods.ChatReceived, message);
+        }
+        else
+        {
+            _room.TryGetStudent(me, out var entry);
+            var name = entry?.Info.UserName is { Length: > 0 } user ? $"{entry.Info.MachineName} · {user}" : entry?.Info.MachineName ?? "Student";
+            message = new ChatMessage
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                StudentConnectionId = me,
+                FromTeacher = false,
+                FromName = name,
+                Text = text,
+                SentAt = DateTimeOffset.UtcNow,
+            };
+        }
+        await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.ChatReceived, message);
     }
 
     // ---- wake-on-LAN ----------------------------------------------------------
@@ -562,6 +605,7 @@ public sealed class ClassroomHub : Hub
             await BroadcastRosterToTeachers();
             _polls.RemoveConnection(id);
             _broadcast.RemoveStudent(id);
+            _chat.Remove(id);
             // The student whose screen was on show left: end that broadcast (viewers would only see a frozen picture).
             if (_broadcast.SourceStudent == id && _broadcast.Teacher is { } showing)
                 await StopBroadcastOf(showing);
@@ -583,6 +627,7 @@ public sealed class ClassroomHub : Hub
             // A broadcasting teacher that leaves stops the broadcast: no student is left staring at
             // a frozen full-screen viewer.
             await StopBroadcastOf(id);
+            _chat.Remove(id);
             if (_room.TeacherCount == 0) await ClosePollAsync();
             if (_room.TeacherCount == 0 && _timer.Stop()) await PushTimerAsync();
             if (_room.TeacherCount == 0 && !_room.Policy.IsEmpty)

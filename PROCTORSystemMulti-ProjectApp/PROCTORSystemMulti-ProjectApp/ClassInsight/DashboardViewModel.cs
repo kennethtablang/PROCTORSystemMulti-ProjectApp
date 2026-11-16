@@ -77,6 +77,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         _client.PolicyUpdated += p => OnUi(() => Policy = p);
         _client.PollResultsUpdated += r => OnUi(() => PollResults = r);
         _client.TimerUpdated += t => OnUi(() => OnTimerUpdated(t));
+        _client.ChatReceived += m => OnUi(() => OnChat(m));
         // A restarted server has forgotten the room's limits: re-apply the ones this teacher set.
         _client.Registered += () => { if (!_lastSetPolicy.IsEmpty) _ = SetPolicyAsync(_lastSetPolicy); };
 

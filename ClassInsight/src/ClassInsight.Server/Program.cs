@@ -23,6 +23,7 @@ builder.Services.AddSingleton<PollBox>();
 builder.Services.AddSingleton<BroadcastState>();
 builder.Services.AddSingleton<TimerState>();
 builder.Services.AddSingleton<WakeSender>();
+builder.Services.AddSingleton<ChatThrottle>();
 builder.Services.AddHostedService<DiscoveryBeaconService>();
 
 var app = builder.Build();

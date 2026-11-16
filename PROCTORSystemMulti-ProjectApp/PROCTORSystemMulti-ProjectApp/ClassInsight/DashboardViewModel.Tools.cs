@@ -112,6 +112,38 @@ public sealed partial class DashboardViewModel
             KnownComputers.Remember(server, key, s.MachineName, s.MacAddresses);
     }
 
+    // ---- chat ---------------------------------------------------------------
+
+    // Conversations by student connection id; kept on this device for the session only.
+    private readonly Dictionary<string, System.Collections.ObjectModel.ObservableCollection<ChatLine>> _chats = new(StringComparer.Ordinal);
+
+    /// <summary>The student whose chat page is open (their messages don't count as unread).</summary>
+    public string? OpenChat { get; set; }
+
+    public System.Collections.ObjectModel.ObservableCollection<ChatLine> ChatFor(string studentConnectionId)
+    {
+        if (!_chats.TryGetValue(studentConnectionId, out var lines))
+            _chats[studentConnectionId] = lines = new();
+        return lines;
+    }
+
+    private void OnChat(ChatMessage m)
+    {
+        var lines = ChatFor(m.StudentConnectionId);
+        lines.Add(new ChatLine(m.FromTeacher ? "Teacher" : m.FromName, m.Text, m.SentAt.ToLocalTime(), m.FromTeacher));
+        while (lines.Count > ChatLimits.MaxHistory) lines.RemoveAt(0);
+        if (!m.FromTeacher && OpenChat != m.StudentConnectionId
+            && Students.FirstOrDefault(s => s.ConnectionId == m.StudentConnectionId) is { } tile)
+            tile.UnreadChat++;
+    }
+
+    /// <summary>Send a chat line to a student; returns an error to show, or null.</summary>
+    public async Task<string?> SendChatAsync(string studentConnectionId, string text)
+    {
+        try { await _client.SendChatAsync(new ChatSend { ToConnectionId = studentConnectionId, Text = text }); return null; }
+        catch (Exception ex) { return ex.Message; }
+    }
+
     // ---- wake-on-LAN --------------------------------------------------------
 
     /// <summary>Computers seen in this room before (on this device) that aren't connected now and can be woken.</summary>
@@ -219,4 +251,13 @@ public static class TeacherFiles
         File.WriteAllBytes(path, bytes);
         return path;
     }
+}
+
+/// <summary>One line in a teacher ↔ student chat, shaped for the chat page.</summary>
+public sealed record ChatLine(string Who, string Text, DateTimeOffset At, bool FromTeacher)
+{
+    public string Caption => $"{Who} · {At:HH:mm}";
+    public Color Background => FromTeacher ? Color.FromArgb("#5B2C9E") : Color.FromArgb("#2E2A45");
+    public LayoutOptions Alignment => FromTeacher ? LayoutOptions.End : LayoutOptions.Start;
+    public Thickness Indent => FromTeacher ? new Thickness(60, 0, 0, 0) : new Thickness(0, 0, 60, 0);
 }

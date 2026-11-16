@@ -89,6 +89,8 @@ public partial class FocusPage : ContentPage
     private async void OnPower(object? sender, EventArgs e) => await ClassActions.PowerAsync(this, _vm, Me, _tile.MachineName);
     private async void OnLowerHand(object? sender, EventArgs e) => await _vm.LowerHandAsync(_tile);
 
+    private async void OnChat(object? sender, EventArgs e) => await Navigation.PushModalAsync(new ChatPage(_vm, _tile));
+
     // Show this student's screen to the rest of the class (relayed through this app).
     private async void OnShowToClass(object? sender, EventArgs e)
     {

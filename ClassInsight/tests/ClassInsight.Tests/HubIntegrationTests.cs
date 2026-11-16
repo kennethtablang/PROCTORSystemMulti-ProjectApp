@@ -91,6 +91,7 @@ public sealed class Peer : IAsyncDisposable
         Record<IceCandidateMessage>(Protocol.ClientMethods.ReceiveBroadcastIce);
         Record<LessonTimer>(Protocol.ClientMethods.TimerUpdated);
         Record<bool>(Protocol.ClientMethods.ScreenShownToClass);
+        Record<ChatMessage>(Protocol.ClientMethods.ChatReceived);
         Hub.On(Protocol.ClientMethods.HandLowered, () => Push(Protocol.ClientMethods.HandLowered));
     }
 

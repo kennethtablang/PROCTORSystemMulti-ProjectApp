@@ -87,6 +87,7 @@ public sealed class AgentWorker : BackgroundService
             _ui = new ClassroomUi(loggerFactory.CreateLogger<ClassroomUi>());
             _ui.HandToggled += raised => _ = SendHandAsync(raised);
             _ui.PollAnswered += answer => _ = SendPollAnswerAsync(answer);
+            _ui.ChatSent += text => _ = SendChatAsync(text);
         }
         _enforcer = new PolicyEnforcer(loggerFactory.CreateLogger<PolicyEnforcer>(), _browser, _ui);
 
@@ -259,6 +260,7 @@ public sealed class AgentWorker : BackgroundService
         });
         hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveBroadcastIce, c => _broadcast?.HandleIce(c));
         hub.On<bool>(Protocol.ClientMethods.ScreenShownToClass, shown => _ui?.ShowScreenShown(shown));
+        hub.On<ChatMessage>(Protocol.ClientMethods.ChatReceived, m => { if (m.FromTeacher) _ui?.ShowChat(m); });
         hub.On<string>(Protocol.ClientMethods.BroadcastStopped, async teacher =>
         {
             if (_broadcast is { } b && b.Teacher == teacher) await StopBroadcastViewerAsync();
@@ -320,6 +322,19 @@ public sealed class AgentWorker : BackgroundService
         catch (Exception ex) { _logger.LogDebug(ex, "Poll answer failed."); }
     }
 
+    private async Task SendChatAsync(string text)
+    {
+        var hub = _hub;
+        if (hub is not { State: HubConnectionState.Connected })
+        {
+            _ui?.ChatFailed("not connected to the teacher.");
+            return;
+        }
+        try { await hub.InvokeAsync(Protocol.ServerMethods.SendChat, new ChatSend { Text = text }); }
+        catch (Microsoft.AspNetCore.SignalR.HubException ex) { _ui?.ChatFailed(ex.Message.Contains("too quickly") ? "you're sending messages too quickly." : "the teacher couldn't be reached."); }
+        catch (Exception ex) { _logger.LogDebug(ex, "Chat send failed."); _ui?.ChatFailed("the teacher couldn't be reached."); }
+    }
+
     private async Task SendHandAsync(bool raised)
     {
         var hub = _hub;
@@ -338,6 +353,7 @@ public sealed class AgentWorker : BackgroundService
         _ui?.Unlock();
         _ui?.ResetHand(showNotice: false);
         _ui?.ResetPoll();
+        _ui?.ChatDisconnected();
         _ui?.ShowTimer(new LessonTimer());
         _ = StopBroadcastViewerAsync();
         _enforcer.Apply(new ClassPolicy());

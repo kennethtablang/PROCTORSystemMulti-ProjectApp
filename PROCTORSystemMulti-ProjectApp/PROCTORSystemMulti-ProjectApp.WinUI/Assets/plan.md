@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.18 (draft)
+**Version:** 0.19 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -482,6 +482,11 @@ that loses the server unlocks and lifts everything itself.
   and who answered what, or, for an **anonymous** poll, totals plus unnamed written answers. One poll
   at a time, in memory only, closed automatically when the last teacher leaves. **Live-verified**:
   pressing "Yes" on the real student card reached the teacher as 1/1 answered, counts [1, 0].)*
+- 🟡 **FR-CTRL-13 [P5]** Teacher ↔ student **chat**. *(Focus view → "💬 Chat"; students reply in a
+  small window that opens without stealing their typing, or start one from the tray ("💬 Message my
+  teacher"). Every teacher sees every conversation; a student sees only their own. Relayed, never
+  stored; rate-limited (students 6 / 10 s, teachers 30 / 10 s); control characters stripped; unread
+  badge on the tile. Hub tests; needs a GUI live check.)*
 - 🟡 **FR-CTRL-12 [P5]** The teacher **may** show one student's screen to the rest of the class.
   *(Focus view → "📺 Show to class" (full screen or window). The teacher app relays the student's
   live stream it already receives (no extra capture, so it works from any teacher platform) through
@@ -757,6 +762,9 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.19 — 2026-11-16**
+  - **Chat** (FR-CTRL-13 🟡). Tests: 114.
 
 - **0.18 — 2026-11-16**
   - **Show a student's screen to the class** (FR-CTRL-12 🟡, built; awaiting a two-PC live check). Tests: 112.

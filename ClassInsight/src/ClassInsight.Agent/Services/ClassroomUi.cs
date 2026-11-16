@@ -24,7 +24,7 @@ namespace ClassInsight.Agent.Services;
 ///  * <b>Raise hand</b> — a tray icon the student double-clicks (or right-clicks) to ask for help.
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed class ClassroomUi : IDisposable
+internal sealed partial class ClassroomUi : IDisposable
 {
     private readonly ILogger _logger;
     private readonly Thread _thread;
@@ -627,6 +627,9 @@ internal sealed class ClassroomUi : IDisposable
             var toggle = new Forms.ToolStripMenuItem("✋ Raise hand (ask for help)");
             toggle.Click += (_, _) => ToggleHand();
             menu.Items.Add(toggle);
+            var chat = new Forms.ToolStripMenuItem("💬 Message my teacher");
+            chat.Click += (_, _) => OpenChatFromTray();
+            menu.Items.Add(chat);
             menu.Opening += (_, _) => toggle.Text = _handRaised ? "Lower my hand" : "✋ Raise hand (ask for help)";
 
             _tray = new Forms.NotifyIcon

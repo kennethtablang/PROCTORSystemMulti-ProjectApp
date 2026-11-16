@@ -134,6 +134,10 @@ the server creates its own certificate in `%ProgramData%\ClassInsight\Server\ser
   (best), or let each agent trust the first server it reaches.
 * **Teachers** are shown the fingerprint the first time they connect to a server and confirm it;
   if a server's key ever changes they get a red warning and must confirm again.
+* **Tamper checks:** the server refuses to use a certificate file (or folder) that accounts other
+  than SYSTEM, Administrators and its own account can change, and agents ignore a remembered pin
+  that students could have written (the MSI protects `%ProgramData%\ClassInsight`; an agent run
+  without the installer just keeps the pin in memory).
 * **Back up the certificate file.** Replacing it changes the fingerprint: agents will refuse the
   server until you re-pin them (re-run the MSI with the new `SERVERFINGERPRINT`, or delete
   `%ProgramData%\ClassInsight\server-pin` on PCs that trusted on first use).

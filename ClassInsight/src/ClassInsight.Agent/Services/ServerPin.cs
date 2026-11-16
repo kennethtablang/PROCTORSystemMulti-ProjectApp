@@ -30,7 +30,15 @@ internal sealed class ServerPin
         }
         try
         {
-            if (File.Exists(_path)) _remembered = ServerTrust.Normalize(File.ReadAllText(_path));
+            if (File.Exists(_path))
+            {
+                // A pin students could have written would let them point this PC at their own server.
+                if (OperatingSystem.IsWindows() && !ProtectedFiles.IsTrustedFile(_path))
+                    logger.LogWarning("Ignoring {Path}: it (or its folder) can be changed by accounts other than SYSTEM and " +
+                                      "Administrators. The agent will trust the next server it reaches instead.", _path);
+                else
+                    _remembered = ServerTrust.Normalize(File.ReadAllText(_path));
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -53,8 +61,9 @@ internal sealed class ServerPin
         _remembered = fingerprint;
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, fingerprint);
+            if (OperatingSystem.IsWindows() && !ProtectedFiles.WriteAllText(_path, fingerprint))
+                _logger.LogWarning("Not saving the server pin: {Folder} can be changed by other accounts; it is kept until the agent restarts.",
+                    Path.GetDirectoryName(_path));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

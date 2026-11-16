@@ -627,7 +627,11 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
   (a rogue reply can no longer be connected to), and **per-agent enrolment keys are not done**
   (a rogue *agent* can still join as a student). Unit tests for pinning; **live-verified** with
   the real server: plain HTTP refused, agent TOFU-pinned and connected over TLS, a wrong pin
-  refused, a file sent over TLS, and the agent refusing a server restarted with another key.)*
+  refused, a file sent over TLS, and the agent refusing a server restarted with another key.
+  After security review: the certificate folder/file are created locked down and a certificate
+  others could have planted is refused (verified); the agent's remembered pin is only trusted if
+  students can't write it (verified: not saved in an unprotected folder); and the agent probes
+  every discovered server for the pinned key instead of trusting the advertised fingerprint.)*
 - ✅ **NFR-PRIV-01** ClassInsight **shall** be deployable only on operator-authorized,
   institution-owned machines; documentation **shall** state the acceptable-use and
   notice obligations.

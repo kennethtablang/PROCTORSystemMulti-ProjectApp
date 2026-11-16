@@ -173,26 +173,9 @@ public sealed class AgentWorker : BackgroundService
 
     private async Task RunSessionAsync(CancellationToken ct)
     {
-        var server = await DiscoverAsync(ct);
-        if (server is null) return;
-
-        _logger.LogInformation("Found \"{Room}\" at {Url}.", server.RoomName, server.HubUrl);
-
-        // Authenticate the server (NFR-SEC-06): see which TLS key it presents and require the pin.
-        var presented = await ServerTrust.ProbeAsync(server.Host, server.Port, TimeSpan.FromSeconds(5), ct);
-        if (presented is null)
-        {
-            _logger.LogWarning("Couldn't open a secure connection to {Host}:{Port}.", server.Host, server.Port);
-            return;
-        }
-        if (_pin.Current is { } pin && pin != presented)
-        {
-            _logger.LogError("Refusing \"{Room}\" at {Host}: it presents fingerprint {Presented}, but this PC trusts {Pinned}. " +
-                             "If the classroom server was reinstalled, set ClassInsight:ServerFingerprint (or delete " +
-                             "%ProgramData%\\ClassInsight\\server-pin).",
-                server.RoomName, server.Host, ServerTrust.Format(presented), ServerTrust.Format(pin));
-            return;
-        }
+        var found = await FindTrustedServerAsync(ct);
+        if (found is null) return;
+        var (server, presented) = found.Value;
         _pin.Remember(presented);
 
         await using var hub = new HubConnectionBuilder()
@@ -233,30 +216,61 @@ public sealed class AgentWorker : BackgroundService
         await TelemetryLoopAsync(hub, closed.Task, ct);
     }
 
-    private async Task<DiscoveryResponse?> DiscoverAsync(CancellationToken ct)
+    // Servers already reported as presenting the wrong key (logged once each, not every retry).
+    private readonly HashSet<string> _refusedServers = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Find a server and authenticate it (NFR-SEC-06): probe each candidate's TLS key and take the
+    /// first that matches the pin (or, with no pin yet, the first reachable one — trust on first
+    /// use). The fingerprint a server advertises in discovery is unauthenticated, so it only decides
+    /// the order candidates are tried in; it can never rule one out, and a rogue reply can't stop
+    /// the agent reaching the real server.
+    /// </summary>
+    private async Task<(DiscoveryResponse Server, string Fingerprint)?> FindTrustedServerAsync(CancellationToken ct)
     {
         var discovery = new LanDiscoveryClient("student");
         while (!ct.IsCancellationRequested)
         {
+            IReadOnlyList<DiscoveryResponse> candidates;
             if (_serverAddress is not null)
             {
-                // IT pinned the server: use only that address and never follow broadcast replies,
-                // so a rogue server appearing on the LAN can't attract this agent.
+                // IT pinned the address: use only it and never follow broadcast replies.
                 var pinned = await ManualServer.ResolveAsync(_serverAddress, TimeSpan.FromSeconds(3), ct);
-                if (pinned is not null && LanDiscoveryClient.MatchesRoom(pinned, _roomName)) return pinned;
-                await SafeDelay(TimeSpan.FromSeconds(3), ct);
-                continue;
+                candidates = pinned is not null && LanDiscoveryClient.MatchesRoom(pinned, _roomName) ? [pinned] : [];
+            }
+            else
+            {
+                var pin = _pin.Current;
+                candidates = (await discovery.FindServersAsync(TimeSpan.FromSeconds(3), ct))
+                    .Where(r => LanDiscoveryClient.MatchesRoom(r, _roomName))
+                    .OrderBy(r => pin is not null && r.Fingerprint == pin ? 0 : 1)
+                    .Take(16)
+                    .ToList();
             }
 
-            // Several servers may answer (other rooms, or a rogue): prefer the one advertising our
-            // pinned key. The advertisement is only a hint; the TLS handshake is what's checked.
-            var heard = (await discovery.FindServersAsync(TimeSpan.FromSeconds(3), ct))
-                .Where(r => LanDiscoveryClient.MatchesRoom(r, _roomName)).ToList();
-            var server = _pin.Current is { } pin
-                ? heard.FirstOrDefault(r => r.Fingerprint == pin) ?? heard.FirstOrDefault()
-                : heard.FirstOrDefault();
-            if (server is not null) return server;
-            _logger.LogDebug("No server yet; still searching…");
+            foreach (var server in candidates)
+            {
+                var presented = await ServerTrust.ProbeAsync(server.Host, server.Port, TimeSpan.FromSeconds(5), ct);
+                if (presented is null)
+                {
+                    _logger.LogDebug("Couldn't open a secure connection to {Host}:{Port}.", server.Host, server.Port);
+                    continue;
+                }
+                if (_pin.Current is { } pin && pin != presented)
+                {
+                    if (_refusedServers.Add(server.Host + "|" + presented))
+                        _logger.LogError("Refusing \"{Room}\" at {Host}: it presents fingerprint {Presented}, but this PC trusts {Pinned}. " +
+                                         "If the classroom server was reinstalled, set ClassInsight:ServerFingerprint (or delete " +
+                                         "%ProgramData%\\ClassInsight\\server-pin).",
+                            server.RoomName, server.Host, ServerTrust.Format(presented), ServerTrust.Format(pin));
+                    continue;
+                }
+                _logger.LogInformation("Found \"{Room}\" at {Url}.", server.RoomName, server.HubUrl);
+                return (server, presented);
+            }
+
+            if (candidates.Count == 0) _logger.LogDebug("No server yet; still searching…");
+            await SafeDelay(TimeSpan.FromSeconds(3), ct);
         }
         return null;
     }

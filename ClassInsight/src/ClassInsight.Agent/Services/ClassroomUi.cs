@@ -343,7 +343,12 @@ internal sealed class ClassroomUi : IDisposable
     // ---- teacher's screen (broadcast viewer) ------------------------------
 
     /// <summary>Open the viewer: full screen (can't be closed) or a normal window.</summary>
-    public void ShowBroadcast(Shared.Contracts.BroadcastMode mode) => Post(() =>
+    /// <summary>Tell this student their screen is (no longer) being shown to the class.</summary>
+    public void ShowScreenShown(bool shown) => ShowNotice(shown
+        ? "\U0001F4FA  Your teacher is showing your screen to the class."
+        : "Your screen is no longer being shown to the class.", TimeSpan.FromSeconds(shown ? 8 : 4));
+
+    public void ShowBroadcast(Shared.Contracts.BroadcastMode mode, string? studentName = null) => Post(() =>
     {
         CloseBroadcastWindow();
 
@@ -351,7 +356,7 @@ internal sealed class ClassroomUi : IDisposable
         RenderOptions.SetBitmapScalingMode(_broadcastImage, BitmapScalingMode.HighQuality);
         _broadcastWaiting = new TextBlock
         {
-            Text = "Waiting for your teacher's screen\u2026",
+            Text = studentName is null ? "Waiting for your teacher's screen\u2026" : $"Waiting for {studentName}'s screen\u2026",
             Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA6)),
             FontSize = 18,
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -364,7 +369,7 @@ internal sealed class ClassroomUi : IDisposable
         var full = mode == Shared.Contracts.BroadcastMode.FullScreen;
         var w = new Window
         {
-            Title = "Your teacher's screen",
+            Title = studentName is null ? "Your teacher's screen" : $"{studentName}'s screen (shown by your teacher)",
             Content = grid,
             Background = Brushes.Black,
             ShowInTaskbar = !full,

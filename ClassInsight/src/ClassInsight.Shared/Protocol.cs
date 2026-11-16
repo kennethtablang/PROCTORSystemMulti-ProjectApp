@@ -82,6 +82,9 @@ public static class Protocol
 
         /// <summary>Server → students and teachers: the class countdown started, changed or stopped.</summary>
         public const string TimerUpdated = nameof(TimerUpdated);
+
+        /// <summary>Server → one student: your screen is now (true) / no longer (false) being shown to the class.</summary>
+        public const string ScreenShownToClass = nameof(ScreenShownToClass);
     }
 
     /// <summary>Names of hub methods CLIENTS invoke ON the server.</summary>

@@ -21,6 +21,8 @@ public sealed class FrameBuffer
     public int Width { get; private set; }
     public int Height { get; private set; }
 
+    private long _version;
+
     /// <summary>Copy a 24-bpp BGR frame (top-down, tightly packed) in as opaque BGRA.</summary>
     public void WriteBgr(int width, int height, ReadOnlySpan<byte> bgr)
     {
@@ -44,6 +46,7 @@ public sealed class FrameBuffer
                 dst[d + 3] = 0xFF;
             }
             _bitmap.NotifyPixelsChanged();
+            _version++;
 
             Width = width;
             Height = height;
@@ -64,6 +67,28 @@ public sealed class FrameBuffer
             Width = Height = 0;
         }
         Updated?.Invoke();
+    }
+
+    /// <summary>
+    /// The current frame as BGRA scaled to about <paramref name="maxWidth"/> (sides rounded down to
+    /// multiples of 16 for the VP8 encoder), for re-broadcasting; null if there's no frame yet.
+    /// <paramref name="version"/> changes whenever a new frame arrives.
+    /// </summary>
+    public ScreenFrame? CopyScaled(int maxWidth, out long version)
+    {
+        lock (_lock)
+        {
+            version = _version;
+            if (_bitmap is null) return null;
+            var scale = Math.Min(1.0, (double)maxWidth / _bitmap.Width);
+            var w = Math.Max(16, (int)(_bitmap.Width * scale) / 16 * 16);
+            var h = Math.Max(16, (int)(_bitmap.Height * scale) / 16 * 16);
+            var info = new SKImageInfo(w, h, SKColorType.Bgra8888, SKAlphaType.Opaque);
+            using var scaled = new SKBitmap(info);
+            if (!_bitmap.ScalePixels(scaled, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None))) return null;
+            var bytes = scaled.GetPixelSpan().ToArray();
+            return new ScreenFrame(w, h, bytes, true);
+        }
     }
 
     /// <summary>The current frame as PNG bytes (for screenshots), or null if there's no frame yet.</summary>

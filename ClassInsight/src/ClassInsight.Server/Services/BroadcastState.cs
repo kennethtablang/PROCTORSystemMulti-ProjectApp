@@ -16,20 +16,31 @@ public sealed class BroadcastState
     public string? Teacher { get; private set; }
     public BroadcastMode Mode { get; private set; }
 
+    /// <summary>The student whose screen is being shown (null = the teacher's own screen).</summary>
+    public string? SourceStudent { get; private set; }
+
+    /// <summary>The shown student's computer name, for late joiners' viewer caption.</summary>
+    public string? SourceName { get; private set; }
+
     /// <summary>Whole class: students who join later are added too.</summary>
     public bool WholeClass { get; private set; }
 
     /// <summary>Start (or replace) the broadcast. Returns the previous broadcast's teacher and targets, if any.</summary>
-    public (string? PreviousTeacher, string[] PreviousTargets) Start(string teacher, BroadcastMode mode, bool wholeClass, IEnumerable<string> targets)
+    public (string? PreviousTeacher, string[] PreviousTargets, string? PreviousSource) Start(
+        string teacher, BroadcastMode mode, bool wholeClass, IEnumerable<string> targets,
+        string? sourceStudent = null, string? sourceName = null)
     {
         lock (_gate)
         {
-            var previous = (Teacher, _targets.ToArray());
+            var previous = (Teacher, _targets.ToArray(), SourceStudent);
             Teacher = teacher;
             Mode = mode;
             WholeClass = wholeClass;
+            SourceStudent = sourceStudent;
+            SourceName = sourceName;
             _targets.Clear();
-            foreach (var t in targets) _targets.Add(t);
+            foreach (var t in targets)
+                if (t != sourceStudent) _targets.Add(t);
             return previous;
         }
     }
@@ -43,6 +54,8 @@ public sealed class BroadcastState
             var targets = _targets.ToArray();
             Teacher = null;
             WholeClass = false;
+            SourceStudent = null;
+            SourceName = null;
             _targets.Clear();
             return targets;
         }
@@ -53,7 +66,7 @@ public sealed class BroadcastState
     {
         lock (_gate)
         {
-            if (Teacher is null || !WholeClass) return false;
+            if (Teacher is null || !WholeClass || student == SourceStudent) return false;
             return _targets.Add(student);
         }
     }

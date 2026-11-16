@@ -89,6 +89,23 @@ public partial class FocusPage : ContentPage
     private async void OnPower(object? sender, EventArgs e) => await ClassActions.PowerAsync(this, _vm, Me, _tile.MachineName);
     private async void OnLowerHand(object? sender, EventArgs e) => await _vm.LowerHandAsync(_tile);
 
+    // Show this student's screen to the rest of the class (relayed through this app).
+    private async void OnShowToClass(object? sender, EventArgs e)
+    {
+        if (_vm.Broadcaster.IsActive && _vm.Broadcaster.ShowingStudent?.ConnectionId == _tile.ConnectionId)
+        {
+            if (await DisplayAlertAsync("Showing to the class", $"Stop showing {_tile.MachineName}'s screen?", "Stop", "Keep showing"))
+                await _vm.Broadcaster.StopAsync();
+            return;
+        }
+        const string full = "Full screen (students can't close it)", window = "In a window";
+        var choice = await DisplayActionSheetAsync($"Show {_tile.MachineName}'s screen to the class", "Cancel", null, full, window);
+        if (choice != full && choice != window) return;
+        var error = await _vm.Broadcaster.StartAsync(choice == full ? global::ClassInsight.Shared.Contracts.BroadcastMode.FullScreen : global::ClassInsight.Shared.Contracts.BroadcastMode.Window, null, _tile);
+        await DisplayAlertAsync(error is null ? "Showing to the class" : "Couldn't show this screen",
+            error ?? $"The class now sees {_tile.MachineName}'s screen, and the student has been told. Stop it from the dashboard banner or this button.", "OK");
+    }
+
     private async void OnScreenshot(object? sender, EventArgs e)
     {
         var path = DashboardViewModel.SaveScreenshot(_tile);

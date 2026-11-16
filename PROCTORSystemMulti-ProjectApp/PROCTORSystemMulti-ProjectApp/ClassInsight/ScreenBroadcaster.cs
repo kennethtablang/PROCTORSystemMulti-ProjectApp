@@ -18,7 +18,8 @@ namespace PROCTORSystemMulti_ProjectApp.ClassInsight;
 public sealed class ScreenBroadcaster : IAsyncDisposable
 {
     private readonly TeacherClient _client;
-    private readonly IScreenSource _source;
+    private readonly IScreenSource _ownScreen;
+    private IScreenSource _source;
     private readonly ConcurrentDictionary<string, RTCPeerConnection> _peers = new();
     private readonly object _encodeGate = new();
 
@@ -34,6 +35,7 @@ public sealed class ScreenBroadcaster : IAsyncDisposable
     public ScreenBroadcaster(TeacherClient client, IScreenSource source)
     {
         _client = client;
+        _ownScreen = source;
         _source = source;
         _client.BroadcastAnswerReceived += OnAnswer;
         _client.BroadcastIceReceived += OnIce;
@@ -43,29 +45,40 @@ public sealed class ScreenBroadcaster : IAsyncDisposable
         _client.Registered += () => { if (IsActive) _ = StopLocalAsync(); };
     }
 
-    public bool IsSupported => _source.IsSupported;
+    /// <summary>Whether this device can show its <b>own</b> screen (showing a student works everywhere).</summary>
+    public bool IsSupported => _ownScreen.IsSupported;
     public bool IsActive { get; private set; }
     public BroadcastMode Mode { get; private set; }
+
+    /// <summary>The student whose screen is being shown, or null when it's the teacher's own screen.</summary>
+    public StudentTile? ShowingStudent { get; private set; }
 
     /// <summary>Students currently receiving the screen.</summary>
     public int Viewers => _peers.Values.Count(p => p.connectionState == RTCPeerConnectionState.connected);
 
     /// <summary>Start showing this screen. Returns an error to show, or null.</summary>
-    public async Task<string?> StartAsync(BroadcastMode mode, IReadOnlyList<string>? targets = null)
+    public async Task<string?> StartAsync(BroadcastMode mode, IReadOnlyList<string>? targets = null, StudentTile? student = null)
     {
-        if (!_source.IsSupported) return "Showing your screen isn't available on this device yet (Windows only).";
+        if (student is null && !_ownScreen.IsSupported) return "Showing your screen isn't available on this device yet (Windows only).";
         if (IsActive) await StopAsync();
 
         IReadOnlyList<string> students;
         try
         {
-            students = await _client.StartBroadcastAsync(new BroadcastRequest { Mode = mode, Targets = targets ?? [] });
+            students = await _client.StartBroadcastAsync(new BroadcastRequest
+            {
+                Mode = mode,
+                Targets = targets ?? [],
+                SourceStudentConnectionId = student?.ConnectionId,
+            });
         }
         catch (Exception ex)
         {
             return ex.Message;
         }
 
+        _source = student is null ? _ownScreen : new StudentFrameSource(student);
+        ShowingStudent = student;
         IsActive = true;
         Mode = mode;
         _cts = new CancellationTokenSource();
@@ -92,6 +105,8 @@ public sealed class ScreenBroadcaster : IAsyncDisposable
         foreach (var id in _peers.Keys.ToArray())
             if (_peers.TryRemove(id, out var pc)) { try { pc.close(); } catch { } }
         lock (_encodeGate) { _encoder?.Dispose(); _encoder = null; _encW = _encH = 0; }
+        ShowingStudent = null;
+        _source = _ownScreen;
         Changed?.Invoke();
     }
 

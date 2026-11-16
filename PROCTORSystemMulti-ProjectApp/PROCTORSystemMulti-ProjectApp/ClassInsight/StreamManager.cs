@@ -41,6 +41,7 @@ public sealed class StreamManager : IAsyncDisposable
 
     private bool _gridVisible;
     private string? _focusId;
+    private string? _pinnedId;
     private int _focusDisplay;
     private int _thumbnailWidth = StreamResolution.DefaultThumbnailWidth;
     private int _focusWidth = StreamResolution.DefaultFocusWidth;
@@ -89,11 +90,23 @@ public sealed class StreamManager : IAsyncDisposable
         Schedule();
     }
 
+    /// <summary>
+    /// Keep a full-quality stream from this student even when the focus view isn't open (their screen
+    /// is being shown to the class); null releases it.
+    /// </summary>
+    public void SetPinned(string? studentConnectionId)
+    {
+        if (_pinnedId == studentConnectionId) return;
+        _pinnedId = studentConnectionId;
+        Schedule();
+    }
+
     /// <summary>The roster changed (join/leave/replace).</summary>
     public void RosterChanged() => Schedule();
 
     private (StreamQuality Quality, int Display, int Width)? DesiredFor(string id) =>
         id == _focusId ? (StreamQuality.Focus, _focusDisplay, _focusWidth)
+        : id == _pinnedId ? (StreamQuality.Focus, 0, Math.Max(_focusWidth, BroadcastLimits.Width))
         : _gridVisible ? (StreamQuality.Thumbnail, 0, _thumbnailWidth)
         : null;
 

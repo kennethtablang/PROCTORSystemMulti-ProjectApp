@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.17 (draft)
+**Version:** 0.18 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -482,6 +482,14 @@ that loses the server unlocks and lifts everything itself.
   and who answered what, or, for an **anonymous** poll, totals plus unnamed written answers. One poll
   at a time, in memory only, closed automatically when the last teacher leaves. **Live-verified**:
   pressing "Yes" on the real student card reached the teacher as 1/1 answered, counts [1, 0].)*
+- 🟡 **FR-CTRL-12 [P5]** The teacher **may** show one student's screen to the rest of the class.
+  *(Focus view → "📺 Show to class" (full screen or window). The teacher app relays the student's
+  live stream it already receives (no extra capture, so it works from any teacher platform) through
+  the FR-CTRL-02 broadcast pipeline. The shown student is never a viewer and is always told
+  ("Your teacher is showing your screen to the class" / "…no longer…"); viewers' window says whose
+  screen it is. The show ends if that student disconnects; while it runs, the teacher app keeps a
+  full-quality stream from that student even after leaving the focus view. Hub tests; needs a
+  two-PC live check.)*
 - ✅ **FR-CTRL-11 [P5]** The teacher **may** switch lab PCs **on** with Wake-on-LAN.
   *(Agents report their physical adapters' MACs (wired first, max 4; validated server-side). The
   teacher app remembers PCs per server on its own device (120 days, max 500) and **Power… →
@@ -749,6 +757,9 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.18 — 2026-11-16**
+  - **Show a student's screen to the class** (FR-CTRL-12 🟡, built; awaiting a two-PC live check). Tests: 112.
 
 - **0.17 — 2026-11-16**
   - **Wake-on-LAN** (FR-CTRL-11 ✅): switch offline lab PCs on from the teacher app. Tests: 110.

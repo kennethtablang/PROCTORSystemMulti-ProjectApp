@@ -251,13 +251,14 @@ public sealed class AgentWorker : BackgroundService
             if (_ui is null) return;
             await StopBroadcastViewerAsync();
             _broadcast = new BroadcastReceiver(hub, info.TeacherConnectionId, _ui, _iceServers, _loggerFactory.CreateLogger<BroadcastReceiver>());
-            _ui.ShowBroadcast(info.Mode);
+            _ui.ShowBroadcast(info.Mode, ClassroomLimits.CleanText(info.ShowingStudentName));
         });
         hub.On<SdpMessage>(Protocol.ClientMethods.ReceiveBroadcastOffer, async offer =>
         {
             if (_broadcast is { } b) await b.HandleOfferAsync(offer);
         });
         hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveBroadcastIce, c => _broadcast?.HandleIce(c));
+        hub.On<bool>(Protocol.ClientMethods.ScreenShownToClass, shown => _ui?.ShowScreenShown(shown));
         hub.On<string>(Protocol.ClientMethods.BroadcastStopped, async teacher =>
         {
             if (_broadcast is { } b && b.Teacher == teacher) await StopBroadcastViewerAsync();

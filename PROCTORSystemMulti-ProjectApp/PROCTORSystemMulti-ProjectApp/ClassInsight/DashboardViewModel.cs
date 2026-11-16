@@ -55,7 +55,11 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     {
         Streams = new StreamManager(_client, () => _snapshot);
         Broadcaster = new ScreenBroadcaster(_client, screen);
-        Broadcaster.Changed += () => OnUi(() => { Raise(nameof(IsBroadcasting)); Raise(nameof(BroadcastText)); });
+        Broadcaster.Changed += () =>
+        {
+            Streams.SetPinned(Broadcaster.IsActive ? Broadcaster.ShowingStudent?.ConnectionId : null);
+            OnUi(() => { Raise(nameof(IsBroadcasting)); Raise(nameof(BroadcastText)); });
+        };
 
         _client.Status += s => OnUi(() => Status = s);
         _client.RosterUpdated += r => OnUi(() => ReplaceRoster(r));
@@ -187,7 +191,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     public bool IsBroadcasting => Broadcaster.IsActive;
 
     public string BroadcastText => Broadcaster.IsActive
-        ? $"📺 Showing your screen ({(Broadcaster.Mode == BroadcastMode.FullScreen ? "full screen" : "in a window")}) · {Broadcaster.Viewers} watching"
+        ? $"📺 Showing {(Broadcaster.ShowingStudent is { } shown ? shown.MachineName + "'s" : "your")} screen ({(Broadcaster.Mode == BroadcastMode.FullScreen ? "full screen" : "in a window")}) · {Broadcaster.Viewers} watching"
         : "";
 
     // ---- polls -------------------------------------------------------------
@@ -587,6 +591,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     private void Remove(string connectionId)
     {
         TrackLeave(connectionId);
+        if (Broadcaster.IsActive && Broadcaster.ShowingStudent?.ConnectionId == connectionId)
+            _ = Broadcaster.StopAsync();   // the shown student left
         if (_byConnection.Remove(connectionId, out var tile))
         {
             Students.Remove(tile);

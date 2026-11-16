@@ -90,6 +90,7 @@ public sealed class Peer : IAsyncDisposable
         Record<SdpMessage>(Protocol.ClientMethods.ReceiveBroadcastAnswer);
         Record<IceCandidateMessage>(Protocol.ClientMethods.ReceiveBroadcastIce);
         Record<LessonTimer>(Protocol.ClientMethods.TimerUpdated);
+        Record<bool>(Protocol.ClientMethods.ScreenShownToClass);
         Hub.On(Protocol.ClientMethods.HandLowered, () => Push(Protocol.ClientMethods.HandLowered));
     }
 

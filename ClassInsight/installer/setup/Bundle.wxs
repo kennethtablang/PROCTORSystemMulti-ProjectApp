@@ -2,12 +2,16 @@
   Setup .exe for the ClassInsight student agent. Shows the standard installer window
   (welcome / progress / finish), elevates once, and installs the MSI, which registers the
   auto-start "ClassInsightAgent" service. Upgrades in place when a newer setup is run.
+
+  Lab settings (server key, address, room, enrolment key, remote control) are passed to the MSI.
+  They come from the command line (NAME=value, names in upper case) or are built in by
+  installer\Build-AgentSetup.ps1; see LabSettings.wxi.
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
   <Bundle Name="ClassInsight Agent"
           Manufacturer="ClassInsight"
-          Version="0.2.0"
+          Version="0.3.0"
           UpgradeCode="3B7A9C21-5D4E-4F60-8A1B-2C3D4E5F6A7B"
           AboutUrl="https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp">
 
@@ -16,10 +20,19 @@
       <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="" ShowVersion="yes" />
     </BootstrapperApplication>
 
+    <?include $(var.LabSettings)?>
+
     <Chain>
       <MsiPackage SourceFile="$(var.ClassInsight.Agent.Installer.TargetPath)"
                   Vital="yes"
-                  Visible="no" />
+                  Visible="no">
+        <!-- Empty values are ignored by the MSI, which then keeps what an earlier install saved. -->
+        <MsiProperty Name="SERVERFINGERPRINT" Value="[SERVERFINGERPRINT]" />
+        <MsiProperty Name="SERVERADDRESS" Value="[SERVERADDRESS]" />
+        <MsiProperty Name="ROOMNAME" Value="[ROOMNAME]" />
+        <MsiProperty Name="ALLOWREMOTECONTROL" Value="[ALLOWREMOTECONTROL]" />
+        <MsiProperty Name="ENROLLMENTKEY" Value="[ENROLLMENTKEY]" />
+      </MsiPackage>
     </Chain>
   </Bundle>
 </Wix>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Default lab settings for ClassInsight-Agent-Setup.exe: none built in. Every value can still be
+  given on the command line, e.g.
+    ClassInsight-Agent-Setup.exe /quiet SERVERFINGERPRINT="1056 91B5 ..." ENROLLMENTKEY="..."
+  installer\Build-AgentSetup.ps1 writes a filled-in copy of this file to build a setup that is
+  pre-configured for one lab (so IT can just double-click it on each PC).
+-->
+<Include xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Variable Name="SERVERFINGERPRINT" bal:Overridable="yes" />
+  <Variable Name="SERVERADDRESS" bal:Overridable="yes" />
+  <Variable Name="ROOMNAME" bal:Overridable="yes" />
+  <Variable Name="ALLOWREMOTECONTROL" bal:Overridable="yes" />
+  <Variable Name="ENROLLMENTKEY" bal:Overridable="yes" Hidden="yes" />
+</Include>

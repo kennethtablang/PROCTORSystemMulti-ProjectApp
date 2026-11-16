@@ -2,8 +2,8 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.23 (draft)
-**Last updated:** 2026-11-15
+**Version:** 0.24 (draft)
+**Last updated:** 2026-11-16
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
 
@@ -812,6 +812,13 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.24 — 2026-11-16**
+  - **Agent setup .exe per lab** (P4): `installer\Build-AgentSetup.ps1` builds
+    `ClassInsight-Agent-Setup.exe` (agent 0.3.0, self-contained) with a lab's server fingerprint,
+    address, room, enrolment key and remote-control setting built in, so IT just double-clicks it
+    on each PC; the setup also forwards those settings from its command line to the MSI. Output in
+    `ClassInsight\dist\` (not committed). A setup with an enrolment key built in must be kept private.
 
 - **0.23 — 2026-11-16**
   - **Agent enrolment** completes NFR-SEC-06 (✅): per-PC agent keys, signed single-use challenge

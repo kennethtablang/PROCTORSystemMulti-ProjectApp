@@ -19,6 +19,43 @@ dotnet publish -c Release -r win-x64 --self-contained true `
 
 This drops `ClassInsight.Agent.exe` into `deploy\agent\`, where `Install-Agent.ps1` looks by default.
 
+## Easiest — one setup .exe per lab
+
+`ClassInsight-Agent-Setup.exe` installs everything (the agent is self-contained, so lab PCs need
+no .NET install). Build it from `ClassInsight\installer`, with your lab's settings built in so that
+on each PC you only double-click it:
+
+```powershell
+cd ClassInsight\installer
+# The fingerprint is printed by the classroom server at start-up.
+.\Build-AgentSetup.ps1 -ServerFingerprint "47E5 EF43 ... 49B9" -RoomName "Lab 3"
+# -> ClassInsight\dist\ClassInsight-Agent-Setup-Lab3.exe
+```
+
+| Parameter | Effect |
+| --------- | ------ |
+| `-ServerFingerprint` | Pin the agents to your server (recommended; needed for remote control). |
+| `-ServerAddress` | `host` or `host:port`, when broadcast discovery is blocked. |
+| `-RoomName` | Join only this room. |
+| `-EnrollmentKey` | Lab enrolment key (server `AgentEnrollment=Key`). Anyone holding a setup built with it can read the key out of the file, so **keep that setup like a password**; or leave it out and pass `ENROLLMENTKEY=...` at install time. |
+| `-AllowRemoteControl` | Allow teacher remote control (requires `-ServerFingerprint`). |
+
+`.\Build-AgentSetup.ps1` with no parameters builds a generic setup (`dist\ClassInsight-Agent-Setup.exe`)
+that finds the server on the LAN and trusts the first one it meets.
+
+On each PC, as an administrator: double-click the setup, or run it silently (GPO, Intune, a
+script). The same settings can be given (or overridden) on the command line, names in upper case:
+
+```powershell
+ClassInsight-Agent-Setup.exe /quiet /norestart
+ClassInsight-Agent-Setup.exe /quiet /norestart SERVERFINGERPRINT="47E5 EF43 ... 49B9" ENROLLMENTKEY="..."
+ClassInsight-Agent-Setup.exe /uninstall /quiet      # remove (or Settings > Apps > ClassInsight Agent)
+```
+
+Running a newer setup upgrades in place and keeps the settings the PC was installed with unless the
+new setup sets them. Sign the setup with your institution's code-signing certificate before
+distributing it, or Windows SmartScreen will warn on each PC.
+
 ## Option A — MSI (recommended for GPO / Intune / SCCM / imaging)
 
 ```powershell

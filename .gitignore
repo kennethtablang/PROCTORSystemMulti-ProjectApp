@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# ClassInsight agent setups built by installer/Build-AgentSetup.ps1 (may hold a lab enrolment key)
+ClassInsight/dist/

@@ -12,7 +12,7 @@
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package Name="ClassInsight Agent"
            Manufacturer="ClassInsight"
-           Version="0.2.0"
+           Version="0.3.0"
            UpgradeCode="6F1C2B9E-3A4D-4E5F-9A8B-0C1D2E3F4A5B"
            Scope="perMachine"
            Compressed="yes">

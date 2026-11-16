@@ -6,7 +6,8 @@
     Build:   dotnet build -c Release            (from this folder; builds the MSI first)
     Output:  bin\x64\Release\ClassInsight-Agent-Setup.exe
     Install: double-click it (asks for admin), or silently:
-             ClassInsight-Agent-Setup.exe /quiet /norestart
+             ClassInsight-Agent-Setup.exe /quiet /norestart SERVERFINGERPRINT="1056 91B5 ..."
+    For one lab: ..\Build-AgentSetup.ps1 builds a setup with the lab's settings built in.
     Remove:  Settings > Apps > ClassInsight Agent, or ClassInsight-Agent-Setup.exe /uninstall /quiet
   -->
   <PropertyGroup>
@@ -14,6 +15,9 @@
     <OutputName>ClassInsight-Agent-Setup</OutputName>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
     <InstallerPlatform>x64</InstallerPlatform>
+    <!-- Lab settings built into the setup (Build-AgentSetup.ps1 passes a filled-in copy). -->
+    <LabSettings Condition="'$(LabSettings)' == ''">$(MSBuildThisFileDirectory)LabSettings.wxi</LabSettings>
+    <DefineConstants>$(DefineConstants);LabSettings=$(LabSettings)</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

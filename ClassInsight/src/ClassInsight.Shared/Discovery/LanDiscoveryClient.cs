@@ -44,22 +44,36 @@ public sealed class LanDiscoveryClient
     /// <summary>
     /// Broadcast a probe and collect every distinct server heard within <paramref name="window"/>.
     /// Beacons repeat every <see cref="Protocol.BeaconIntervalMs"/>, so a window a little longer than
-    /// that sees every room. Replies are keyed by their real source address <i>and</i> server id (a
+    /// that sees every room. Replies are keyed by their real source address, server id and port (a
     /// reply from one machine can't shadow a server first heard from another), with at most
     /// <see cref="MaxRepliesPerHost"/> per address and <see cref="MaxReplies"/> in total, so one noisy
-    /// host can't flood the list.
+    /// host can't flood the list. Replies the caller marks <paramref name="preferred"/> (e.g. the
+    /// address that worked last time) don't compete for those slots: they have their own quota of
+    /// <see cref="MaxPreferred"/>, so a flood that arrives first can't crowd them out.
     /// </summary>
-    public async Task<IReadOnlyList<DiscoveryResponse>> FindServersAsync(TimeSpan window, CancellationToken ct)
+    public async Task<IReadOnlyList<DiscoveryResponse>> FindServersAsync(TimeSpan window, CancellationToken ct,
+        Func<DiscoveryResponse, bool>? preferred = null)
     {
         var found = new Dictionary<string, DiscoveryResponse>(StringComparer.Ordinal);
         var perHost = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var general = 0;
+        var favoured = 0;
         await ListenAsync(window, ct, r =>
         {
-            var key = r.Host + "|" + r.ServerId;
-            if (found.ContainsKey(key) || found.Count >= MaxReplies) return true;
+            var key = $"{r.Host}|{r.Port}|{r.ServerId}";
+            if (found.ContainsKey(key)) return true;
+            if (preferred?.Invoke(r) == true)
+            {
+                if (favoured >= MaxPreferred) return true;
+                favoured++;
+                found[key] = r;
+                return true;
+            }
+            if (general >= MaxReplies) return true;
             var n = perHost.GetValueOrDefault(r.Host);
             if (n >= MaxRepliesPerHost) return true;
             perHost[r.Host] = n + 1;
+            general++;
             found[key] = r;
             return true;
         });
@@ -72,8 +86,11 @@ public sealed class LanDiscoveryClient
     /// <summary>Most servers one machine (source address) can contribute — two rooms on one PC is normal.</summary>
     public const int MaxRepliesPerHost = 2;
 
-    /// <summary>Most replies kept from one discovery round.</summary>
-    public const int MaxReplies = 256;
+    /// <summary>Most ordinary replies kept from one discovery round (small records: memory only).</summary>
+    public const int MaxReplies = 1024;
+
+    /// <summary>Most replies kept that the caller marked as preferred (their own quota).</summary>
+    public const int MaxPreferred = 64;
 
     public static bool MatchesRoom(DiscoveryResponse response, string? roomName) =>
         string.IsNullOrWhiteSpace(roomName)

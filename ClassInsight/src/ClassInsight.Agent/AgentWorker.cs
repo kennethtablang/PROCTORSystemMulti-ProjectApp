@@ -249,7 +249,16 @@ public sealed class AgentWorker : BackgroundService
                 // also after a restart) goes first; the advertised fingerprint only orders the rest.
                 var pin = _pin.Current;
                 var last = _pin.LastServerEndpoint;
-                candidates = (await discovery.FindServersAsync(TimeSpan.FromSeconds(3), ct))
+                var heard = await discovery.FindServersAsync(TimeSpan.FromSeconds(3), ct,
+                    preferred: r => $"{r.Host}:{r.Port}" == last || (pin is not null && r.Fingerprint == pin));
+
+                // The address that worked last time is always probed, even if discovery didn't hear it
+                // (a flood of fake replies can delay finding the server, but never prevent it).
+                if (last is not null && !heard.Any(r => $"{r.Host}:{r.Port}" == last)
+                    && await ManualServer.ResolveAsync(last, TimeSpan.FromSeconds(3), ct) is { } direct)
+                    heard = [direct, .. heard];
+
+                candidates = heard
                     .Where(r => LanDiscoveryClient.MatchesRoom(r, _roomName))
                     .GroupBy(r => r.Host, StringComparer.OrdinalIgnoreCase)
                     .SelectMany(g => g

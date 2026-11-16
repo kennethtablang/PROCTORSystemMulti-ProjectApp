@@ -105,12 +105,11 @@ public partial class DashboardPage : ContentPage
     {
         if (_vm.CollectFolder is not { } folder) return;
         Directory.CreateDirectory(folder);
-#if WINDOWS
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = false })?.Dispose();
-#else
-        await DisplayAlertAsync("Handed-in work", folder, "OK");
-#endif
-        await Task.CompletedTask;
+        // This shared project targets plain net10.0, so test at run time rather than with #if WINDOWS.
+        if (OperatingSystem.IsWindows())
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = false })?.Dispose();
+        else
+            await DisplayAlertAsync("Handed-in work", folder, "OK");
     }
 
     private async Task StartTimer()

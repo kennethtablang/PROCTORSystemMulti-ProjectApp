@@ -82,6 +82,8 @@ internal sealed class StudentFiles : IDisposable
                     var target = FileLimits.UniquePath(dir, name);
                     using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None);
                     data.CopyTo(output);
+                    output.Dispose();
+                    FileLimits.MarkAsDownloaded(target);
                     return target;
                 });
                 _logger.LogInformation("Saved a file from the teacher: {Path}", path);

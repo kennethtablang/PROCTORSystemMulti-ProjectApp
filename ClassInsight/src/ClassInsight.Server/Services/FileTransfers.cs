@@ -105,14 +105,31 @@ public sealed class FileTransfers
 
     // ---- hand-in ------------------------------------------------------------
 
-    public void OpenHandIn(string teacher, IEnumerable<string> students)
+    /// <summary>
+    /// Start collecting from these students. A student another (still connected) teacher is already
+    /// collecting from is skipped, so one teacher can't redirect another's hand-ins. Returns
+    /// (opened, skipped).
+    /// </summary>
+    public (string[] Opened, int Skipped) OpenHandIn(string teacher, IEnumerable<string> students, Func<string, bool> isConnectedTeacher)
     {
         lock (_gate)
+        {
+            var opened = new List<string>();
+            var skipped = 0;
             foreach (var s in students)
             {
+                _handInTeacher.TryGetValue(s, out var owner);
+                if (owner is not null && owner != teacher && isConnectedTeacher(owner))
+                {
+                    skipped++;
+                    continue;
+                }
+                if (owner != teacher) _handInCount[s] = 0;   // a teacher re-asking doesn't reset its own count
                 _handInTeacher[s] = teacher;
-                _handInCount[s] = 0;
+                opened.Add(s);
             }
+            return (opened.ToArray(), skipped);
+        }
     }
 
     /// <summary>Stop <paramref name="teacher"/>'s collection; returns the students it was open for.</summary>

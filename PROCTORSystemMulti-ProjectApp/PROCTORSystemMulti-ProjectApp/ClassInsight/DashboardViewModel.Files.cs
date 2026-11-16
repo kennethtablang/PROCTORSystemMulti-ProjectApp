@@ -166,8 +166,10 @@ public sealed partial class DashboardViewModel
                 var student = FileLimits.CleanFileName(a.Offer.FromName) ?? "Student";
                 var dir = Path.Combine(_collectFolder!, student);
                 Directory.CreateDirectory(dir);
-                using (var output = new FileStream(FileLimits.UniquePath(dir, FileLimits.CleanFileName(a.Offer.FileName)!), FileMode.CreateNew))
+                var target = FileLimits.UniquePath(dir, FileLimits.CleanFileName(a.Offer.FileName)!);
+                using (var output = new FileStream(target, FileMode.CreateNew))
                     data.CopyTo(output);
+                FileLimits.MarkAsDownloaded(target);   // a student's file: SmartScreen / Protected View treat it as untrusted
                 _collectedFiles++;
                 _collectedFrom.Add(a.Offer.FromConnectionId ?? student);
                 TransferText = $"📥 Collecting work · {_collectedFiles} file(s) from {_collectedFrom.Count} student(s) · latest: {a.Offer.FromName}";

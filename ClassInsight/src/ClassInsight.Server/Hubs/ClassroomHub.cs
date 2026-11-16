@@ -293,11 +293,12 @@ public sealed class ClassroomHub : Hub
     {
         var teacher = Context.ConnectionId;
         if (!_room.IsTeacher(teacher)) throw new HubException("Only teachers can collect work.");
-        var targets = ResolveTargets(request?.Targets);
-        _files.OpenHandIn(teacher, targets);
+        var (targets, skipped) = _files.OpenHandIn(teacher, ResolveTargets(request?.Targets), _room.IsTeacher);
+        if (targets.Length == 0 && skipped > 0)
+            throw new HubException("Another teacher is already collecting work from these students.");
         await Clients.Clients(targets).SendAsync(Protocol.ClientMethods.HandInRequested,
             new HandInInfo { TeacherConnectionId = teacher, Prompt = ClassroomLimits.CleanText(request?.Prompt), Open = true });
-        return targets.Count;
+        return targets.Length;
     }
 
     public async Task EndHandIn() => await EndHandInOf(Context.ConnectionId);

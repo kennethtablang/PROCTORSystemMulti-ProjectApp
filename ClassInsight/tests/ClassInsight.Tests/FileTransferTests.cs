@@ -183,3 +183,53 @@ public class FileTransferHubTests : IAsyncLifetime
         await Assert.ThrowsAsync<HubException>(() => Send(s1, [1], new FileOffer { FileName = "late.txt", HandIn = true }));
     }
 }
+
+public class FileSafetyTests : IAsyncLifetime
+{
+    private readonly ServerFactory _factory = new();
+
+    public Task InitializeAsync() => Task.CompletedTask;
+    public async Task DisposeAsync() => await _factory.DisposeAsync();
+
+    [Theory]
+    [InlineData("macro.xlsm")]
+    [InlineData("disk.iso")]
+    [InlineData("disk.VHDX")]
+    [InlineData("help.chm")]
+    [InlineData("db.accde")]
+    [InlineData("setup.appinstaller")]
+    public void Risky_types_are_blocked(string name) => Assert.True(FileLimits.IsExecutable(name));
+
+    [Fact]
+    public void Saved_files_get_mark_of_the_web()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".txt");
+        File.WriteAllText(path, "x");
+        try
+        {
+            FileLimits.MarkAsDownloaded(path);
+            Assert.Contains("ZoneId=3", File.ReadAllText(path + ":Zone.Identifier"));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task One_teacher_cannot_take_over_another_teachers_collection()
+    {
+        await using var s1 = await _factory.ConnectAsync();
+        await s1.RegisterStudentAsync();
+        await using var teacher = await _factory.ConnectAsync();
+        await teacher.RegisterTeacherAsync();
+        await using var rogue = await _factory.ConnectAsync();
+        await rogue.RegisterTeacherAsync();
+
+        Assert.Equal(1, await teacher.Hub.InvokeAsync<int>(Protocol.ServerMethods.RequestHandIn, new HandInRequest()));
+        await Assert.ThrowsAsync<HubException>(() => rogue.Hub.InvokeAsync<int>(Protocol.ServerMethods.RequestHandIn, new HandInRequest()));
+
+        // The original collector can ask again; once it stops, another teacher may collect.
+        Assert.Equal(1, await teacher.Hub.InvokeAsync<int>(Protocol.ServerMethods.RequestHandIn, new HandInRequest()));
+        await teacher.Hub.InvokeAsync(Protocol.ServerMethods.EndHandIn);
+        Assert.Equal(1, await rogue.Hub.InvokeAsync<int>(Protocol.ServerMethods.RequestHandIn, new HandInRequest()));
+    }
+}

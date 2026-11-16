@@ -77,15 +77,42 @@ public static class FileLimits
     public const int MaxNameLength = 120;
 
     /// <summary>
-    /// Types that run when opened. Teachers can send them only with a join code (not in open mode),
-    /// and students can't hand them in.
+    /// Types that run code when opened: programs and scripts, installers, shortcuts, macro-enabled
+    /// Office files, compiled help, and disk images/containers (which can hide their contents from
+    /// Mark-of-the-Web). Teachers can send them only with a join code (not in open mode), and
+    /// students can never hand them in. Saved files are also marked as downloaded (Zone 3) so
+    /// SmartScreen and Office Protected View still apply to everything else.
     /// </summary>
     public static readonly IReadOnlySet<string> Executable = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        ".exe", ".msi", ".msix", ".appx", ".bat", ".cmd", ".com", ".scr", ".pif", ".ps1", ".psm1", ".vbs", ".vbe",
-        ".js", ".jse", ".wsf", ".wsh", ".hta", ".jar", ".lnk", ".url", ".reg", ".cpl", ".msc", ".dll", ".sys",
-        ".application", ".appref-ms", ".gadget", ".inf", ".scf", ".library-ms", ".settingcontent-ms",
+        // programs, libraries, installers
+        ".exe", ".com", ".scr", ".pif", ".dll", ".ocx", ".sys", ".drv", ".cpl", ".msc",
+        ".msi", ".msp", ".mst", ".msix", ".msixbundle", ".appx", ".appxbundle", ".appinstaller",
+        ".application", ".appref-ms", ".xbap", ".gadget", ".vsix", ".jar", ".jnlp",
+        // scripts
+        ".bat", ".cmd", ".ps1", ".ps1xml", ".ps2", ".ps2xml", ".psc1", ".psc2", ".psd1", ".psm1", ".msh", ".msh1", ".msh2",
+        ".mshxml", ".msh1xml", ".msh2xml", ".vb", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".ws", ".wsc", ".sct",
+        ".hta", ".py", ".pyw", ".pl", ".rb", ".sh",
+        // shortcuts and shell / settings files
+        ".lnk", ".url", ".website", ".scf", ".shb", ".shs", ".library-ms", ".searchconnector-ms", ".settingcontent-ms",
+        ".inf", ".ins", ".isp", ".reg", ".cer", ".crt", ".der", ".diagcab", ".diagpkg", ".mof",
+        // help files that run script
+        ".chm", ".hlp",
+        // macro-enabled Office and Access databases
+        ".docm", ".dotm", ".xlsm", ".xltm", ".xlsb", ".xlam", ".xll", ".pptm", ".potm", ".ppam", ".ppsm", ".sldm",
+        ".mdb", ".mde", ".accdb", ".accde", ".accda", ".ade", ".adp", ".one", ".onepkg",
+        // disk images / containers (can strip Mark-of-the-Web from what's inside)
+        ".iso", ".img", ".vhd", ".vhdx", ".udf",
     };
+
+    /// <summary>The Zone.Identifier stream content that marks a file as from the internet (Mark-of-the-Web).</summary>
+    public const string InternetZoneMark = "[ZoneTransfer]\r\nZoneId=3\r\n";
+
+    /// <summary>Mark a saved file as downloaded so SmartScreen / Protected View apply. Best effort (NTFS only).</summary>
+    public static void MarkAsDownloaded(string path)
+    {
+        try { File.WriteAllText(path + ":Zone.Identifier", InternetZoneMark); } catch { }
+    }
 
     public static bool IsExecutable(string fileName) => Executable.Contains(Path.GetExtension(fileName));
 

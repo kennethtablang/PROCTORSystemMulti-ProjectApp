@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.19 (draft)
+**Version:** 0.20 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -482,6 +482,19 @@ that loses the server unlocks and lifts everything itself.
   and who answered what, or, for an **anonymous** poll, totals plus unnamed written answers. One poll
   at a time, in memory only, closed automatically when the last teacher leaves. **Live-verified**:
   pressing "Yes" on the real student card reached the teacher as 1/1 answered, counts [1, 0].)*
+- ✅ **FR-CTRL-14 [P5]** **File transfer.** *Send files*: whole class (⋯ More) or one student (focus
+  view); they land in "Files from teacher" on the student's desktop. *Collect work*: the teacher
+  asks (with a prompt), students tick files in Documents\Hand in from a window or the tray, and
+  they're saved on the teacher's device under Documents\ClassInsight\Handed in\<date>\<student>.
+  *(Relayed through the hub in 32 KB in-order chunks + SHA-256; nothing stored on the server. Max
+  100 MB per file, 4 open transfers per sender, 10 hand-ins per student per collection. Names are
+  sanitised (no paths, reserved names or bad characters). Executables/scripts: never handed in;
+  sent by teachers only with a join code. Students can only hand in to the collecting teacher.
+  The agent reads/writes student files **impersonating the signed-in student**, so a planted link
+  can't make SYSTEM touch other files. Senders get per-PC receipts. Tests: names, assembler,
+  routing, rules, hand-in. **Live-verified** send → agent save on desktop → receipt, and .exe
+  refused in open mode (agent in console mode; the SYSTEM-impersonation path awaits an installed
+  agent; hand-in awaits a GUI check).)*
 - 🟡 **FR-CTRL-13 [P5]** Teacher ↔ student **chat**. *(Focus view → "💬 Chat"; students reply in a
   small window that opens without stealing their typing, or start one from the tray ("💬 Message my
   teacher"). Every teacher sees every conversation; a student sees only their own. Relayed, never
@@ -762,6 +775,9 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.20 — 2026-11-16**
+  - **File transfer**: send files + collect work (FR-CTRL-14 ✅). Tests: 127.
 
 - **0.19 — 2026-11-16**
   - **Chat** (FR-CTRL-13 🟡). Tests: 114.

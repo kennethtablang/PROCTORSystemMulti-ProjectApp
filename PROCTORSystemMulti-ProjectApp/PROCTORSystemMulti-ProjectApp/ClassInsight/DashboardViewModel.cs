@@ -78,6 +78,13 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         _client.PollResultsUpdated += r => OnUi(() => PollResults = r);
         _client.TimerUpdated += t => OnUi(() => OnTimerUpdated(t));
         _client.ChatReceived += m => OnUi(() => OnChat(m));
+        // File chunks are handled in order on the hub's thread (writes are small and sequential);
+        // only the UI-facing bits are marshalled.
+        _client.FileOffered += o => OnUi(() => OnFileOffered(o));
+        _client.FileChunkReceived += c => OnUi(() => OnFileChunk(c));
+        _client.FileFinished += f => OnUi(() => OnFileFinished(f));
+        _client.FileCancelled += id => OnUi(() => OnFileCancelled(id));
+        _client.FileResultReceived += r => OnUi(() => OnFileResult(r));
         // A restarted server has forgotten the room's limits: re-apply the ones this teacher set.
         _client.Registered += () => { if (!_lastSetPolicy.IsEmpty) _ = SetPolicyAsync(_lastSetPolicy); };
 
@@ -550,6 +557,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     private void OnConnectionLost()
     {
         IsConnected = false;
+        ResetFiles();
         _ = MaintainConnectionAsync();
     }
 

@@ -88,6 +88,18 @@ public static class Protocol
 
         /// <summary>Server → a student and the teachers: one chat line.</summary>
         public const string ChatReceived = nameof(ChatReceived);
+
+        /// <summary>Server → receivers: a file transfer begins / continues / ends / was abandoned.</summary>
+        public const string FileOffered = nameof(FileOffered);
+        public const string FileChunkReceived = nameof(FileChunkReceived);
+        public const string FileFinished = nameof(FileFinished);
+        public const string FileCancelled = nameof(FileCancelled);
+
+        /// <summary>Server → sender: a receiver saved the file (or couldn't).</summary>
+        public const string FileResultReceived = nameof(FileResultReceived);
+
+        /// <summary>Server → students: a teacher started / stopped collecting work.</summary>
+        public const string HandInRequested = nameof(HandInRequested);
     }
 
     /// <summary>Names of hub methods CLIENTS invoke ON the server.</summary>
@@ -145,5 +157,16 @@ public static class Protocol
 
         /// <summary>Teacher → one student, or student → teachers: a chat line.</summary>
         public const string SendChat = nameof(SendChat);
+
+        /// <summary>File transfer: announce, send a chunk, finish (with SHA-256), cancel, report the outcome.</summary>
+        public const string OfferFile = nameof(OfferFile);
+        public const string SendFileChunk = nameof(SendFileChunk);
+        public const string FinishFile = nameof(FinishFile);
+        public const string CancelFile = nameof(CancelFile);
+        public const string ReportFileResult = nameof(ReportFileResult);
+
+        /// <summary>Teacher → students: start / stop collecting work.</summary>
+        public const string RequestHandIn = nameof(RequestHandIn);
+        public const string EndHandIn = nameof(EndHandIn);
     }
 }

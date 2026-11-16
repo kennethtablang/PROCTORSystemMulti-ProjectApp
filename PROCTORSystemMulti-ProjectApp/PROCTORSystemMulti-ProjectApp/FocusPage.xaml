@@ -37,6 +37,7 @@
             <Button Text="🔓 Unlock" Clicked="OnUnlock" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="✉ Message" Clicked="OnMessage" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="💬 Chat" Clicked="OnChat" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
+            <Button Text="📁 Send file" Clicked="OnSendFile" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="🌐 Open site" Clicked="OnOpenSite" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="⏻ Power…" Clicked="OnPower" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
             <Button Text="📷 Screenshot" Clicked="OnScreenshot" Margin="0,0,6,4" Padding="12,4" FontSize="13" />

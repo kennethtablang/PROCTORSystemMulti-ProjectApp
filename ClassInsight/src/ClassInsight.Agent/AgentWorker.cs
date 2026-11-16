@@ -60,6 +60,9 @@ public sealed class AgentWorker : BackgroundService
     // Local IT switch: refuse log off / restart / shut down whatever the server says.
     private readonly bool _allowPower;
 
+    // File transfer: files from the teacher and handing work in (null when turned off by IT).
+    private readonly StudentFiles? _files;
+
     public AgentWorker(ILogger<AgentWorker> logger, ILoggerFactory loggerFactory, IConfiguration configuration)
     {
         _logger = logger;
@@ -88,6 +91,18 @@ public sealed class AgentWorker : BackgroundService
             _ui.HandToggled += raised => _ = SendHandAsync(raised);
             _ui.PollAnswered += answer => _ = SendPollAnswerAsync(answer);
             _ui.ChatSent += text => _ = SendChatAsync(text);
+
+            if (section.GetValue<bool?>("AllowFileTransfer") ?? true)
+            {
+                _files = new StudentFiles(loggerFactory.CreateLogger<StudentFiles>());
+                _ui.HandInRefreshRequested += () => _ = Task.Run(RefreshHandIn);
+                _ui.HandInFolderRequested += () => _ = Task.Run(() =>
+                {
+                    try { UserSession.OpenFolder(StudentFiles.HandInFolder(), _logger); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Couldn't open the Hand in folder."); _ui.SetHandInStatus("Couldn't open the folder."); }
+                });
+                _ui.HandInSubmitted += names => _ = HandInAsync(names);
+            }
         }
         _enforcer = new PolicyEnforcer(loggerFactory.CreateLogger<PolicyEnforcer>(), _browser, _ui);
 
@@ -261,6 +276,31 @@ public sealed class AgentWorker : BackgroundService
         hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveBroadcastIce, c => _broadcast?.HandleIce(c));
         hub.On<bool>(Protocol.ClientMethods.ScreenShownToClass, shown => _ui?.ShowScreenShown(shown));
         hub.On<ChatMessage>(Protocol.ClientMethods.ChatReceived, m => { if (m.FromTeacher) _ui?.ShowChat(m); });
+
+        // Files from the teacher, and collecting work.
+        hub.On<FileOffer>(Protocol.ClientMethods.FileOffered, async offer =>
+        {
+            if (offer.HandIn) return;
+            var error = _files is null ? "File transfer is turned off on this PC." : _files.Offered(offer);
+            if (error is not null) await ReportFileAsync(hub, offer.TransferId, error);
+        });
+        hub.On<FileChunk>(Protocol.ClientMethods.FileChunkReceived, async chunk =>
+        {
+            if (_files is not null && !_files.Chunk(chunk)) await ReportFileAsync(hub, chunk.TransferId, "The file arrived out of order.");
+        });
+        hub.On<FileFinish>(Protocol.ClientMethods.FileFinished, async finish =>
+        {
+            if (_files is null) return;
+            var (path, name, error) = await Task.Run(() => _files.Finished(finish));
+            if (path is null && error is null) return;   // not ours
+            if (error is null)
+                _ui?.ShowNotice($"📁  Your teacher sent you \u201C{name}\u201D. It's in \u201C{StudentFiles.ReceivedFolderName}\u201D on your desktop.", TimeSpan.FromSeconds(8));
+            await ReportFileAsync(hub, finish.TransferId, error);
+        });
+        hub.On<string>(Protocol.ClientMethods.FileCancelled, id => _files?.Cancelled(id));
+        hub.On<HandInInfo>(Protocol.ClientMethods.HandInRequested, info => { if (_files is not null) _ui?.ShowHandIn(info); });
+        hub.On<FileReceipt>(Protocol.ClientMethods.FileResultReceived, r =>
+            _ui?.SetHandInStatus(r.Ok ? "\u2714 Your teacher received your work." : "Your teacher couldn't save a file: " + (r.Error ?? "unknown error") + ". Try again."));
         hub.On<string>(Protocol.ClientMethods.BroadcastStopped, async teacher =>
         {
             if (_broadcast is { } b && b.Teacher == teacher) await StopBroadcastViewerAsync();
@@ -322,6 +362,59 @@ public sealed class AgentWorker : BackgroundService
         catch (Exception ex) { _logger.LogDebug(ex, "Poll answer failed."); }
     }
 
+    private static async Task ReportFileAsync(HubConnection hub, string transferId, string? error)
+    {
+        try { await hub.SendAsync(Protocol.ServerMethods.ReportFileResult, new FileReceipt { TransferId = transferId, Ok = error is null, Error = error }); }
+        catch { }
+    }
+
+    private void RefreshHandIn()
+    {
+        try { _ui?.SetHandInFiles(StudentFiles.HandInFiles()); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Couldn't read the Hand in folder.");
+            _ui?.SetHandInStatus("Couldn't read your Hand in folder.");
+        }
+    }
+
+    /// <summary>Send the chosen files from the student's Hand in folder to the collecting teacher.</summary>
+    private async Task HandInAsync(IReadOnlyList<string> names)
+    {
+        var hub = _hub;
+        if (hub is not { State: HubConnectionState.Connected }) { _ui?.SetHandInStatus("Not connected to your teacher."); return; }
+        var done = 0;
+        foreach (var name in names)
+        {
+            try
+            {
+                _ui?.SetHandInStatus($"Sending \u201C{name}\u201D\u2026");
+                await using var stream = await Task.Run(() => StudentFiles.OpenHandInFile(name));
+                await FileSender.SendAsync(
+                    o => hub.InvokeAsync<FileOffer>(Protocol.ServerMethods.OfferFile, o),
+                    c => hub.InvokeAsync(Protocol.ServerMethods.SendFileChunk, c),
+                    f => hub.InvokeAsync(Protocol.ServerMethods.FinishFile, f),
+                    id => hub.InvokeAsync(Protocol.ServerMethods.CancelFile, id),
+                    stream,
+                    new FileOffer { FileName = name, Size = stream.Length, HandIn = true });
+                done++;
+            }
+            catch (Microsoft.AspNetCore.SignalR.HubException ex)
+            {
+                var reason = ex.Message.Contains("HubException: ") ? ex.Message[(ex.Message.IndexOf("HubException: ", StringComparison.Ordinal) + 14)..] : ex.Message;
+                _ui?.SetHandInStatus($"\u201C{name}\u201D wasn't handed in: {reason}");
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Hand-in of {Name} failed.", name);
+                _ui?.SetHandInStatus($"\u201C{name}\u201D couldn't be sent.");
+                return;
+            }
+        }
+        _ui?.SetHandInStatus($"Sent {done} file(s). Waiting for your teacher to confirm\u2026");
+    }
+
     private async Task SendChatAsync(string text)
     {
         var hub = _hub;
@@ -354,6 +447,8 @@ public sealed class AgentWorker : BackgroundService
         _ui?.ResetHand(showNotice: false);
         _ui?.ResetPoll();
         _ui?.ChatDisconnected();
+        _ui?.ResetHandIn();
+        _files?.Clear();
         _ui?.ShowTimer(new LessonTimer());
         _ = StopBroadcastViewerAsync();
         _enforcer.Apply(new ClassPolicy());

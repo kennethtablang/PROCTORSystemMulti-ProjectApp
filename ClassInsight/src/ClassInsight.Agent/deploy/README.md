@@ -80,6 +80,9 @@ At the Windows logon screen there is no user desktop to capture; the agent stays
 | `ClassInsight:ServerAddress` | `host` or `host:port` to try when UDP broadcast discovery is blocked. |
 | `ClassInsight:ReportBrowserActivity` | Report the foreground browser tab's **host** (domain only). Default `true`. |
 | `ClassInsight:ShowViewingIndicator` | Show the student a small "Your screen is being viewed by your teacher" notice while viewed. Default `true` (FR-SEC-05). |
+| `ClassInsight:EnableClassroomControl` | Messages, lock, polls, timer, chat, limits and the tray icon. Default `true`. |
+| `ClassInsight:AllowPowerCommands` | Obey log off / restart / shut down from the teacher. Default `true`. |
+| `ClassInsight:AllowFileTransfer` | Accept files from the teacher (saved to *Files from teacher* on the student's desktop) and let students hand work in from *Documents\Hand in*. Files are read and written as the signed-in student, never as SYSTEM. Default `true`. |
 | `ClassInsight:CaptureBackend` | `DXGI` (GPU capture, default) or `GDI`. GDI is the automatic fallback; force it only for diagnostics. |
 
 The agent's identity is a random per-install id kept in `%ProgramData%\ClassInsight\agent-id`

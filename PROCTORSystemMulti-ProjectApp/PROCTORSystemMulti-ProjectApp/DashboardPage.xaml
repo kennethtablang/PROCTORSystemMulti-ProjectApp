@@ -120,6 +120,21 @@
             </Grid>
         </Border>
 
+        <!-- File sending / collecting work -->
+        <Border IsVisible="{Binding HasTransferText}" BackgroundColor="#E3F2FD" Stroke="#1565C0" Padding="12,6">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="8" />
+            </Border.StrokeShape>
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                <Label Text="{Binding TransferText}" TextColor="#0D47A1" FontAttributes="Bold" FontSize="13"
+                       VerticalOptions="Center" LineBreakMode="WordWrap" />
+                <Button Grid.Column="1" Text="Open folder" Clicked="OnOpenCollectFolder" Padding="12,2" FontSize="12"
+                        IsVisible="{Binding IsCollecting}" />
+                <Button Grid.Column="2" Text="Stop collecting" Clicked="OnStopCollecting" Padding="12,2" FontSize="12"
+                        BackgroundColor="#1565C0" TextColor="White" IsVisible="{Binding IsCollecting}" />
+            </Grid>
+        </Border>
+
         <!-- Screen broadcast in progress -->
         <Border IsVisible="{Binding IsBroadcasting}" BackgroundColor="#E8F5E9" Stroke="#2E7D32" Padding="12,6">
             <Border.StrokeShape>

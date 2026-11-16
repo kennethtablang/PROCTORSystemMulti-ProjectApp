@@ -92,6 +92,12 @@ public sealed class Peer : IAsyncDisposable
         Record<LessonTimer>(Protocol.ClientMethods.TimerUpdated);
         Record<bool>(Protocol.ClientMethods.ScreenShownToClass);
         Record<ChatMessage>(Protocol.ClientMethods.ChatReceived);
+        Record<FileOffer>(Protocol.ClientMethods.FileOffered);
+        Record<FileChunk>(Protocol.ClientMethods.FileChunkReceived);
+        Record<FileFinish>(Protocol.ClientMethods.FileFinished);
+        Record<string>(Protocol.ClientMethods.FileCancelled);
+        Record<FileReceipt>(Protocol.ClientMethods.FileResultReceived);
+        Record<HandInInfo>(Protocol.ClientMethods.HandInRequested);
         Hub.On(Protocol.ClientMethods.HandLowered, () => Push(Protocol.ClientMethods.HandLowered));
     }
 

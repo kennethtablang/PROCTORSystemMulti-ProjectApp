@@ -72,8 +72,9 @@ public partial class DashboardPage : ContentPage
     private async void OnMore(object? sender, EventArgs e)
     {
         const string timer = "⏱ Lesson timer…", pick = "🎲 Pick a random student", snap = "📷 Snapshot all screens",
-            attendance = "📋 Export attendance (CSV)", pin = "🔐 Teacher PIN…", lockNow = "🔒 Lock this app now";
-        var options = new List<string> { timer, pick, snap, attendance, pin };
+            attendance = "📋 Export attendance (CSV)", pin = "🔐 Teacher PIN…", lockNow = "🔒 Lock this app now",
+            send = "📁 Send files to the class…", collect = "📥 Collect work…", stopCollect = "📥 Stop collecting work";
+        var options = new List<string> { timer, send, _vm.IsCollecting ? stopCollect : collect, pick, snap, attendance, pin };
         if (TeacherPin.IsSet) options.Add(lockNow);
         switch (await DisplayActionSheetAsync("Teacher tools", "Cancel", null, options.ToArray()))
         {
@@ -82,8 +83,34 @@ public partial class DashboardPage : ContentPage
             case snap: await SnapshotAll(); break;
             case attendance: await ExportAttendance(); break;
             case pin: await ManagePin(); break;
+            case send: await ClassActions.SendFilesAsync(this, _vm, null, "the whole class"); break;
+            case collect: await Collect(); break;
+            case stopCollect: await _vm.StopCollectingAsync(); break;
             case lockNow: await Navigation.PushModalAsync(new LockPage()); break;
         }
+    }
+
+    private async Task Collect()
+    {
+        var prompt = await DisplayPromptAsync("Collect work", "What should students hand in? (shown to them)", "Start collecting", "Cancel",
+            "e.g. Your finished worksheet", global::ClassInsight.Shared.Contracts.ClassroomLimits.MaxTextLength);
+        if (prompt is null) return;
+        var error = await _vm.StartCollectingAsync(prompt);
+        if (error is not null) await DisplayAlertAsync("Couldn't start collecting", error, "OK");
+    }
+
+    private async void OnStopCollecting(object? sender, EventArgs e) => await _vm.StopCollectingAsync();
+
+    private async void OnOpenCollectFolder(object? sender, EventArgs e)
+    {
+        if (_vm.CollectFolder is not { } folder) return;
+        Directory.CreateDirectory(folder);
+#if WINDOWS
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = false })?.Dispose();
+#else
+        await DisplayAlertAsync("Handed-in work", folder, "OK");
+#endif
+        await Task.CompletedTask;
     }
 
     private async Task StartTimer()

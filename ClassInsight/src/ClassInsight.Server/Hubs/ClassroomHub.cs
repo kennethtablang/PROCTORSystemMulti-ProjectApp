@@ -26,6 +26,7 @@ public sealed class ClassroomHub : Hub
     private readonly TimerState _timer;
     private readonly WakeSender _wake;
     private readonly ChatThrottle _chat;
+    private readonly FileTransfers _files;
     private readonly ILogger<ClassroomHub> _logger;
 
     public ClassroomHub(
@@ -37,8 +38,10 @@ public sealed class ClassroomHub : Hub
         TimerState timer,
         WakeSender wake,
         ChatThrottle chat,
+        FileTransfers files,
         ILogger<ClassroomHub> logger)
     {
+        _files = files;
         _chat = chat;
         _wake = wake;
         _timer = timer;
@@ -177,8 +180,7 @@ public sealed class ClassroomHub : Hub
         }
         else
         {
-            _room.TryGetStudent(me, out var entry);
-            var name = entry?.Info.UserName is { Length: > 0 } user ? $"{entry.Info.MachineName} · {user}" : entry?.Info.MachineName ?? "Student";
+            var name = StudentName(me);
             message = new ChatMessage
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -190,6 +192,128 @@ public sealed class ClassroomHub : Hub
             };
         }
         await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.ChatReceived, message);
+    }
+
+    private string StudentName(string connectionId) =>
+        _room.TryGetStudent(connectionId, out var entry) && entry is not null
+            ? entry.Info.UserName is { Length: > 0 } user ? $"{entry.Info.MachineName} · {user}" : entry.Info.MachineName
+            : "Student";
+
+    // ---- file transfer --------------------------------------------------------
+
+    /// <summary>
+    /// Announce a file. A teacher sends to students (executables only with a join code); a student
+    /// can only hand work in to the teacher who is collecting it (never executables, at most
+    /// <see cref="FileLimits.MaxHandInFilesPerStudent"/> files). Returns the offer with its transfer
+    /// id and the receivers; the bytes follow with <see cref="SendFileChunk"/>.
+    /// </summary>
+    public async Task<FileOffer> OfferFile(FileOffer offer)
+    {
+        var me = Context.ConnectionId;
+        var teacher = _room.IsTeacher(me);
+        if (!teacher && !_room.IsStudent(me)) throw new HubException("Register first.");
+        if (offer is null) throw new HubException("No file.");
+        var name = FileLimits.CleanFileName(offer.FileName) ?? throw new HubException("That file name can't be used.");
+        if (offer.Size < 0 || offer.Size > FileLimits.MaxSize)
+            throw new HubException($"Files can be at most {FileLimits.MaxSize / (1024 * 1024)} MB.");
+
+        string[] targets;
+        string fromName;
+        if (teacher)
+        {
+            if (offer.HandIn) throw new HubException("Only students hand work in.");
+            if (FileLimits.IsExecutable(name) && StrongControlsBlocked)
+                throw new HubException("Programs and scripts can only be sent with a teacher join code on this server (it runs in open mode).");
+            targets = ResolveTargets(offer.Targets).ToArray();
+            if (targets.Length == 0) throw new HubException("No students to send to.");
+            fromName = "Teacher";
+        }
+        else
+        {
+            if (!offer.HandIn) throw new HubException("Students can only hand work in.");
+            if (FileLimits.IsExecutable(name)) throw new HubException("Programs and scripts can't be handed in.");
+            if (!_files.IsCollecting(me)) throw new HubException("Your teacher isn't collecting work right now.");
+            var collector = _files.ReserveHandIn(me)
+                ?? throw new HubException($"You can hand in at most {FileLimits.MaxHandInFilesPerStudent} files.");
+            if (!_room.IsTeacher(collector)) throw new HubException("Your teacher isn't connected.");
+            targets = [collector];
+            fromName = StudentName(me);
+        }
+
+        var id = _files.Begin(me, targets, offer.Size)
+            ?? throw new HubException("Too many files on the way at once; wait for one to finish.");
+        var relayed = new FileOffer
+        {
+            TransferId = id,
+            FileName = name,
+            Size = offer.Size,
+            HandIn = !teacher,
+            FromName = fromName,
+            FromConnectionId = me,
+        };
+        await Clients.Clients(targets).SendAsync(Protocol.ClientMethods.FileOffered, relayed);
+        _logger.LogInformation("{From} is sending \"{Name}\" ({Size:N0} bytes) to {Count} receiver(s).", fromName, name, offer.Size, targets.Length);
+        return relayed with { Targets = targets };
+    }
+
+    public async Task SendFileChunk(FileChunk chunk)
+    {
+        var targets = _files.Chunk(Context.ConnectionId, chunk) ?? throw new HubException("That file transfer isn't open (or a piece arrived out of order).");
+        await Clients.Clients(targets).SendAsync(Protocol.ClientMethods.FileChunkReceived, chunk);
+    }
+
+    public async Task FinishFile(FileFinish finish)
+    {
+        var targets = _files.Finish(Context.ConnectionId, finish?.TransferId ?? "") ?? throw new HubException("That file transfer isn't complete.");
+        await Clients.Clients(targets).SendAsync(Protocol.ClientMethods.FileFinished, finish);
+    }
+
+    public async Task CancelFile(string transferId)
+    {
+        if (_files.Cancel(Context.ConnectionId, transferId) is { } targets)
+            await Clients.Clients(targets).SendAsync(Protocol.ClientMethods.FileCancelled, transferId);
+    }
+
+    /// <summary>A receiver tells the sender whether the file was saved.</summary>
+    public async Task ReportFileResult(FileReceipt result)
+    {
+        var me = Context.ConnectionId;
+        if (result is null || _files.Result(me, result.TransferId) is not { } sender) return;
+        var name = _room.IsTeacher(me) ? "Teacher" : StudentName(me);
+        await Clients.Client(sender).SendAsync(Protocol.ClientMethods.FileResultReceived, result with
+        {
+            FromConnectionId = me,
+            FromName = name,
+            Error = ClassroomLimits.CleanText(result.Error),
+        });
+    }
+
+    /// <summary>Start collecting work from students (empty targets = whole class). Returns how many were asked.</summary>
+    public async Task<int> RequestHandIn(HandInRequest request)
+    {
+        var teacher = Context.ConnectionId;
+        if (!_room.IsTeacher(teacher)) throw new HubException("Only teachers can collect work.");
+        var targets = ResolveTargets(request?.Targets);
+        _files.OpenHandIn(teacher, targets);
+        await Clients.Clients(targets).SendAsync(Protocol.ClientMethods.HandInRequested,
+            new HandInInfo { TeacherConnectionId = teacher, Prompt = ClassroomLimits.CleanText(request?.Prompt), Open = true });
+        return targets.Count;
+    }
+
+    public async Task EndHandIn() => await EndHandInOf(Context.ConnectionId);
+
+    private async Task EndHandInOf(string teacher)
+    {
+        var students = _files.CloseHandIn(teacher);
+        if (students.Length > 0)
+            await Clients.Clients(students).SendAsync(Protocol.ClientMethods.HandInRequested,
+                new HandInInfo { TeacherConnectionId = teacher, Open = false });
+    }
+
+    private async Task CleanUpFilesOf(string connectionId)
+    {
+        foreach (var (id, targets) in _files.RemoveConnection(connectionId))
+            await Clients.Clients(targets).SendAsync(Protocol.ClientMethods.FileCancelled, id);
     }
 
     // ---- wake-on-LAN ----------------------------------------------------------
@@ -606,6 +730,7 @@ public sealed class ClassroomHub : Hub
             _polls.RemoveConnection(id);
             _broadcast.RemoveStudent(id);
             _chat.Remove(id);
+            await CleanUpFilesOf(id);
             // The student whose screen was on show left: end that broadcast (viewers would only see a frozen picture).
             if (_broadcast.SourceStudent == id && _broadcast.Teacher is { } showing)
                 await StopBroadcastOf(showing);
@@ -628,6 +753,8 @@ public sealed class ClassroomHub : Hub
             // a frozen full-screen viewer.
             await StopBroadcastOf(id);
             _chat.Remove(id);
+            await EndHandInOf(id);
+            await CleanUpFilesOf(id);
             if (_room.TeacherCount == 0) await ClosePollAsync();
             if (_room.TeacherCount == 0 && _timer.Stop()) await PushTimerAsync();
             if (_room.TeacherCount == 0 && !_room.Policy.IsEmpty)

@@ -65,6 +65,26 @@ public static class ClassActions
         await Send(page, vm, kind.Value, targets);
     }
 
+    /// <summary>Pick files and send them to the students (null targets = whole class).</summary>
+    public static async Task SendFilesAsync(Page page, DashboardViewModel vm, IReadOnlyList<string>? targets, string who)
+    {
+        if (!vm.IsConnected)
+        {
+            await page.DisplayAlertAsync("Not connected", "Connect to the classroom server first.", "OK");
+            return;
+        }
+        IEnumerable<Microsoft.Maui.Storage.FileResult>? files;
+        try { files = await Microsoft.Maui.Storage.FilePicker.Default.PickMultipleAsync(new Microsoft.Maui.Storage.PickOptions { PickerTitle = $"Send files to {who}" }); }
+        catch (Exception ex) { await page.DisplayAlertAsync("Couldn't open the file picker", ex.Message, "OK"); return; }
+        var list = files?.Where(f => f is not null).ToList();
+        if (list is not { Count: > 0 }) return;
+        var names = string.Join(", ", list.Take(5).Select(f => f.FileName)) + (list.Count > 5 ? $" and {list.Count - 5} more" : "");
+        if (!await page.DisplayAlertAsync($"Send to {who}?", $"{names}\n\nThey'll appear in \u201CFiles from teacher\u201D on the students' desktops.", "Send", "Cancel"))
+            return;
+        var error = await vm.SendFilesAsync(list, targets);
+        if (error is not null) await page.DisplayAlertAsync("Couldn't send", error, "OK");
+    }
+
     private static async Task WakeAsync(Page page, DashboardViewModel vm, IReadOnlyList<KnownComputer> offline)
     {
         if (!vm.IsConnected)

@@ -51,6 +51,11 @@ public sealed class TeacherClient : IAsyncDisposable
     public event Action<PollResults>? PollResultsUpdated;
     public event Action<LessonTimer>? TimerUpdated;
     public event Action<ChatMessage>? ChatReceived;
+    public event Action<FileOffer>? FileOffered;
+    public event Action<FileChunk>? FileChunkReceived;
+    public event Action<FileFinish>? FileFinished;
+    public event Action<string>? FileCancelled;
+    public event Action<FileReceipt>? FileResultReceived;
 
     /// <summary>Screen broadcast signalling (FR-CTRL-02), routed to <see cref="ScreenBroadcaster"/>.</summary>
     public event Action<SdpMessage>? BroadcastAnswerReceived;
@@ -167,6 +172,11 @@ public sealed class TeacherClient : IAsyncDisposable
         hub.On<PollResults>(Protocol.ClientMethods.PollResultsUpdated, r => PollResultsUpdated?.Invoke(r));
         hub.On<LessonTimer>(Protocol.ClientMethods.TimerUpdated, t => TimerUpdated?.Invoke(t));
         hub.On<ChatMessage>(Protocol.ClientMethods.ChatReceived, m => ChatReceived?.Invoke(m));
+        hub.On<FileOffer>(Protocol.ClientMethods.FileOffered, o => FileOffered?.Invoke(o));
+        hub.On<FileChunk>(Protocol.ClientMethods.FileChunkReceived, c => FileChunkReceived?.Invoke(c));
+        hub.On<FileFinish>(Protocol.ClientMethods.FileFinished, f => FileFinished?.Invoke(f));
+        hub.On<string>(Protocol.ClientMethods.FileCancelled, id => FileCancelled?.Invoke(id));
+        hub.On<FileReceipt>(Protocol.ClientMethods.FileResultReceived, r => FileResultReceived?.Invoke(r));
         hub.On<SdpMessage>(Protocol.ClientMethods.ReceiveBroadcastAnswer, a => BroadcastAnswerReceived?.Invoke(a));
         hub.On<IceCandidateMessage>(Protocol.ClientMethods.ReceiveBroadcastIce, c => BroadcastIceReceived?.Invoke(c));
         hub.On<string>(Protocol.ClientMethods.BroadcastStudentJoined, id => BroadcastStudentJoined?.Invoke(id));
@@ -366,6 +376,35 @@ public sealed class TeacherClient : IAsyncDisposable
         var hub = _hub;
         if (hub is not { State: HubConnectionState.Connected }) return;
         await hub.InvokeAsync(Protocol.ServerMethods.StopBroadcast);
+    }
+
+    // ---- file transfer -------------------------------------------------------
+
+    private async Task<T> Call<T>(string method, object? arg)
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try { return await hub.InvokeAsync<T>(method, arg); }
+        catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
+    }
+
+    private async Task Call(string method, object? arg)
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try { await hub.InvokeAsync(method, arg); }
+        catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
+    }
+
+    public Task<FileOffer> OfferFileAsync(FileOffer offer) => Call<FileOffer>(Protocol.ServerMethods.OfferFile, offer);
+    public Task SendFileChunkAsync(FileChunk chunk) => Call(Protocol.ServerMethods.SendFileChunk, chunk);
+    public Task FinishFileAsync(FileFinish finish) => Call(Protocol.ServerMethods.FinishFile, finish);
+    public Task CancelFileAsync(string transferId) => Call(Protocol.ServerMethods.CancelFile, transferId);
+    public Task ReportFileResultAsync(FileReceipt result) => Call(Protocol.ServerMethods.ReportFileResult, result);
+    public Task<int> RequestHandInAsync(HandInRequest request) => Call<int>(Protocol.ServerMethods.RequestHandIn, request);
+
+    public async Task EndHandInAsync()
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        await hub.InvokeAsync(Protocol.ServerMethods.EndHandIn);
     }
 
     public async Task SendChatAsync(ChatSend send)

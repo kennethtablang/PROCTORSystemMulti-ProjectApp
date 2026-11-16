@@ -630,6 +630,9 @@ internal sealed partial class ClassroomUi : IDisposable
             var chat = new Forms.ToolStripMenuItem("💬 Message my teacher");
             chat.Click += (_, _) => OpenChatFromTray();
             menu.Items.Add(chat);
+            var handIn = new Forms.ToolStripMenuItem("📤 Hand in work");
+            handIn.Click += (_, _) => OpenHandInFromTray();
+            menu.Items.Add(handIn);
             menu.Opening += (_, _) => toggle.Text = _handRaised ? "Lower my hand" : "✋ Raise hand (ask for help)";
 
             _tray = new Forms.NotifyIcon

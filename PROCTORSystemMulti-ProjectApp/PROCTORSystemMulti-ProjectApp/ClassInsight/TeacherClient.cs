@@ -82,6 +82,25 @@ public sealed class TeacherClient : IAsyncDisposable
     /// <summary>The server currently connected to (or last attempted), for display and code retries.</summary>
     public DiscoveryResponse? CurrentServer { get; private set; }
 
+    /// <summary>
+    /// A server whose TLS key the teacher hasn't confirmed yet (outcome <see cref="ConnectOutcome.ConfirmServer"/>):
+    /// the server, the key it presented, and — if this room/address was trusted before with another
+    /// key — that previous trust (its identity changed: possibly an impostor).
+    /// </summary>
+    public (DiscoveryResponse Server, string Fingerprint, TrustedServer? Previous)? PendingTrust { get; private set; }
+
+    /// <summary>The teacher confirmed the pending server's key: trust it from now on.</summary>
+    public DiscoveryResponse? TrustPending()
+    {
+        if (PendingTrust is not { } p) return null;
+        TrustedServers.Trust(p.Fingerprint, p.Server.RoomName, p.Server.Host);
+        PendingTrust = null;
+        return p.Server;
+    }
+
+    /// <summary>The fingerprint of the server we're connected to (for display).</summary>
+    public string? CurrentFingerprint { get; private set; }
+
     /// <summary>When the last discovery heard several rooms and none was preferred, the choices (FR-DISC-04).</summary>
     public IReadOnlyList<DiscoveryResponse> DiscoveredRooms { get; private set; } = [];
 
@@ -150,12 +169,38 @@ public sealed class TeacherClient : IAsyncDisposable
         CurrentServer = server;
         Status?.Invoke($"Connecting to \"{server.RoomName}\"…");
 
+        // Authenticate the server before anything (a join code included) is sent (NFR-SEC-06):
+        // its TLS key must be one this teacher has confirmed.
+        var presented = await ServerTrust.ProbeAsync(server.Host, server.Port, TimeSpan.FromSeconds(5), ct);
+        if (presented is null)
+        {
+            Status?.Invoke($"Couldn't open a secure connection to \"{server.RoomName}\" ({server.Host}).");
+            return ConnectOutcome.Error;
+        }
+        if (!TrustedServers.IsTrusted(presented))
+        {
+            PendingTrust = (server, presented, TrustedServers.PreviousFor(server.RoomName, server.Host, presented));
+            Status?.Invoke($"Confirm the identity of \"{server.RoomName}\" before connecting.");
+            return ConnectOutcome.ConfirmServer;
+        }
+        PendingTrust = null;
+        CurrentFingerprint = presented;
+
         // Make sure a previous connection is gone before building a new one.
         await DisposeHubAsync();
         _intentionalClose = false;
 
         var hub = new HubConnectionBuilder()
-            .WithUrl(server.HubUrl)
+            .WithUrl(server.HubUrl, options =>
+            {
+                // Every request and the WebSocket (including automatic reconnects) accept only the confirmed key.
+                options.HttpMessageHandlerFactory = inner =>
+                {
+                    if (inner is HttpClientHandler handler) handler.ServerCertificateCustomValidationCallback = ServerTrust.HttpValidator(presented);
+                    return inner;
+                };
+                options.WebSocketConfiguration = ws => ws.RemoteCertificateValidationCallback = ServerTrust.Validator(presented);
+            })
             .WithAutomaticReconnect()
             .Build();
         _hub = hub;
@@ -514,6 +559,11 @@ public enum ConnectOutcome
     Incompatible,
     /// <summary>Several rooms answered; the teacher must pick one (FR-DISC-04).</summary>
     ChooseRoom,
+    /// <summary>
+    /// The server presented a TLS key this teacher hasn't confirmed (first connection, or its identity
+    /// changed). See <see cref="TeacherClient.PendingTrust"/>; nothing was sent to it.
+    /// </summary>
+    ConfirmServer,
     /// <summary>No classroom server answered discovery on this network.</summary>
     NoServer,
     /// <summary>A transport/other error prevented connecting.</summary>

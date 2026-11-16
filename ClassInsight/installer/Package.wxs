@@ -18,6 +18,36 @@
            Compressed="yes">
 
     <MajorUpgrade DowngradeErrorMessage="A newer ClassInsight Agent is already installed." />
+
+    <!-- Install-time agent settings, e.g.
+           msiexec /i ClassInsight.Agent.msi SERVERFINGERPRINT="1056 91B5 ..." SERVERADDRESS=10.0.0.5 /qn
+         Each given value is written to classinsight.ini next to the agent (read on top of
+         appsettings.json) and remembered in HKLM\Software\ClassInsight\Agent, so a later upgrade
+         run without the properties keeps them. -->
+    <Property Id="SERVERFINGERPRINT" Secure="yes" />
+    <Property Id="SAVED_SERVERFINGERPRINT">
+      <RegistrySearch Id="FindServerFingerprint" Root="HKLM" Key="Software\ClassInsight\Agent" Name="ServerFingerprint" Type="raw" />
+    </Property>
+    <SetProperty Id="SERVERFINGERPRINT" Value="[SAVED_SERVERFINGERPRINT]" After="AppSearch" Sequence="first"
+                 Condition="NOT SERVERFINGERPRINT AND SAVED_SERVERFINGERPRINT" />
+    <Property Id="SERVERADDRESS" Secure="yes" />
+    <Property Id="SAVED_SERVERADDRESS">
+      <RegistrySearch Id="FindServerAddress" Root="HKLM" Key="Software\ClassInsight\Agent" Name="ServerAddress" Type="raw" />
+    </Property>
+    <SetProperty Id="SERVERADDRESS" Value="[SAVED_SERVERADDRESS]" After="AppSearch" Sequence="first"
+                 Condition="NOT SERVERADDRESS AND SAVED_SERVERADDRESS" />
+    <Property Id="ROOMNAME" Secure="yes" />
+    <Property Id="SAVED_ROOMNAME">
+      <RegistrySearch Id="FindRoomName" Root="HKLM" Key="Software\ClassInsight\Agent" Name="RoomName" Type="raw" />
+    </Property>
+    <SetProperty Id="ROOMNAME" Value="[SAVED_ROOMNAME]" After="AppSearch" Sequence="first"
+                 Condition="NOT ROOMNAME AND SAVED_ROOMNAME" />
+    <Property Id="ALLOWREMOTECONTROL" Secure="yes" />
+    <Property Id="SAVED_ALLOWREMOTECONTROL">
+      <RegistrySearch Id="FindAllowRemoteControl" Root="HKLM" Key="Software\ClassInsight\Agent" Name="AllowRemoteControl" Type="raw" />
+    </Property>
+    <SetProperty Id="ALLOWREMOTECONTROL" Value="[SAVED_ALLOWREMOTECONTROL]" After="AppSearch" Sequence="first"
+                 Condition="NOT ALLOWREMOTECONTROL AND SAVED_ALLOWREMOTECONTROL" />
     <MediaTemplate EmbedCab="yes" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
@@ -54,6 +84,27 @@
           <File Id="AgentAppSettings" Source="$(var.AgentDir)appsettings.json" KeyPath="yes" />
         </Component>
 
+        <Component Id="SettingServerFingerprint" Condition="SERVERFINGERPRINT">
+          <RegistryValue Root="HKLM" Key="Software\ClassInsight\Agent" Name="ServerFingerprint" Type="string" Value="[SERVERFINGERPRINT]" KeyPath="yes" />
+          <IniFile Id="IniServerFingerprint" Action="addLine" Directory="INSTALLFOLDER" Name="classinsight.ini"
+                   Section="ClassInsight" Key="ServerFingerprint" Value="[SERVERFINGERPRINT]" />
+        </Component>
+        <Component Id="SettingServerAddress" Condition="SERVERADDRESS">
+          <RegistryValue Root="HKLM" Key="Software\ClassInsight\Agent" Name="ServerAddress" Type="string" Value="[SERVERADDRESS]" KeyPath="yes" />
+          <IniFile Id="IniServerAddress" Action="addLine" Directory="INSTALLFOLDER" Name="classinsight.ini"
+                   Section="ClassInsight" Key="ServerAddress" Value="[SERVERADDRESS]" />
+        </Component>
+        <Component Id="SettingRoomName" Condition="ROOMNAME">
+          <RegistryValue Root="HKLM" Key="Software\ClassInsight\Agent" Name="RoomName" Type="string" Value="[ROOMNAME]" KeyPath="yes" />
+          <IniFile Id="IniRoomName" Action="addLine" Directory="INSTALLFOLDER" Name="classinsight.ini"
+                   Section="ClassInsight" Key="RoomName" Value="[ROOMNAME]" />
+        </Component>
+        <Component Id="SettingAllowRemoteControl" Condition="ALLOWREMOTECONTROL">
+          <RegistryValue Root="HKLM" Key="Software\ClassInsight\Agent" Name="AllowRemoteControl" Type="string" Value="[ALLOWREMOTECONTROL]" KeyPath="yes" />
+          <IniFile Id="IniAllowRemoteControl" Action="addLine" Directory="INSTALLFOLDER" Name="classinsight.ini"
+                   Section="ClassInsight" Key="AllowRemoteControl" Value="[ALLOWREMOTECONTROL]" />
+        </Component>
+
       </Directory>
     </StandardDirectory>
 
@@ -71,6 +122,10 @@
       <ComponentRef Id="AgentService" />
       <ComponentRef Id="AgentSettings" />
       <ComponentRef Id="StateFolder" />
+      <ComponentRef Id="SettingServerFingerprint" />
+      <ComponentRef Id="SettingServerAddress" />
+      <ComponentRef Id="SettingRoomName" />
+      <ComponentRef Id="SettingAllowRemoteControl" />
     </Feature>
   </Package>
 </Wix>

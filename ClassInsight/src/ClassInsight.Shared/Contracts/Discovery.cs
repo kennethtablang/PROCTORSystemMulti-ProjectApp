@@ -39,8 +39,15 @@ public sealed record DiscoveryResponse
 
     public int ProtocolVersion { get; init; } = Protocol.Version;
 
-    /// <summary>Convenience: the full hub URL a client can hand straight to HubConnectionBuilder.</summary>
-    public string HubUrl => $"http://{Host}:{Port}{HubPath}";
+    /// <summary>
+    /// The server's TLS key fingerprint (<see cref="ServerTrust"/>). Only a <i>hint</i> — discovery
+    /// is unauthenticated — used to pick the pinned server among several; the TLS handshake itself
+    /// is what's checked against the pin.
+    /// </summary>
+    public string? Fingerprint { get; init; }
+
+    /// <summary>Convenience: the full hub URL a client can hand straight to HubConnectionBuilder (TLS only).</summary>
+    public string HubUrl => $"https://{Host}:{Port}{HubPath}";
 }
 
 /// <summary>

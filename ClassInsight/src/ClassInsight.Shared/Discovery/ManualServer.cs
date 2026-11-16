@@ -52,12 +52,17 @@ public static class ManualServer
     {
         if (!TryParse(address, out var host, out var port)) return null;
 
-        using var http = new HttpClient { Timeout = timeout };
+        // TLS only: learn the key the server presents, then read its status over a connection pinned
+        // to that key. Whether the key is *trusted* is the caller's decision (pin / teacher confirm).
+        var fingerprint = await ServerTrust.ProbeAsync(host, port, timeout, ct);
+        if (fingerprint is null) return null;
+
+        using var http = ServerTrust.PinnedHttpClient(fingerprint, timeout);
         ServerStatus? status;
         try
         {
             status = await http.GetFromJsonAsync<ServerStatus>(
-                new UriBuilder("http", host, port, Protocol.StatusPath).Uri, Json, ct);
+                new UriBuilder("https", host, port, Protocol.StatusPath).Uri, Json, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or NotSupportedException)
         {
@@ -82,6 +87,7 @@ public static class ManualServer
 
         return new DiscoveryResponse
         {
+            Fingerprint = fingerprint,
             Kind = "response",
             ServerId = status.ServerId,
             RoomName = string.IsNullOrWhiteSpace(status.RoomName) ? "Classroom" : status.RoomName,

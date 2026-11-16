@@ -8,7 +8,11 @@ namespace ClassInsight.Shared;
 public static class Protocol
 {
     /// <summary>Bump when a breaking change is made to any contract below.</summary>
-    public const int Version = 1;
+    /// <summary>
+    /// Wire-protocol version. 2 = TLS-only with server pinning (NFR-SEC-06); version-1 clients spoke
+    /// plain HTTP and are refused at discovery and registration.
+    /// </summary>
+    public const int Version = 2;
 
     /// <summary>Magic token prefixing every discovery datagram so we ignore stray UDP traffic.</summary>
     public const string DiscoveryMagic = "CLASSINSIGHT/1";

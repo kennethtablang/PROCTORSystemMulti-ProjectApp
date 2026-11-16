@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.21 (draft)
+**Version:** 0.22 (draft)
 **Last updated:** 2026-11-15
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -467,9 +467,9 @@ that loses the server unlocks and lifts everything itself.
   Mouse over the picture and every key go to the student's PC as normalised positions and
   virtual-key codes, batched every ~30 ms and played with SendInput on the streamed display. A
   **strong control**: refused in open mode unless IT opts in, and **off on every PC unless IT
-  sets `AllowRemoteControl=true` together with `ServerAddress`** (agents trust whichever server
-  answers discovery and the link isn't authenticated yet, NFR-SEC-06, so a rogue server must not
-  be able to drive desktops). One controller per student (another teacher takes over; the first is
+  sets `AllowRemoteControl=true` together with `ServerFingerprint`** (a strict key pin, NFR-SEC-06:
+  a trust-on-first-use pin could have been captured by a rogue server, which must never be able
+  to drive desktops). One controller per student (another teacher takes over; the first is
   told). Input is relayed only from the controlling teacher, validated (positions 0–1, real keys,
   ≤ 64 events/batch) and rate-limited. The student sees a red "Your teacher is controlling this
   computer" banner the whole time; the agent ignores input unless control was announced, and
@@ -613,10 +613,21 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
 - ✅ **NFR-SEC-05** The agent **shall not** follow a discovery response to an arbitrary
   host or path: it connects only to the datagram's source address on the fixed hub path.
   *(Fixed in 0.11 via the shared `DiscoveryCodec`, which teachers use too. Unit-tested.)*
-- ⬜ **NFR-SEC-06 [P4]** On a shared/untrusted network the system **should** authenticate
+- 🟡 **NFR-SEC-06 [P4]** On a shared/untrusted network the system **should** authenticate
   the server to the agent (PSK/HMAC-signed discovery over a probe nonce), use TLS (`wss`)
   with a pinned certificate, and enrol agents with a per-agent key the server binds to
-  `MachineId`. *(Deliberately deferred — it trades against the zero-config requirement.)*
+  `MachineId`. *(**TLS + server pinning done** (protocol v2): the server is TLS-only with a
+  long-lived self-signed ECDSA P-256 certificate (or IT's own), created once and ACL-protected;
+  clients pin the SHA-256 of its public key (SPKI). Agents: strict pin via
+  `ServerFingerprint` (MSI `SERVERFINGERPRINT`), else trust-on-first-use remembered in the
+  protected `%ProgramData%\\ClassInsight\\server-pin`; discovery prefers the pinned key but the
+  TLS handshake is what's enforced. Teachers: confirm the fingerprint on first connection (red
+  warning if a known room/address presents a new key); the join code is only sent after the
+  key is trusted. Remote control requires a strict agent pin. Discovery itself stays unsigned
+  (a rogue reply can no longer be connected to), and **per-agent enrolment keys are not done**
+  (a rogue *agent* can still join as a student). Unit tests for pinning; **live-verified** with
+  the real server: plain HTTP refused, agent TOFU-pinned and connected over TLS, a wrong pin
+  refused, a file sent over TLS, and the agent refusing a server restarted with another key.)*
 - ✅ **NFR-PRIV-01** ClassInsight **shall** be deployable only on operator-authorized,
   institution-owned machines; documentation **shall** state the acceptable-use and
   notice obligations.
@@ -684,9 +695,9 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
 4. **Media:** peer-to-peer, SRTP-encrypted, never through the server.
 5. **Governance:** deploy only on authorized machines; honor institutional notice and
    acceptable-use policy; provide a monitoring indicator where required (FR-SEC-05).
-6. **Discovery:** agents and teachers connect only to the address that answered, on the
-   fixed hub path — a response can't redirect them elsewhere (NFR-SEC-05). Full server
-   authentication + TLS pinning is a P4 item for shared networks (NFR-SEC-06).
+6. **Discovery and transport:** agents and teachers connect only to the address that answered,
+   on the fixed hub path (NFR-SEC-05), over TLS, and only if the server presents the pinned key
+   (NFR-SEC-06): set by IT for agents, confirmed by the teacher on first connection.
 7. **Agent process:** the service runs as LocalSystem from a protected `%ProgramFiles%` folder
    and launches its in-session monitor as SYSTEM, so a standard student can neither replace the
    binary nor end the monitor. Browser telemetry reports **hosts only**.
@@ -764,7 +775,7 @@ this document and `README.md` in sync with reality.
 | R-3 | CPU cost of many simultaneous encodes on older lab PCs | Encode only when viewed (FR-STREAM-06, verified), skip unchanged frames, pipelined capture/encode, DXGI GPU capture: thumbnail 5.9 % of one core (NFR-PERF-04). Each extra viewer of the same student is one more encode. |
 | R-4 | Legal/consent notice requirements vary by jurisdiction | FR-SEC-05 monitoring indicator; document admin responsibilities (NFR-PRIV). |
 | R-5 | Rogue device registers as teacher and views screens | Resolved: fail-closed teacher auth — code enforced by default (configured or auto-generated 64-bit), open mode only via explicit `AllowOpenTeacherMode=true`, and failed `RegisterTeacher` attempts are throttled/locked out per IP and globally (FR-SEC-06). Future: QR-code pairing carrying a high-entropy secret. |
-| R-6 | Rogue server on a shared LAN harvests telemetry; plaintext `ws` transport | Partially mitigated: agent connects only to the probe's responder on the fixed hub path (NFR-SEC-05). Full fix — signed discovery + `wss`/TLS pinning + agent enrolment (NFR-SEC-06) — deferred to P4 as it trades against zero-config. Acceptable on an isolated lab VLAN. |
+| R-6 | Rogue server on a shared LAN harvests telemetry; plaintext `ws` transport | Mitigated: TLS-only transport with server key pinning (NFR-SEC-06) — strict when IT sets the agents' `ServerFingerprint`, trust-on-first-use otherwise; teachers confirm the key. Remaining: unsigned discovery (harmless now) and no per-agent enrolment, so a rogue *agent* can still appear as a student. |
 | R-7 | A Windows service (session 0) can't capture the student's desktop (found in 0.11) | Resolved by design: the service supervises an in-session SYSTEM monitor. Needs one elevated install test on a lab PC before rollout. |
 | Q-1 | Max concurrent viewers per student screen? | Answered: no fixed limit; each viewer is one encode on the agent (two verified). Revisit if labs routinely have several teachers. |
 | Q-2 | Multi-room support in initial release or P4? | Answered: delivered (FR-SRV-05, FR-DISC-04). |
@@ -787,6 +798,12 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.22 — 2026-11-16**
+  - **Encryption + server authentication** (NFR-SEC-06 🟡): TLS-only server, key pinning for agents
+    (strict or trust-on-first-use) and teachers (confirm on first connection), protocol v2,
+    MSI properties `SERVERFINGERPRINT` / `SERVERADDRESS` / `ROOMNAME` / `ALLOWREMOTECONTROL`.
+    Remote control now needs a strict agent pin. Tests: 146.
 
 - **0.21 — 2026-11-16**
   - **Remote control** (FR-CTRL-05 🟡; opt-in per PC, pinned server only — security review). File-transfer hardening after security review: wider

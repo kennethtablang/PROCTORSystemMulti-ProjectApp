@@ -33,7 +33,7 @@ public class DiscoveryCodecTests
         Assert.NotNull(decoded);
         Assert.Equal("abc", decoded!.ServerId);
         Assert.Equal("Lab 3", decoded.RoomName);
-        Assert.Equal("http://192.168.1.50:5080/hub/classroom", decoded.HubUrl);
+        Assert.Equal("https://192.168.1.50:5080/hub/classroom", decoded.HubUrl);
     }
 
     [Fact]
@@ -203,11 +203,16 @@ public class TeacherAuthThrottleTests
 /// <summary>Join-code generation and constant-time verification (FR-SEC-02/06, NFR-SEC-04).</summary>
 public class ServerIdentityTests
 {
-    private static ServerIdentity Identity(params (string Key, string? Value)[] settings) =>
-        new(new ConfigurationBuilder()
-                .AddInMemoryCollection(settings.Select(s => new KeyValuePair<string, string?>(s.Key, s.Value)))
-                .Build(),
-            NullLogger<ServerIdentity>.Instance);
+    private static readonly string CertPath = Path.Combine(Path.GetTempPath(), "ci-identity-test.pfx");
+
+    private static ServerIdentity Identity(params (string Key, string? Value)[] settings)
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(settings.Select(s => new KeyValuePair<string, string?>(s.Key, s.Value))
+                .Append(new("ClassInsight:CertificatePath", CertPath)))
+            .Build();
+        return new(config, new ServerCertificate(config, NullLogger<ServerCertificate>.Instance), NullLogger<ServerIdentity>.Instance);
+    }
 
     [Fact]
     public void Generated_code_has_at_least_64_bits()

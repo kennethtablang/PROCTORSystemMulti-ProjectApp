@@ -7,8 +7,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Bind Kestrel to the configured ClassInsight port on all interfaces so lab machines on
 // the LAN can reach the hub. (Discovery hands clients the resolved LAN address.)
+// TLS only (NFR-SEC-06): every connection is encrypted with the server's own long-lived
+// certificate, whose key fingerprint agents and teachers pin. There is no plain-HTTP listener.
 var port = builder.Configuration.GetValue<int?>("ClassInsight:Port") ?? Protocol.DefaultServerPort;
-builder.WebHost.ConfigureKestrel(options => options.ListenAnyIP(port));
+builder.Services.AddSingleton<ServerCertificate>();
+builder.WebHost.ConfigureKestrel(options =>
+{
+    var certificate = options.ApplicationServices.GetRequiredService<ServerCertificate>().Certificate;
+    options.ListenAnyIP(port, listen => listen.UseHttps(certificate));
+});
 
 builder.Services.AddSignalR(options =>
 {

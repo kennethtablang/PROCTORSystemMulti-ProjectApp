@@ -50,9 +50,13 @@ public sealed class ServerIdentity
     /// </summary>
     public IReadOnlyList<IceServerConfig> IceServers { get; }
 
-    public ServerIdentity(IConfiguration configuration, ILogger<ServerIdentity> logger)
+    /// <summary>The TLS key fingerprint clients pin (NFR-SEC-06).</summary>
+    public string Fingerprint { get; }
+
+    public ServerIdentity(IConfiguration configuration, ServerCertificate certificate, ILogger<ServerIdentity> logger)
     {
         var section = configuration.GetSection("ClassInsight");
+        Fingerprint = certificate.Fingerprint;
 
         ServerId = Guid.NewGuid().ToString("N");
         RoomName = section.GetValue<string>("RoomName") ?? "Classroom";
@@ -88,6 +92,14 @@ public sealed class ServerIdentity
             "ClassInsight server \"{Room}\" ({ServerId}) listening on {Host}:{Port}{HubPath}",
             RoomName, ServerId, Host, Port, Protocol.HubPath);
 
+        // The fingerprint is how agents and teachers know they reached THIS server: IT copies it
+        // into the agents' ServerFingerprint setting, and teachers compare it when they first connect.
+        Console.WriteLine();
+        Console.WriteLine("  Server fingerprint (pin this in agents as ClassInsight:ServerFingerprint;");
+        Console.WriteLine("  teachers check it the first time they connect):");
+        Console.WriteLine("    " + ServerTrust.Format(Fingerprint));
+        logger.LogInformation("Server TLS fingerprint: {Fingerprint}", ServerTrust.Format(Fingerprint));
+
         if (!AllowOpenTeacherMode)
         {
             // Printed prominently so the teacher at the podium can read it off the server console.
@@ -109,6 +121,7 @@ public sealed class ServerIdentity
         Port = Port,
         HubPath = Protocol.HubPath,
         ProtocolVersion = Protocol.Version,
+        Fingerprint = Fingerprint,
     };
 
     // Crockford base32: no I/L/O/U, so a code read off the console can't be mistyped as 1/0.

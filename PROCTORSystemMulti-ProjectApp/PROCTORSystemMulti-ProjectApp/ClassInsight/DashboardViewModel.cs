@@ -91,6 +91,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         ConnectCommand = new Command(async () => await ConnectWithCodeAsync(), () => !IsBusy && !IsConnected);
         ConnectManualCommand = new Command(async () => await ConnectManualAsync(), () => !IsBusy && !IsConnected);
         SelectRoomCommand = new Command<RoomOption>(async r => await SelectRoomAsync(r));
+        TrustServerCommand = new Command(async () => await TrustServerAsync());
+        RejectServerCommand = new Command(RejectServer);
         SwitchRoomCommand = new Command(async () => await SwitchRoomAsync(), () => IsConnected);
         MoreColumnsCommand = new Command(() => Columns++);
         FewerColumnsCommand = new Command(() => Columns--);
@@ -161,6 +163,54 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     public ICommand ConnectCommand { get; }
     public ICommand ConnectManualCommand { get; }
     public ICommand SelectRoomCommand { get; }
+    public ICommand TrustServerCommand { get; }
+    public ICommand RejectServerCommand { get; }
+
+    // ---- server identity (NFR-SEC-06) ----
+    private bool _needsServerTrust;
+    public bool NeedsServerTrust { get => _needsServerTrust; private set { _needsServerTrust = value; Raise(); } }
+    public string TrustTitle { get; private set; } = "";
+    public string TrustDetail { get; private set; } = "";
+    public string TrustFingerprint { get; private set; } = "";
+    public bool TrustIsChange { get; private set; }
+    public Color TrustColor => TrustIsChange ? Color.FromArgb("#C62828") : Color.FromArgb("#5B2C9E");
+    public string TrustButtonText => TrustIsChange ? "Trust the NEW identity" : "Trust and connect";
+
+    private void ShowPendingTrust()
+    {
+        if (_client.PendingTrust is not { } p)
+        {
+            NeedsServerTrust = false;
+            return;
+        }
+        TrustIsChange = p.Previous is not null;
+        TrustFingerprint = global::ClassInsight.Shared.ServerTrust.Format(p.Fingerprint);
+        TrustTitle = TrustIsChange
+            ? $"⚠ The identity of \u201C{p.Server.RoomName}\u201D has CHANGED"
+            : $"🔐 New classroom server: \u201C{p.Server.RoomName}\u201D ({p.Server.Host})";
+        TrustDetail = TrustIsChange
+            ? "This server presents a different key from the one you trusted before. That happens if the server was reinstalled — "
+              + "but it is also what an impostor would look like. Only continue if IT confirms the new fingerprint below "
+              + "matches the one printed on the server's screen."
+            : "Check that this fingerprint matches the one printed on the classroom server's screen, then trust it. "
+              + "You're only asked once per server.";
+        Raise(nameof(TrustTitle)); Raise(nameof(TrustDetail)); Raise(nameof(TrustFingerprint));
+        Raise(nameof(TrustIsChange)); Raise(nameof(TrustColor)); Raise(nameof(TrustButtonText));
+        NeedsServerTrust = true;
+    }
+
+    private async Task TrustServerAsync()
+    {
+        if (_client.TrustPending() is not { } server) return;
+        NeedsServerTrust = false;
+        await RunAttemptAsync(server);
+    }
+
+    private void RejectServer()
+    {
+        NeedsServerTrust = false;
+        Status = "Not connected: the server's identity wasn't confirmed.";
+    }
     public ICommand SwitchRoomCommand { get; }
     public ICommand MoreColumnsCommand { get; }
     public ICommand FewerColumnsCommand { get; }
@@ -511,6 +561,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
                 ApplyOutcome(outcome);
 
                 if (outcome is ConnectOutcome.Connected
+                            or ConnectOutcome.ConfirmServer
                             or ConnectOutcome.NeedsJoinCode
                             or ConnectOutcome.ChooseRoom
                             or ConnectOutcome.Incompatible)
@@ -532,6 +583,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     {
         IsConnected = outcome == ConnectOutcome.Connected;
         NeedsJoinCode = outcome == ConnectOutcome.NeedsJoinCode;
+        if (outcome == ConnectOutcome.ConfirmServer) ShowPendingTrust();
+        else NeedsServerTrust = false;
 
         if (outcome == ConnectOutcome.ChooseRoom)
         {

@@ -24,9 +24,22 @@ This drops `ClassInsight.Agent.exe` into `deploy\agent\`, where `Install-Agent.p
 ```powershell
 cd ..\..\..\installer
 dotnet build -c Release          # publishes the agent self-contained, then links the MSI
-# -> installer\bin\x64\Release\ClassInsight.Agent.msi
+# -> installer\bin\x64\Release\en-us\ClassInsight.Agent.msi
 msiexec /i ClassInsight.Agent.msi /qn
+
+# Recommended: pin the agents to your classroom server (fingerprint printed by the server at start-up)
+msiexec /i ClassInsight.Agent.msi SERVERFINGERPRINT="1056 91B5 BB03 ... 17C5" /qn
 ```
+
+MSI properties (all optional; each is written to `classinsight.ini` next to the agent, which
+overrides `appsettings.json`, and is remembered so later upgrades keep it):
+
+| Property | Setting |
+| -------- | ------- |
+| `SERVERFINGERPRINT` | `ClassInsight:ServerFingerprint` — the server's TLS key; the agent talks to no other server. |
+| `SERVERADDRESS` | `ClassInsight:ServerAddress` — `host` or `host:port` when broadcast discovery is blocked. |
+| `ROOMNAME` | `ClassInsight:RoomName` — join only this room. |
+| `ALLOWREMOTECONTROL` | `ClassInsight:AllowRemoteControl` — `true` to allow remote control (also needs `SERVERFINGERPRINT`). |
 
 The MSI installs into `%ProgramFiles%\ClassInsight`, registers the same `ClassInsightAgent` service
 (Automatic, LocalSystem, restart on failure 5 s / 5 s / 5 s, reset daily), creates
@@ -77,12 +90,13 @@ At the Windows logon screen there is no user desktop to capture; the agent stays
 | Setting | Use |
 | ------- | --- |
 | `ClassInsight:RoomName` | Join only the server with this room name, when several rooms share one network. |
+| `ClassInsight:ServerFingerprint` | The classroom server's TLS key fingerprint, exactly as the server prints it at start-up. **Recommended.** With it the agent connects to that server only; without it the agent trusts the first server it reaches and remembers it in `%ProgramData%\ClassInsight\server-pin` (then refuses any other). |
 | `ClassInsight:ServerAddress` | `host` or `host:port` to try when UDP broadcast discovery is blocked. |
 | `ClassInsight:ReportBrowserActivity` | Report the foreground browser tab's **host** (domain only). Default `true`. |
 | `ClassInsight:ShowViewingIndicator` | Show the student a small "Your screen is being viewed by your teacher" notice while viewed. Default `true` (FR-SEC-05). |
 | `ClassInsight:EnableClassroomControl` | Messages, lock, polls, timer, chat, limits and the tray icon. Default `true`. |
 | `ClassInsight:AllowPowerCommands` | Obey log off / restart / shut down from the teacher. Default `true`. |
-| `ClassInsight:AllowRemoteControl` | Let a teacher control this PC's keyboard and mouse (the student sees a red banner while it happens). **Off by default.** It only takes effect when `ServerAddress` is also set (the agent is pinned to your classroom server, so a rogue server answering discovery can't drive the PC), and the server also needs a teacher join code or `AllowStrongControlsInOpenMode`. Default `false`. |
+| `ClassInsight:AllowRemoteControl` | Let a teacher control this PC's keyboard and mouse (the student sees a red banner while it happens). **Off by default.** It only takes effect when `ServerFingerprint` is also set (the agent is pinned to your classroom server's key, so a rogue server can't drive the PC), and the server also needs a teacher join code or `AllowStrongControlsInOpenMode`. Default `false`. |
 | `ClassInsight:AllowFileTransfer` | Accept files from the teacher (saved to *Files from teacher* on the student's desktop) and let students hand work in from *Documents\Hand in*. Files are read and written as the signed-in student, never as SYSTEM. Default `true`. |
 | `ClassInsight:CaptureBackend` | `DXGI` (GPU capture, default) or `GDI`. GDI is the automatic fallback; force it only for diagnostics. |
 
@@ -102,6 +116,27 @@ computers**). The ClassInsight server sends the wake-up packet, so it must be on
    `powercfg /hibernate off` (or Control Panel → Power Options → *Turn on fast startup* off).
 
 Wired Ethernet is needed; Wi-Fi adapters generally can't wake a PC that is switched off.
+
+### Encryption and server identity
+
+Every connection — agents and teachers to the server — is **TLS-encrypted** (the server has no
+plain-HTTP port), and screen video between PCs is DTLS-SRTP encrypted by WebRTC. On first start
+the server creates its own certificate in `%ProgramData%\ClassInsight\Server\server-certificate.pfx`
+(readable only by SYSTEM, Administrators and the account running the server; or supply one with
+`ClassInsight:CertificatePath`/`CertificatePassword`) and prints its **fingerprint**:
+
+```
+  Server fingerprint (pin this in agents as ClassInsight:ServerFingerprint; ...):
+    1056 91B5 BB03 3A30 18C7 F4CE 5F2A A846 9AD6 787E A260 1404 3F0F E5ED 615D 17C5
+```
+
+* **Agents** check the server presents that key. Set it with the `SERVERFINGERPRINT` MSI property
+  (best), or let each agent trust the first server it reaches.
+* **Teachers** are shown the fingerprint the first time they connect to a server and confirm it;
+  if a server's key ever changes they get a red warning and must confirm again.
+* **Back up the certificate file.** Replacing it changes the fingerprint: agents will refuse the
+  server until you re-pin them (re-run the MSI with the new `SERVERFINGERPRINT`, or delete
+  `%ProgramData%\ClassInsight\server-pin` on PCs that trusted on first use).
 
 ## 3. Verify / manage
 

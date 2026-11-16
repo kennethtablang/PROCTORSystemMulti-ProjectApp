@@ -27,6 +27,8 @@ public sealed class ServerFactory : WebApplicationFactory<ClassroomHub>
             ["ClassInsight:DiscoveryEnabled"] = "false",
             ["ClassInsight:AllowOpenTeacherMode"] = "true",
             ["ClassInsight:RoomName"] = "Test Lab",
+            // Each test server gets its own throwaway TLS identity (never %ProgramData%).
+            ["ClassInsight:CertificatePath"] = Path.Combine(Path.GetTempPath(), "ci-test-" + Guid.NewGuid().ToString("N") + ".pfx"),
         };
         foreach (var (k, v) in settings) _settings[k] = v;
     }

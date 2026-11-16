@@ -75,6 +75,7 @@ public static class DiscoveryCodec
             Host = host.ToString(),
             HubPath = Protocol.HubPath,
             RoomName = Sanitize(response.RoomName),
+            Fingerprint = ServerTrust.Normalize(response.Fingerprint),
         };
     }
 

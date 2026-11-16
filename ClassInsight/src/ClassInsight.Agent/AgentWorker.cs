@@ -63,6 +63,9 @@ public sealed class AgentWorker : BackgroundService
     // File transfer: files from the teacher and handing work in (null when turned off by IT).
     private readonly StudentFiles? _files;
 
+    // Which server's TLS key this agent trusts (NFR-SEC-06).
+    private readonly ServerPin _pin;
+
     // Remote control (FR-CTRL-05): null unless IT opted in (see the constructor).
     private readonly RemoteInput? _remote;
     private volatile string? _remoteTeacher;
@@ -78,6 +81,7 @@ public sealed class AgentWorker : BackgroundService
         _allowPower = section.GetValue<bool?>("AllowPowerCommands") ?? true;
         ScreenCapture.DisableDxgi = string.Equals(section["CaptureBackend"], "GDI", StringComparison.OrdinalIgnoreCase);
         _serverAddress = NullIfBlank(section["ServerAddress"]);
+        _pin = new ServerPin(section["ServerFingerprint"], logger);
 
         if (section.GetValue<bool?>("ReportBrowserActivity") ?? true)
             _browser = new BrowserActivityProbe(loggerFactory.CreateLogger<BrowserActivityProbe>());
@@ -96,16 +100,16 @@ public sealed class AgentWorker : BackgroundService
             _ui.PollAnswered += answer => _ = SendPollAnswerAsync(answer);
             _ui.ChatSent += text => _ = SendChatAsync(text);
 
-            // Remote control is opt-in, and only towards a pinned server. Discovery trusts whichever
-            // server answers on the LAN and the connection isn't authenticated yet (NFR-SEC-06), so a
-            // rogue server must never be able to type and click on student desktops.
+            // Remote control is opt-in, and only towards a server IT pinned by fingerprint: a
+            // trusted-on-first-use pin could have been captured by a rogue server, which must never
+            // be able to type and click on student desktops.
             if (section.GetValue<bool?>("AllowRemoteControl") ?? false)
             {
-                if (_serverAddress is not null)
+                if (_pin.IsStrict)
                     _remote = new RemoteInput(loggerFactory.CreateLogger<RemoteInput>());
                 else
-                    logger.LogWarning("AllowRemoteControl is on but ignored: remote control also needs ClassInsight:ServerAddress " +
-                                      "(pin the agent to your classroom server).");
+                    logger.LogWarning("AllowRemoteControl is on but ignored: remote control also needs ClassInsight:ServerFingerprint " +
+                                      "(the fingerprint the classroom server prints at start-up).");
             }
 
             if (section.GetValue<bool?>("AllowFileTransfer") ?? true)
@@ -174,8 +178,34 @@ public sealed class AgentWorker : BackgroundService
 
         _logger.LogInformation("Found \"{Room}\" at {Url}.", server.RoomName, server.HubUrl);
 
+        // Authenticate the server (NFR-SEC-06): see which TLS key it presents and require the pin.
+        var presented = await ServerTrust.ProbeAsync(server.Host, server.Port, TimeSpan.FromSeconds(5), ct);
+        if (presented is null)
+        {
+            _logger.LogWarning("Couldn't open a secure connection to {Host}:{Port}.", server.Host, server.Port);
+            return;
+        }
+        if (_pin.Current is { } pin && pin != presented)
+        {
+            _logger.LogError("Refusing \"{Room}\" at {Host}: it presents fingerprint {Presented}, but this PC trusts {Pinned}. " +
+                             "If the classroom server was reinstalled, set ClassInsight:ServerFingerprint (or delete " +
+                             "%ProgramData%\\ClassInsight\\server-pin).",
+                server.RoomName, server.Host, ServerTrust.Format(presented), ServerTrust.Format(pin));
+            return;
+        }
+        _pin.Remember(presented);
+
         await using var hub = new HubConnectionBuilder()
-            .WithUrl(server.HubUrl)
+            .WithUrl(server.HubUrl, options =>
+            {
+                // Every request and the WebSocket accept only the pinned key.
+                options.HttpMessageHandlerFactory = inner =>
+                {
+                    if (inner is System.Net.Http.HttpClientHandler handler) handler.ServerCertificateCustomValidationCallback = ServerTrust.HttpValidator(presented);
+                    return inner;
+                };
+                options.WebSocketConfiguration = ws => ws.RemoteCertificateValidationCallback = ServerTrust.Validator(presented);
+            })
             .Build();
 
         var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -218,7 +248,13 @@ public sealed class AgentWorker : BackgroundService
                 continue;
             }
 
-            var server = await discovery.FindServerAsync(TimeSpan.FromSeconds(3), ct, _roomName);
+            // Several servers may answer (other rooms, or a rogue): prefer the one advertising our
+            // pinned key. The advertisement is only a hint; the TLS handshake is what's checked.
+            var heard = (await discovery.FindServersAsync(TimeSpan.FromSeconds(3), ct))
+                .Where(r => LanDiscoveryClient.MatchesRoom(r, _roomName)).ToList();
+            var server = _pin.Current is { } pin
+                ? heard.FirstOrDefault(r => r.Fingerprint == pin) ?? heard.FirstOrDefault()
+                : heard.FirstOrDefault();
             if (server is not null) return server;
             _logger.LogDebug("No server yet; still searching…");
         }

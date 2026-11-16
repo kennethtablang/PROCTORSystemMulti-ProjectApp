@@ -38,6 +38,10 @@ var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
     ContentRootPath = AppContext.BaseDirectory,
 });
 
+// Settings given to the MSI at install time (SERVERFINGERPRINT=…, SERVERADDRESS=…, ROOMNAME=…,
+// ALLOWREMOTECONTROL=…) land in classinsight.ini next to the exe and override appsettings.json.
+Microsoft.Extensions.Configuration.IniConfigurationExtensions.AddIniFile(builder.Configuration, System.IO.Path.Combine(AppContext.BaseDirectory, "classinsight.ini"), optional: true, reloadOnChange: false);
+
 builder.Services.AddWindowsService(o => o.ServiceName = "ClassInsight Agent");
 
 builder.Logging.AddSimpleConsole(o =>

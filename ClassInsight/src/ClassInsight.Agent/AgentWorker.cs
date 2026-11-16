@@ -249,8 +249,10 @@ public sealed class AgentWorker : BackgroundService
                 // also after a restart) goes first; the advertised fingerprint only orders the rest.
                 var pin = _pin.Current;
                 var last = _pin.LastServerEndpoint;
+                // Only the last good address (bound to where a reply really came from) is preferred —
+                // never the advertised fingerprint, which any sender can claim.
                 var heard = await discovery.FindServersAsync(TimeSpan.FromSeconds(3), ct,
-                    preferred: r => $"{r.Host}:{r.Port}" == last || (pin is not null && r.Fingerprint == pin));
+                    preferred: r => $"{r.Host}:{r.Port}" == last);
 
                 // The address that worked last time is always probed, even if discovery didn't hear it
                 // (a flood of fake replies can delay finding the server, but never prevent it).

@@ -47,40 +47,21 @@ public sealed class LanDiscoveryClient
     /// that sees every room. Replies are keyed by their real source address, server id and port (a
     /// reply from one machine can't shadow a server first heard from another), with at most
     /// <see cref="MaxRepliesPerHost"/> per address and <see cref="MaxReplies"/> in total, so one noisy
-    /// host can't flood the list. Replies the caller marks <paramref name="preferred"/> (e.g. the
-    /// address that worked last time) don't compete for those slots: they have their own quota of
-    /// <see cref="MaxPreferred"/>, so a flood that arrives first can't crowd them out.
+    /// host can't flood the list. Replies the caller marks <paramref name="preferred"/> — use only
+    /// something tied to the real source address, such as the address that worked last time, never a
+    /// field the sender claims — have their own slots (<see cref="MaxPreferred"/>, at most
+    /// <see cref="MaxRepliesPerHost"/> per address), so a flood that arrives first can't crowd them out.
     /// </summary>
     public async Task<IReadOnlyList<DiscoveryResponse>> FindServersAsync(TimeSpan window, CancellationToken ct,
         Func<DiscoveryResponse, bool>? preferred = null)
     {
-        var found = new Dictionary<string, DiscoveryResponse>(StringComparer.Ordinal);
-        var perHost = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var general = 0;
-        var favoured = 0;
+        var collector = new DiscoveryReplyCollector(preferred);
         await ListenAsync(window, ct, r =>
         {
-            var key = $"{r.Host}|{r.Port}|{r.ServerId}";
-            if (found.ContainsKey(key)) return true;
-            if (preferred?.Invoke(r) == true)
-            {
-                if (favoured >= MaxPreferred) return true;
-                favoured++;
-                found[key] = r;
-                return true;
-            }
-            if (general >= MaxReplies) return true;
-            var n = perHost.GetValueOrDefault(r.Host);
-            if (n >= MaxRepliesPerHost) return true;
-            perHost[r.Host] = n + 1;
-            general++;
-            found[key] = r;
+            collector.Offer(r);
             return true;
         });
-        return found.Values
-            .OrderBy(r => r.RoomName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(r => r.Host, StringComparer.Ordinal)
-            .ToArray();
+        return collector.Results;
     }
 
     /// <summary>Most servers one machine (source address) can contribute — two rooms on one PC is normal.</summary>

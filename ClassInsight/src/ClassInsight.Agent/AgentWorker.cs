@@ -219,6 +219,10 @@ public sealed class AgentWorker : BackgroundService
     // Servers already reported as presenting the wrong key (logged once each, not every retry).
     private readonly HashSet<string> _refusedServers = new(StringComparer.Ordinal);
 
+    // Where the trusted server was last reached: tried first, so discovery noise can't hide it.
+    private string? _lastGoodEndpoint;
+    private const int MaxProbedHosts = 64;
+
     /// <summary>
     /// Find a server and authenticate it (NFR-SEC-06): probe each candidate's TLS key and take the
     /// first that matches the pin (or, with no pin yet, the first reachable one — trust on first
@@ -240,17 +244,34 @@ public sealed class AgentWorker : BackgroundService
             }
             else
             {
+                // Every reply's Host is the datagram's real source address (DiscoveryCodec), so keep one
+                // candidate per address: one noisy host can't crowd others out with fake replies. The
+                // last address that worked goes first; the advertised fingerprint only orders the rest.
                 var pin = _pin.Current;
                 candidates = (await discovery.FindServersAsync(TimeSpan.FromSeconds(3), ct))
                     .Where(r => LanDiscoveryClient.MatchesRoom(r, _roomName))
-                    .OrderBy(r => pin is not null && r.Fingerprint == pin ? 0 : 1)
-                    .Take(16)
+                    .GroupBy(r => $"{r.Host}:{r.Port}", StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.OrderBy(r => pin is not null && r.Fingerprint == pin ? 0 : 1).First())
+                    .OrderBy(r => $"{r.Host}:{r.Port}" == _lastGoodEndpoint ? 0 : 1)
+                    .ThenBy(r => pin is not null && r.Fingerprint == pin ? 0 : 1)
+                    .Take(MaxProbedHosts)
                     .ToList();
             }
 
-            foreach (var server in candidates)
+            // Probe the candidates in parallel (bounded), then take the first, in order, that passes.
+            using var gate = new SemaphoreSlim(16);
+            var probes = candidates.Select(async c =>
             {
-                var presented = await ServerTrust.ProbeAsync(server.Host, server.Port, TimeSpan.FromSeconds(5), ct);
+                await gate.WaitAsync(ct);
+                try { return await ServerTrust.ProbeAsync(c.Host, c.Port, TimeSpan.FromSeconds(5), ct); }
+                finally { gate.Release(); }
+            }).ToArray();
+            var results = await Task.WhenAll(probes);
+
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                var server = candidates[i];
+                var presented = results[i];
                 if (presented is null)
                 {
                     _logger.LogDebug("Couldn't open a secure connection to {Host}:{Port}.", server.Host, server.Port);
@@ -260,12 +281,13 @@ public sealed class AgentWorker : BackgroundService
                 {
                     if (_refusedServers.Add(server.Host + "|" + presented))
                         _logger.LogError("Refusing \"{Room}\" at {Host}: it presents fingerprint {Presented}, but this PC trusts {Pinned}. " +
-                                         "If the classroom server was reinstalled, set ClassInsight:ServerFingerprint (or delete " +
-                                         "%ProgramData%\\ClassInsight\\server-pin).",
+                                         "If the classroom server was reinstalled, set ClassInsight:ServerFingerprint (or, as an administrator, delete " +
+                                         "TrustedServerFingerprint under HKLM\\SOFTWARE\\ClassInsight\\Agent).",
                             server.RoomName, server.Host, ServerTrust.Format(presented), ServerTrust.Format(pin));
                     continue;
                 }
                 _logger.LogInformation("Found \"{Room}\" at {Url}.", server.RoomName, server.HubUrl);
+                _lastGoodEndpoint = $"{server.Host}:{server.Port}";
                 return (server, presented);
             }
 

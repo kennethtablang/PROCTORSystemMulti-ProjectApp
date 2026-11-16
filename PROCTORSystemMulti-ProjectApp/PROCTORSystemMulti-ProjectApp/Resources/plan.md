@@ -620,7 +620,8 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
   long-lived self-signed ECDSA P-256 certificate (or IT's own), created once and ACL-protected;
   clients pin the SHA-256 of its public key (SPKI). Agents: strict pin via
   `ServerFingerprint` (MSI `SERVERFINGERPRINT`), else trust-on-first-use remembered in the
-  protected `%ProgramData%\\ClassInsight\\server-pin`; discovery prefers the pinned key but the
+  admin-only `HKLM\\SOFTWARE\\ClassInsight\\Agent` (students can't change or delete it, so it fails
+  closed); discovery prefers the pinned key but the
   TLS handshake is what's enforced. Teachers: confirm the fingerprint on first connection (red
   warning if a known room/address presents a new key); the join code is only sent after the
   key is trusted. Remote control requires a strict agent pin. Discovery itself stays unsigned
@@ -629,9 +630,10 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
   the real server: plain HTTP refused, agent TOFU-pinned and connected over TLS, a wrong pin
   refused, a file sent over TLS, and the agent refusing a server restarted with another key.
   After security review: the certificate folder/file are created locked down and a certificate
-  others could have planted is refused (verified); the agent's remembered pin is only trusted if
-  students can't write it (verified: not saved in an unprotected folder); and the agent probes
-  every discovered server for the pinned key instead of trusting the advertised fingerprint.)*
+  others could have planted is refused (verified); the agent's remembered pin moved to admin-only HKLM
+  (an older pin file is imported only if students couldn't have written it); and the agent probes
+  every discovered server — one candidate per source address, last good address first, up to 64
+  in parallel — instead of trusting the advertised fingerprint.)*
 - ✅ **NFR-PRIV-01** ClassInsight **shall** be deployable only on operator-authorized,
   institution-owned machines; documentation **shall** state the acceptable-use and
   notice obligations.

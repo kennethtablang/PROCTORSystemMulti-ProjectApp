@@ -90,7 +90,7 @@ At the Windows logon screen there is no user desktop to capture; the agent stays
 | Setting | Use |
 | ------- | --- |
 | `ClassInsight:RoomName` | Join only the server with this room name, when several rooms share one network. |
-| `ClassInsight:ServerFingerprint` | The classroom server's TLS key fingerprint, exactly as the server prints it at start-up. **Recommended.** With it the agent connects to that server only; without it the agent trusts the first server it reaches and remembers it in `%ProgramData%\ClassInsight\server-pin` (then refuses any other). |
+| `ClassInsight:ServerFingerprint` | The classroom server's TLS key fingerprint, exactly as the server prints it at start-up. **Recommended.** With it the agent connects to that server only; without it the agent trusts the first server it reaches and remembers it as `TrustedServerFingerprint` under `HKLM\SOFTWARE\ClassInsight\Agent`, which students can't change or delete (then refuses any other). |
 | `ClassInsight:ServerAddress` | `host` or `host:port` to try when UDP broadcast discovery is blocked. |
 | `ClassInsight:ReportBrowserActivity` | Report the foreground browser tab's **host** (domain only). Default `true`. |
 | `ClassInsight:ShowViewingIndicator` | Show the student a small "Your screen is being viewed by your teacher" notice while viewed. Default `true` (FR-SEC-05). |
@@ -135,12 +135,14 @@ the server creates its own certificate in `%ProgramData%\ClassInsight\Server\ser
 * **Teachers** are shown the fingerprint the first time they connect to a server and confirm it;
   if a server's key ever changes they get a red warning and must confirm again.
 * **Tamper checks:** the server refuses to use a certificate file (or folder) that accounts other
-  than SYSTEM, Administrators and its own account can change, and agents ignore a remembered pin
-  that students could have written (the MSI protects `%ProgramData%\ClassInsight`; an agent run
-  without the installer just keeps the pin in memory).
+  than SYSTEM, Administrators and its own account can change. Agents keep a first-use pin in
+  HKLM, which only Administrators and SYSTEM can write (an agent run from a console without admin
+  rights just keeps it in memory). Agents probe every server that answers discovery (one per
+  address, the last good one first), so fake replies can't hide the real server.
 * **Back up the certificate file.** Replacing it changes the fingerprint: agents will refuse the
   server until you re-pin them (re-run the MSI with the new `SERVERFINGERPRINT`, or delete
-  `%ProgramData%\ClassInsight\server-pin` on PCs that trusted on first use).
+  the `TrustedServerFingerprint` registry value under `HKLM\SOFTWARE\ClassInsight\Agent` on PCs
+  that trusted on first use).
 
 ## 3. Verify / manage
 

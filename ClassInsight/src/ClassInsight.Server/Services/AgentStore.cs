@@ -36,6 +36,11 @@ public sealed class AgentStore
     private readonly int _perTenMinutes;
     private readonly Dictionary<string, Queue<DateTimeOffset>> _recentByAddress = new(StringComparer.OrdinalIgnoreCase);
     private readonly Queue<DateTimeOffset> _recent = new();
+
+    // PCs with the lab key skip the per-address limit and the open-mode budget, but still have a
+    // server-wide budget of their own, in case the key ever leaks.
+    private readonly int _withKeyPerTenMinutes;
+    private readonly Queue<DateTimeOffset> _recentWithKey = new();
     private readonly TimeProvider _clock;
 
     private readonly object _gate = new();
@@ -52,6 +57,7 @@ public sealed class AgentStore
         var section = configuration.GetSection("ClassInsight");
         _perAddressPerHour = section.GetValue<int?>("EnrollmentsPerAddressPerHour") ?? 5;
         _perTenMinutes = section.GetValue<int?>("EnrollmentsPerTenMinutes") ?? 200;
+        _withKeyPerTenMinutes = section.GetValue<int?>("KeyEnrollmentsPerTenMinutes") ?? 1000;
         var certPath = section["CertificatePath"];
         _path = section["AgentStorePath"] is { Length: > 0 } configured
             ? configured
@@ -93,8 +99,10 @@ public sealed class AgentStore
 
             var hasLabKey = EnrollmentKey is not null && AgentEnrollment.ProofMatches(EnrollmentKey, keyId, machineId, proof);
             if (RequireKey && !hasLabKey) return Outcome.EnrollmentKeyRequired;
-            // PCs installed with the lab key hold the secret: unauthenticated open-mode noise can't use up their budget.
-            if (!hasLabKey && !AllowNewEnrolment(AddressBucket(remoteAddress), now)) return Outcome.RateLimited;
+            // PCs installed with the lab key hold the secret: unauthenticated open-mode noise can't use up
+            // their budget, but they still have a server-wide budget of their own.
+            if (hasLabKey ? !AllowKeyedEnrolment(now) : !AllowNewEnrolment(AddressBucket(remoteAddress), now))
+                return Outcome.RateLimited;
             if (_agents.Count >= MaxAgents)
             {
                 PruneExpired(now);
@@ -105,6 +113,18 @@ public sealed class AgentStore
             Save();
             return Outcome.Enrolled;
         }
+    }
+
+    private bool AllowKeyedEnrolment(DateTimeOffset now)
+    {
+        while (_recentWithKey.Count > 0 && now - _recentWithKey.Peek() >= TimeSpan.FromMinutes(10)) _recentWithKey.Dequeue();
+        if (_recentWithKey.Count >= _withKeyPerTenMinutes)
+        {
+            _logger.LogWarning("Too many new PCs enrolling with the lab key; refusing for now (has the key leaked?).");
+            return false;
+        }
+        _recentWithKey.Enqueue(now);
+        return true;
     }
 
     private bool AllowNewEnrolment(string address, DateTimeOffset now)

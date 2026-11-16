@@ -158,7 +158,8 @@ certificate), so no other program can ever register as that PC.
 * **Flood protection:** at most 5 new PCs per address per hour and 200 per 10 minutes may enrol
   (`EnrollmentsPerAddressPerHour` / `EnrollmentsPerTenMinutes` on the server), so a rogue program
   can't fill the server with made-up PCs (IPv6 counted per /64 network). PCs installed with the lab
-  enrolment key aren't limited. PCs not seen for 180 days are forgotten only if the server's list of
+  enrolment key skip the per-address limit but share a budget of 1,000 per 10 minutes
+  (`KeyEnrollmentsPerTenMinutes`), in case the key ever leaks. PCs not seen for 180 days are forgotten only if the server's list of
   20,000 PCs is full.
 * **Re-imaged PC** (new agent key, same PC id): the server refuses it and logs why. Delete that PC's
   entry from `agents.json` (or the file) and restart the server, and it enrols again.

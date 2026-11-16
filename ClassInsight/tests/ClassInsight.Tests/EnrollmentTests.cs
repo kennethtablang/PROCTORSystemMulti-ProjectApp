@@ -94,6 +94,21 @@ public class EnrollmentTests
     }
 
     [Fact]
+    public async Task Lab_key_enrolments_still_have_a_server_wide_budget()
+    {
+        const string labKey = "lab-secret";
+        await using var factory = new ServerFactory(("ClassInsight:AgentEnrollment", "Key"), ("ClassInsight:EnrollmentKey", labKey),
+            ("ClassInsight:KeyEnrollmentsPerTenMinutes", "2"));
+        for (var i = 0; i < 2; i++)
+        {
+            await using var pc = await factory.ConnectAsync();
+            await pc.RegisterStudentAsync(Pc(Guid.NewGuid().ToString("N")), NewKey(), labKey);
+        }
+        await using var flood = await factory.ConnectAsync();
+        await Assert.ThrowsAsync<HubException>(() => flood.RegisterStudentAsync(Pc(Guid.NewGuid().ToString("N")), NewKey(), labKey));
+    }
+
+    [Fact]
     public async Task With_a_lab_key_only_pcs_installed_with_it_can_enrol()
     {
         const string labKey = "correct horse battery staple";

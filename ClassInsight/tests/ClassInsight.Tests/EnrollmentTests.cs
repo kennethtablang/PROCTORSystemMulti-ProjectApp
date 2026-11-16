@@ -115,3 +115,14 @@ public class EnrollmentTests
         await again.RegisterStudentAsync(Pc(id), key);
     }
 }
+
+public class EnrollmentBucketTests
+{
+    [Theory]
+    [InlineData("192.168.1.20", "192.168.1.20")]
+    [InlineData("::ffff:192.168.1.20", "192.168.1.20")]
+    [InlineData("2001:db8:1:2:aaaa:bbbb:cccc:dddd", "2001:db8:1:2::/64")]
+    [InlineData("2001:db8:1:2::1", "2001:db8:1:2::/64")]
+    public void Addresses_are_bucketed_ipv6_by_64(string address, string bucket) =>
+        Assert.Equal(bucket, ClassInsight.Server.Services.AgentStore.AddressBucket(address));
+}

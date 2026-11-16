@@ -13,6 +13,7 @@ namespace ClassInsight.Server.Services;
 /// Kept in <c>agents.json</c> beside the server certificate, in the folder only SYSTEM,
 /// Administrators and the server account can change; a file others could have edited is ignored.
 /// To let a re-imaged PC enrol again, delete its entry (or the file) and restart the server.
+/// PCs not seen for 180 days are only forgotten when the store is full.
 /// </summary>
 public sealed class AgentStore
 {
@@ -20,7 +21,8 @@ public sealed class AgentStore
 
     private sealed record Entry(string KeyId, string Name, DateTimeOffset Enrolled)
     {
-        public DateTimeOffset LastSeen { get; set; } = Enrolled;
+        /// <summary>Null in files written before this was tracked: treated as "seen when loaded", never as old.</summary>
+        public DateTimeOffset? LastSeen { get; set; }
     }
 
     private const int MaxAgents = 20_000;
@@ -83,22 +85,23 @@ public sealed class AgentStore
             {
                 if (known.KeyId != keyId) return Outcome.KeyMismatch;
                 // Keep "last seen" current (for expiry), writing at most once a day per PC.
-                var persist = now - known.LastSeen > TimeSpan.FromDays(1);
+                var persist = known.LastSeen is not { } seen || now - seen > TimeSpan.FromDays(1);
                 known.LastSeen = now;
                 if (persist) Save();
                 return Outcome.Known;
             }
 
-            if (RequireKey && (EnrollmentKey is null || !AgentEnrollment.ProofMatches(EnrollmentKey, keyId, machineId, proof)))
-                return Outcome.EnrollmentKeyRequired;
-            if (!AllowNewEnrolment(remoteAddress, now)) return Outcome.RateLimited;
+            var hasLabKey = EnrollmentKey is not null && AgentEnrollment.ProofMatches(EnrollmentKey, keyId, machineId, proof);
+            if (RequireKey && !hasLabKey) return Outcome.EnrollmentKeyRequired;
+            // PCs installed with the lab key hold the secret: unauthenticated open-mode noise can't use up their budget.
+            if (!hasLabKey && !AllowNewEnrolment(AddressBucket(remoteAddress), now)) return Outcome.RateLimited;
             if (_agents.Count >= MaxAgents)
             {
                 PruneExpired(now);
                 if (_agents.Count >= MaxAgents) return Outcome.Full;
             }
 
-            _agents[machineId] = new Entry(keyId, machineName, now);
+            _agents[machineId] = new Entry(keyId, machineName, now) { LastSeen = now };
             Save();
             return Outcome.Enrolled;
         }
@@ -116,13 +119,41 @@ public sealed class AgentStore
         }
         mine.Enqueue(now);
         _recent.Enqueue(now);
-        if (_recentByAddress.Count > 10_000) _recentByAddress.Clear();   // bounded bookkeeping
+        TrimBuckets(now);
         return true;
+    }
+
+    /// <summary>
+    /// Rate-limit key for an address: IPv4 as is, IPv6 by its /64 network (one machine can use a whole
+    /// /64, so per-address buckets would be trivial to dodge).
+    /// </summary>
+    public static string AddressBucket(string address)
+    {
+        if (!System.Net.IPAddress.TryParse(address, out var ip)) return address;
+        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+        if (ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6) return ip.ToString();
+        var bytes = ip.GetAddressBytes();
+        Array.Clear(bytes, 8, 8);
+        return new System.Net.IPAddress(bytes) + "/64";
+    }
+
+    /// <summary>Keep the bookkeeping bounded without forgetting everyone: drop expired buckets, then the least recent.</summary>
+    private void TrimBuckets(DateTimeOffset now)
+    {
+        if (_recentByAddress.Count <= 10_000) return;
+        foreach (var (key, q) in _recentByAddress.ToList())
+        {
+            while (q.Count > 0 && now - q.Peek() >= TimeSpan.FromHours(1)) q.Dequeue();
+            if (q.Count == 0) _recentByAddress.Remove(key);
+        }
+        if (_recentByAddress.Count <= 10_000) return;
+        foreach (var key in _recentByAddress.OrderBy(kv => kv.Value.Last()).Take(_recentByAddress.Count - 10_000).Select(kv => kv.Key).ToList())
+            _recentByAddress.Remove(key);
     }
 
     private void PruneExpired(DateTimeOffset now)
     {
-        var stale = _agents.Where(kv => now - kv.Value.LastSeen > Expiry).Select(kv => kv.Key).ToList();
+        var stale = _agents.Where(kv => kv.Value.LastSeen is { } seen && now - seen > Expiry).Select(kv => kv.Key).ToList();
         foreach (var id in stale) _agents.Remove(id);
         if (stale.Count > 0) _logger.LogInformation("Forgot {Count} PC(s) not seen for {Days} days.", stale.Count, (int)Expiry.TotalDays);
     }
@@ -140,8 +171,8 @@ public sealed class AgentStore
             }
             var loaded = JsonSerializer.Deserialize<Dictionary<string, Entry>>(File.ReadAllText(_path));
             var agents = loaded is null ? new Dictionary<string, Entry>(StringComparer.Ordinal) : new(loaded, StringComparer.Ordinal);
-            foreach (var id in agents.Where(kv => _clock.GetUtcNow() - kv.Value.LastSeen > Expiry).Select(kv => kv.Key).ToList())
-                agents.Remove(id);
+            // Nothing is forgotten at load: old entries are only pruned when the store is actually full.
+            foreach (var entry in agents.Values) entry.LastSeen ??= _clock.GetUtcNow();
             _logger.LogInformation("{Count} enrolled PC(s) loaded.", agents.Count);
             return agents;
         }

@@ -31,6 +31,11 @@
 .PARAMETER AllowRemoteControl
   Allow teachers to take remote keyboard/mouse control of these PCs (needs -ServerFingerprint).
 
+.PARAMETER HideViewingIndicator
+  Don't show the student the "Your screen is being viewed by your teacher" notice. Use only where
+  your institution's acceptable-use/privacy policy already tells students the lab PCs are monitored;
+  on by default so students are informed.
+
 .PARAMETER Name
   Suffix for the output file, e.g. "Lab3" -> ClassInsight-Agent-Setup-Lab3.exe.
   Defaults to the room name, if any.
@@ -49,6 +54,7 @@ param(
     [string]$RoomName,
     [string]$EnrollmentKey,
     [switch]$AllowRemoteControl,
+    [switch]$HideViewingIndicator,
     [string]$Name,
     [string]$OutputDir = (Join-Path $PSScriptRoot '..\dist')
 )
@@ -104,6 +110,7 @@ $lines = @(
     (Var 'SERVERADDRESS' $ServerAddress)
     (Var 'ROOMNAME' $RoomName)
     (Var 'ALLOWREMOTECONTROL' $(if ($AllowRemoteControl) { 'true' } else { '' }))
+    (Var 'SHOWVIEWINGINDICATOR' $(if ($HideViewingIndicator) { 'false' } else { '' }))
     (Var 'ENROLLMENTKEY' $EnrollmentKey -hidden)
     '</Include>'
 )
@@ -140,6 +147,7 @@ Write-Host ("  Server address : " + $(if ($ServerAddress) { $ServerAddress } els
 Write-Host ("  Room           : " + $(if ($RoomName) { $RoomName } else { '(any)' }))
 Write-Host ("  Enrolment key  : " + $(if ($EnrollmentKey) { 'built in - keep this setup private' } else { '(none)' }))
 Write-Host ("  Remote control : " + $(if ($AllowRemoteControl) { 'allowed' } else { 'off' }))
+Write-Host ("  Viewing notice : " + $(if ($HideViewingIndicator) { 'hidden from students' } else { 'shown to students' }))
 Write-Host ""
 Write-Host "Install on each lab PC: double-click it (needs an administrator), or silently:"
 Write-Host "  ClassInsight-Agent-Setup$suffix.exe /quiet /norestart"

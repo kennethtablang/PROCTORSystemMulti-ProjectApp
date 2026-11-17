@@ -11,5 +11,6 @@
   <Variable Name="SERVERADDRESS" bal:Overridable="yes" />
   <Variable Name="ROOMNAME" bal:Overridable="yes" />
   <Variable Name="ALLOWREMOTECONTROL" bal:Overridable="yes" />
+  <Variable Name="SHOWVIEWINGINDICATOR" bal:Overridable="yes" />
   <Variable Name="ENROLLMENTKEY" bal:Overridable="yes" Hidden="yes" />
 </Include>

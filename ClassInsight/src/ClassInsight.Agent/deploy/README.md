@@ -39,6 +39,7 @@ cd ClassInsight\installer
 | `-RoomName` | Join only this room. |
 | `-EnrollmentKey` | Lab enrolment key (server `AgentEnrollment=Key`). Anyone holding a setup built with it can read the key out of the file, so **keep that setup like a password**; or leave it out and pass `ENROLLMENTKEY=...` at install time. |
 | `-AllowRemoteControl` | Allow teacher remote control (requires `-ServerFingerprint`). |
+| `-HideViewingIndicator` | Don't show students the "Your screen is being viewed by your teacher" notice. Use only where your acceptable-use/privacy policy already tells students the lab PCs are monitored. |
 
 `.\Build-AgentSetup.ps1` with no parameters builds a generic setup (`dist\ClassInsight-Agent-Setup.exe`)
 that finds the server on the LAN and trusts the first one it meets.
@@ -78,6 +79,7 @@ overrides `appsettings.json`, and is remembered so later upgrades keep it):
 | `ROOMNAME` | `ClassInsight:RoomName` — join only this room. |
 | `ENROLLMENTKEY` | The lab enrolment key, when the server runs with `AgentEnrollment=Key`. Stored only in an admin-only registry key (never a settings file) and hidden from installer logs. |
 | `ALLOWREMOTECONTROL` | `ClassInsight:AllowRemoteControl` — `true` to allow remote control (also needs `SERVERFINGERPRINT`). |
+| `SHOWVIEWINGINDICATOR` | `ClassInsight:ShowViewingIndicator` — `false` to hide the "being viewed by your teacher" notice (default shows it). |
 
 The MSI installs into `%ProgramFiles%\ClassInsight`, registers the same `ClassInsightAgent` service
 (Automatic, LocalSystem, restart on failure 5 s / 5 s / 5 s, reset daily), creates

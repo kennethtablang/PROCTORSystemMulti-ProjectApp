@@ -2,7 +2,7 @@
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
-**Version:** 0.24 (draft)
+**Version:** 0.25 (draft)
 **Last updated:** 2026-11-16
 **Owner:** Kenneth Tablang
 **Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
@@ -812,6 +812,12 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.25 — 2026-11-17**
+  - **Viewing notice is installable** (FR-SEC-05): the student "being viewed by your teacher" notice
+    (already switchable with `ClassInsight:ShowViewingIndicator`) now has an MSI property
+    `SHOWVIEWINGINDICATOR` and a `Build-AgentSetup.ps1 -HideViewingIndicator` switch, so IT can turn
+    it off per lab at install time. Still shown by default. Agent/MSI 0.3.1.
 
 - **0.24 — 2026-11-16**
   - **Agent setup .exe per lab** (P4): `installer\Build-AgentSetup.ps1` builds

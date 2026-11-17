@@ -11,7 +11,7 @@
      xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
   <Bundle Name="ClassInsight Agent"
           Manufacturer="ClassInsight"
-          Version="0.3.0"
+          Version="0.3.1"
           UpgradeCode="3B7A9C21-5D4E-4F60-8A1B-2C3D4E5F6A7B"
           AboutUrl="https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp">
 
@@ -31,6 +31,7 @@
         <MsiProperty Name="SERVERADDRESS" Value="[SERVERADDRESS]" />
         <MsiProperty Name="ROOMNAME" Value="[ROOMNAME]" />
         <MsiProperty Name="ALLOWREMOTECONTROL" Value="[ALLOWREMOTECONTROL]" />
+        <MsiProperty Name="SHOWVIEWINGINDICATOR" Value="[SHOWVIEWINGINDICATOR]" />
         <MsiProperty Name="ENROLLMENTKEY" Value="[ENROLLMENTKEY]" />
       </MsiPackage>
     </Chain>

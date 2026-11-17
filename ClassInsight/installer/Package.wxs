@@ -12,7 +12,7 @@
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package Name="ClassInsight Agent"
            Manufacturer="ClassInsight"
-           Version="0.3.0"
+           Version="0.3.1"
            UpgradeCode="6F1C2B9E-3A4D-4E5F-9A8B-0C1D2E3F4A5B"
            Scope="perMachine"
            Compressed="yes">
@@ -56,6 +56,12 @@
     </Property>
     <SetProperty Id="ALLOWREMOTECONTROL" Value="[SAVED_ALLOWREMOTECONTROL]" After="AppSearch" Sequence="first"
                  Condition="NOT ALLOWREMOTECONTROL AND SAVED_ALLOWREMOTECONTROL" />
+    <Property Id="SHOWVIEWINGINDICATOR" Secure="yes" />
+    <Property Id="SAVED_SHOWVIEWINGINDICATOR">
+      <RegistrySearch Id="FindShowViewingIndicator" Root="HKLM" Key="Software\ClassInsight\Agent" Name="ShowViewingIndicator" Type="raw" />
+    </Property>
+    <SetProperty Id="SHOWVIEWINGINDICATOR" Value="[SAVED_SHOWVIEWINGINDICATOR]" After="AppSearch" Sequence="first"
+                 Condition="NOT SHOWVIEWINGINDICATOR AND SAVED_SHOWVIEWINGINDICATOR" />
     <MediaTemplate EmbedCab="yes" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
@@ -118,6 +124,11 @@
           <IniFile Id="IniAllowRemoteControl" Action="addLine" Directory="INSTALLFOLDER" Name="classinsight.ini"
                    Section="ClassInsight" Key="AllowRemoteControl" Value="[ALLOWREMOTECONTROL]" />
         </Component>
+        <Component Id="SettingShowViewingIndicator" Condition="SHOWVIEWINGINDICATOR">
+          <RegistryValue Root="HKLM" Key="Software\ClassInsight\Agent" Name="ShowViewingIndicator" Type="string" Value="[SHOWVIEWINGINDICATOR]" KeyPath="yes" />
+          <IniFile Id="IniShowViewingIndicator" Action="addLine" Directory="INSTALLFOLDER" Name="classinsight.ini"
+                   Section="ClassInsight" Key="ShowViewingIndicator" Value="[SHOWVIEWINGINDICATOR]" />
+        </Component>
 
       </Directory>
     </StandardDirectory>
@@ -141,6 +152,7 @@
       <ComponentRef Id="SettingServerAddress" />
       <ComponentRef Id="SettingRoomName" />
       <ComponentRef Id="SettingAllowRemoteControl" />
+      <ComponentRef Id="SettingShowViewingIndicator" />
     </Feature>
   </Package>
 </Wix>

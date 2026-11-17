@@ -1,4 +1,4 @@
-using PROCTORSystemMulti_ProjectApp.ClassInsight;
+using PROCTORSystemMulti_ProjectApp.PROCTOR;
 
 namespace PROCTORSystemMulti_ProjectApp;
 

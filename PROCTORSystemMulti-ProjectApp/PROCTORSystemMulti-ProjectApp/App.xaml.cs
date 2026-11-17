@@ -11,7 +11,7 @@
         {
             var window = new Window(new AppShell())
             {
-                Title = "ClassInsight",
+                Title = "PROCTOR",
             };
 
             // Replace the default OS title bar with integrated app chrome. The window keeps its
@@ -25,7 +25,7 @@
                 HeightRequest = 44,
                 LeadingContent = new Label
                 {
-                    Text = "ClassInsight",
+                    Text = "PROCTOR",
                     FontSize = 14,
                     FontAttributes = FontAttributes.Bold,
                     TextColor = Color.FromArgb("#B794F6"),

@@ -1,9 +1,9 @@
-using ClassInsight.Shared.Contracts;
+using PROCTOR.Shared.Contracts;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using PROCTORSystemMulti_ProjectApp.ClassInsight;
+using PROCTORSystemMulti_ProjectApp.PROCTOR;
 using MauiPoint = Microsoft.Maui.Graphics.Point;
 using MauiView = Microsoft.Maui.Controls.View;
 

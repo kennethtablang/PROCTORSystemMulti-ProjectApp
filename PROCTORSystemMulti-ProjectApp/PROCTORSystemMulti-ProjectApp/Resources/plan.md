@@ -1,11 +1,11 @@
-# ClassInsight — System Plan & Software Requirements Specification
+# PROCTOR — System Plan & Software Requirements Specification
 
 **Document status:** Living document — the authoritative basis for the system from start to finish.
 **Canonical location:** `PROCTORSystemMulti-ProjectApp/Resources/plan.md` (this file). Keep this copy current; any other copy (e.g. a WinUI `Assets` snapshot) is a convenience mirror.
 **Version:** 0.25 (draft)
 **Last updated:** 2026-11-16
 **Owner:** Kenneth Tablang
-**Applies to:** ClassInsight — the `ClassInsight` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
+**Applies to:** PROCTOR — the `PROCTOR` solution (Shared, Server, Agent) plus the .NET MAUI teacher app in `PROCTORSystemMulti-ProjectApp` (WinUI/Droid/Mac/iOS heads).
 
 ---
 
@@ -36,7 +36,7 @@ A trailing *(italic note)* explains any requirement that is partly built.
 
 ### 1.1 Purpose
 
-ClassInsight is a **real-time classroom monitoring system** for school computer labs,
+PROCTOR is a **real-time classroom monitoring system** for school computer labs,
 in the spirit of Faronics Insight / NetSupport School — **built from scratch, not a
 clone** of any product's code, assets, or branding. A teacher sees a live grid of
 every student screen as continuous video (not periodic screenshots), plus each
@@ -45,7 +45,7 @@ student.
 
 ### 1.2 Deployment context (intended use)
 
-ClassInsight is management software for **institution-owned machines on a local
+PROCTOR is management software for **institution-owned machines on a local
 network**, deployed by a school/IT administrator for **supervised classroom use**:
 
 - Student agents run on school-owned **Windows** lab PCs.
@@ -93,7 +93,7 @@ authorized to manage, under the institution's acceptable-use and privacy policy
    ┌──────────────────────────────────────────────────┐
    │                                                    │
 ┌──┴───────────┐   SignalR    ┌──────────────────┐   SignalR   ┌─────────────┐
-│ Student agent │◄────────────►│  ClassInsight    │◄───────────►│ Teacher app │
+│ Student agent │◄────────────►│  PROCTOR    │◄───────────►│ Teacher app │
 │  (Windows)    │  roster +    │  server          │  roster +   │ (MAUI)      │
 │  WebRTC sender│  signalling  │  (SignalR hub)   │  signalling │ WebRTC recv │
 └──────┬────────┘              └──────────────────┘             └──────┬──────┘
@@ -107,18 +107,18 @@ authorized to manage, under the institution's acceptable-use and privacy policy
 
 | Project                 | Type                     | Role                                                           | Status |
 | ----------------------- | ------------------------ | -------------------------------------------------------------- | ------ |
-| `ClassInsight.Shared`   | .NET 10 class library    | Wire contracts + protocol constants shared by all components   | ✅ Built |
-| `ClassInsight.Server`   | ASP.NET Core (SignalR)   | Roster, **pair-gated** WebRTC signalling relay, telemetry fan-out, discovery, `/status`, optional STUN/TURN config. **Open teacher mode on by default** (trusted-VLAN deploy). Runtime-verified incl. two rooms on one LAN | ✅ Built |
-| `ClassInsight.Agent`    | .NET 10 Windows app      | Discovery + registration + 1 Hz telemetry + multi-monitor GDI capture + **pure-managed VP8 WebRTC sender** (one peer per watching teacher), runtime-verified at thumbnail and focus quality. The Windows service is a session **supervisor** that runs the monitor in the student's desktop session (elevated install still to be run) | ✅ Built |
+| `PROCTOR.Shared`   | .NET 10 class library    | Wire contracts + protocol constants shared by all components   | ✅ Built |
+| `PROCTOR.Server`   | ASP.NET Core (SignalR)   | Roster, **pair-gated** WebRTC signalling relay, telemetry fan-out, discovery, `/status`, optional STUN/TURN config. **Open teacher mode on by default** (trusted-VLAN deploy). Runtime-verified incl. two rooms on one LAN | ✅ Built |
+| `PROCTOR.Agent`    | .NET 10 Windows app      | Discovery + registration + 1 Hz telemetry + multi-monitor GDI capture + **pure-managed VP8 WebRTC sender** (one peer per watching teacher), runtime-verified at thumbnail and focus quality. The Windows service is a session **supervisor** that runs the monitor in the student's desktop session (elevated install still to be run) | ✅ Built |
 | `PROCTORSystemMulti-ProjectApp` | .NET MAUI app (WinUI/Droid/Mac/iOS heads) | **Teacher app:** room chooser + manual address, live **thumbnail video grid** with search/sort/density, focus view with display picker, Processes/Bandwidth tabs; one `StreamManager` owns every WebRTC stream. WinUI GUI-verified; all four heads compile (0 warnings). Android/iOS/macOS on-device runs pending | 🟡 Built, devices pending |
-| `ClassInsight.Tests`    | xUnit test project       | 52 unit + in-process SignalR integration tests (discovery codec, roster/pairs, throttle, join code, telemetry math, capture sizing + DXGI mip choice, DTLS-SRTP, hub flows incl. injection cases) | ✅ Built, 52/52 pass |
-| `installer` (WiX v5)    | MSI                      | `ClassInsight.Agent.msi`: self-contained agent, auto-start LocalSystem service with restart-on-failure, protected `%ProgramData%` state folder, in-place upgrade | ✅ Built (install run pending) |
+| `PROCTOR.Tests`    | xUnit test project       | 52 unit + in-process SignalR integration tests (discovery codec, roster/pairs, throttle, join code, telemetry math, capture sizing + DXGI mip choice, DTLS-SRTP, hub flows incl. injection cases) | ✅ Built, 52/52 pass |
+| `installer` (WiX v5)    | MSI                      | `PROCTOR.Agent.msi`: self-contained agent, auto-start LocalSystem service with restart-on-failure, protected `%ProgramData%` state folder, in-place upgrade | ✅ Built (install run pending) |
 
 > **Repository layout (0.12):** everything lives in the **PROCTORSystemMulti-ProjectApp** repo
 > and solution. The MAUI teacher app (WinUI/Droid/Mac/iOS heads) is under
-> `PROCTORSystemMulti-ProjectApp/`, and the back end is under `ClassInsight/`: `src/` (Shared,
-> Server, Agent), `tests/` (ClassInsight.Tests) and `installer/` (agent MSI + `setup/` for
-> `ClassInsight-Agent-Setup.exe`). The teacher app references `ClassInsight/src/ClassInsight.Shared`
+> `PROCTORSystemMulti-ProjectApp/`, and the back end is under `PROCTOR/`: `src/` (Shared,
+> Server, Agent), `tests/` (PROCTOR.Tests) and `installer/` (agent MSI + `setup/` for
+> `PROCTOR-Agent-Setup.exe`). The teacher app references `PROCTOR/src/PROCTOR.Shared`
 > directly. (These projects briefly lived in the unrelated SENGEN repository; PROCTOR is their home.)
 
 ### 2.3 Key architectural decisions (locked)
@@ -147,7 +147,7 @@ authorized to manage, under the institution's acceptable-use and privacy policy
 - **Teacher:** .NET MAUI (WinUI/Droid/Mac/iOS heads); SignalR .NET client; SIPSorcery WebRTC
   receiver + managed VP8 decode; one SkiaSharp video surface (`LiveScreenView`) on every head.
 - **Transport:** SignalR over WebSocket (control); WebRTC/SRTP (media); UDP (discovery).
-- **Serialization:** System.Text.Json (web defaults) shared via `ClassInsight.Shared`.
+- **Serialization:** System.Text.Json (web defaults) shared via `PROCTOR.Shared`.
 
 ---
 
@@ -163,13 +163,13 @@ authorized to manage, under the institution's acceptable-use and privacy policy
    carried inside it (NFR-SEC-05) — on the fixed hub path; only the port comes from the payload.
 5. **Several rooms** on one network are several servers (FR-SRV-05). A teacher collects every
    reply for one beacon interval and picks a room (remembered for next time); an agent can be
-   pinned to a room by name (`ClassInsight:RoomName`).
+   pinned to a room by name (`PROCTOR:RoomName`).
 6. **Broadcast blocked?** A teacher can type the server address, and IT can set
-   `ClassInsight:ServerAddress` on agents; the client reads `GET /status` to learn the room and
+   `PROCTOR:ServerAddress` on agents; the client reads `GET /status` to learn the room and
    protocol version, then connects exactly as if discovered (NFR-COMPAT-02).
 7. On connection loss, clients re-probe and reconnect automatically.
 
-All datagrams are JSON prefixed with the magic token `CLASSINSIGHT/1`. Protocol
+All datagrams are JSON prefixed with the magic token `PROCTOR/1`. Protocol
 version is carried in every message so mismatched clients can be rejected cleanly.
 
 ---
@@ -195,7 +195,7 @@ version is carried in every message so mismatched clients can be rejected cleanl
 - **Teardown:** teacher `StopStream`; when a student has no remaining viewers the agent
   stops encoding to save CPU/bandwidth, and the server returns the student to `Online`.
 - **Relay fallback:** direct LAN connectivity by default. For segmented networks the server
-  can hand both peers STUN/TURN servers (`ClassInsight:IceServers`, delivered via
+  can hand both peers STUN/TURN servers (`PROCTOR:IceServers`, delivered via
   `GetIceServers` to registered clients only, since TURN entries carry credentials).
 
 ---
@@ -281,7 +281,7 @@ version is carried in every message so mismatched clients can be rejected cleanl
   built: UI Automation reads the foreground Chrome/Edge/Firefox/Brave/Opera/Vivaldi address bar
   and reports the **host only** (never path or query, for privacy), shown on tiles and searchable.
   **Runtime-verified**: with Brave in the foreground the tile showed "🌐 claude.ai". Toggle:
-  `ClassInsight:ReportBrowserActivity`.)*
+  `PROCTOR:ReportBrowserActivity`.)*
 - 🟡 **FR-AGENT-07 [P4]** The agent **should** resist casual termination by a standard
   student user (e.g. run as a service / restart on exit) within the lab trust model.
   *(Running as a `LocalSystem` service means a standard student can't stop it without admin;
@@ -334,7 +334,7 @@ version is carried in every message so mismatched clients can be rejected cleanl
 - ✅ **FR-TEL-03 [P3]** The system **shall** display each student's running processes
   (name, PID, CPU, memory) and refresh them live. *(**GUI-verified**: both the focus detail
   panel and the classroom-wide Processes view rendered the live process list with real
-  names/PIDs/CPU%/memory (PROCTOR.WinUI 13.5%/280 MB, ClassInsight.Agent 12.7%, sqlservr,
+  names/PIDs/CPU%/memory (PROCTOR.WinUI 13.5%/280 MB, PROCTOR.Agent 12.7%, sqlservr,
   explorer…), refreshing from the 1 Hz stream.)*
 - ✅ **FR-TEL-04 [P3]** Telemetry **shall** update for all registered students regardless
   of whether their screen is being streamed. *(Verified: telemetry fanned out to the
@@ -400,11 +400,11 @@ version is carried in every message so mismatched clients can be rejected cleanl
 - ✅ **FR-SEC-01 [P0]** Students **shall** join with no code and no login (zero-friction,
   by design for lab deployment).
 - ✅ **FR-SEC-02 [P0]** The teacher role **shall** be gated by a pairing code compared in
-  constant time (SHA-256 of both normalised codes, `FixedTimeEquals`): the admin-set `ClassInsight:TeacherCode`, or — if none is set — a code
+  constant time (SHA-256 of both normalised codes, `FixedTimeEquals`): the admin-set `PROCTOR:TeacherCode`, or — if none is set — a code
   the server **auto-generates and prints to the console** at startup. Teacher auth
   **fails closed**.
 - ✅ **FR-SEC-03 [P0]** The server **shall** run fully open (no teacher authentication)
-  only when the admin explicitly sets `ClassInsight:AllowOpenTeacherMode=true`, and
+  only when the admin explicitly sets `PROCTOR:AllowOpenTeacherMode=true`, and
   **shall** log a prominent warning when it does.
 - ✅ **FR-SEC-04 [P0]** The server **shall not** relay WebRTC signalling between
   connections that are not an authorized teacher↔student pair. *(**Regression found and fixed
@@ -417,7 +417,7 @@ version is carried in every message so mismatched clients can be rejected cleanl
   early (0.12): while any teacher views the screen the agent shows a click-through pill "Your
   screen is being viewed by your teacher" at the top of the display, hidden again when the last
   viewer leaves; it's excluded from capture so it never clutters the teacher's view. On by
-  default, `ClassInsight:ShowViewingIndicator=false` to disable. **Verified** via the window
+  default, `PROCTOR:ShowViewingIndicator=false` to disable. **Verified** via the window
   manager: visible, topmost, no-activate, click-through, display affinity
   `WDA_EXCLUDEFROMCAPTURE`; gone after the teacher left.)*
 - ✅ **FR-SEC-06 [P0]** The server **shall** throttle and lock out repeated failed teacher
@@ -430,7 +430,7 @@ version is carried in every message so mismatched clients can be rejected cleanl
   identifier (not derived from predictable machine attributes), and the agent **shall**
   connect only to the address that answered its discovery probe, on the fixed hub path.
   *(**Fixed in 0.11:** the rebuilt agent hashed machine name + MAC, and discovery followed the
-  host named in the payload. Now a random 128-bit id in `%ProgramData%\ClassInsight\agent-id`
+  host named in the payload. Now a random 128-bit id in `%ProgramData%\PROCTOR\agent-id`
   (the installer protects the folder and discards a planted id), and `DiscoveryCodec` forces the
   source address and fixed hub path. Unit-tested.)*
 
@@ -497,7 +497,7 @@ that loses the server unlocks and lifts everything itself.
 - ✅ **FR-CTRL-14 [P5]** **File transfer.** *Send files*: whole class (⋯ More) or one student (focus
   view); they land in "Files from teacher" on the student's desktop. *Collect work*: the teacher
   asks (with a prompt), students tick files in Documents\Hand in from a window or the tray, and
-  they're saved on the teacher's device under Documents\ClassInsight\Handed in\<date>\<student>.
+  they're saved on the teacher's device under Documents\PROCTOR\Handed in\<date>\<student>.
   *(Relayed through the hub in 32 KB in-order chunks + SHA-256; nothing stored on the server. Max
   100 MB per file, 4 open transfers per sender, 10 hand-ins per student per collection. Names are
   sanitised (no paths, reserved names or bad characters). Executables/scripts: never handed in;
@@ -536,7 +536,7 @@ that loses the server unlocks and lifts everything itself.
   has had a turn, optional "you've been picked" message), **snapshot all screens** (PNG per student),
   **screenshot** one student from the focus view, and **attendance export** (CSV: computer, user, IP,
   first/last seen, minutes online — written only on the teacher's device; formula-injection safe).
-  Files go to `Documents\ClassInsight`. *(Live-verified: CSV and PNG written, picker shown.)*
+  Files go to `Documents\PROCTOR`. *(Live-verified: CSV and PNG written, picker shown.)*
 - 🟡 **FR-SEC-08** The teacher app **may** be PIN-locked ("secure mode"): asked at launch and on
   "Lock this app now"; only a salted PBKDF2-SHA256 hash is stored; growing delay after wrong tries.
   *(Built; not exercised in the GUI so the teacher's own app wasn't left locked.)*
@@ -620,7 +620,7 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
   long-lived self-signed ECDSA P-256 certificate (or IT's own), created once and ACL-protected;
   clients pin the SHA-256 of its public key (SPKI). Agents: strict pin via
   `ServerFingerprint` (MSI `SERVERFINGERPRINT`), else trust-on-first-use remembered in the
-  admin-only `HKLM\\SOFTWARE\\ClassInsight\\Agent` (students can't change or delete it, so it fails
+  admin-only `HKLM\\SOFTWARE\\PROCTOR\\Agent` (students can't change or delete it, so it fails
   closed); discovery prefers the pinned key but the
   TLS handshake is what's enforced. Teachers: confirm the fingerprint on first connection (red
   warning if a known room/address presents a new key); the join code is only sent after the
@@ -642,7 +642,7 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
   (an older pin file is imported only if students couldn't have written it); and the agent probes
   every discovered server — one candidate per source address, last good address first, up to 64
   in parallel — instead of trusting the advertised fingerprint.)*
-- ✅ **NFR-PRIV-01** ClassInsight **shall** be deployable only on operator-authorized,
+- ✅ **NFR-PRIV-01** PROCTOR **shall** be deployable only on operator-authorized,
   institution-owned machines; documentation **shall** state the acceptable-use and
   notice obligations.
 - ✅ **NFR-PRIV-02** No personal data **shall** be persisted server-side beyond the live
@@ -666,14 +666,14 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
 - 🟡 **NFR-PORT-01** The teacher app **shall** build and run on Windows, macOS, iOS, and
   Android from one **.NET MAUI** codebase. *(All four heads build; runs verified on Windows
   only — see FR-TEACH-05.)*
-- ✅ **NFR-PORT-02** All components **shall** target .NET 10 and share `ClassInsight.Shared`
+- ✅ **NFR-PORT-02** All components **shall** target .NET 10 and share `PROCTOR.Shared`
   for contracts to prevent protocol drift. *(Server, agent, tests and teacher app all reference
   it; discovery encoding is one shared `DiscoveryCodec`.)*
 
 ### 7.7 Maintainability — `NFR-MAIN`
 
 - ✅ **NFR-MAIN-01** All wire contracts and method names **shall** live in
-  `ClassInsight.Shared`; no component **shall** hard-code protocol strings.
+  `PROCTOR.Shared`; no component **shall** hard-code protocol strings.
 - ✅ **NFR-MAIN-02** The protocol **shall** carry a version number and bump it on any
   breaking change (see FR-DISC-06).
 - ✅ **NFR-MAIN-03** Code **shall** follow the existing solution conventions and build with
@@ -702,7 +702,7 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
      detection. The teacher app reflects this: on launch it **auto-connects with no
      code**, and reveals the code box **only if** the server rejects that attempt (i.e.
      the room runs with a teacher code). On a lab configured for open mode
-     (`ClassInsight:AllowOpenTeacherMode=true`) the teacher never sees a code prompt —
+     (`PROCTOR:AllowOpenTeacherMode=true`) the teacher never sees a code prompt —
      "open the app and the dashboard fills in". **Recommended only on an isolated/trusted
      lab VLAN**, since in open mode any device on that network can become a teacher.
 3. **Signalling:** pair-gated; only server-authorized teacher↔student pairs are relayed.
@@ -723,7 +723,7 @@ and teacher app run end-to-end; those are marked ⬜ until measured.*
 | Phase | Goal | Key deliverables | Exit criteria |
 | ----- | ---- | ---------------- | ------------- |
 | **P0 — Foundations** ✅ | Contracts, server, discovery | `Shared` contracts; SignalR hub (roster, signalling relay, telemetry fan-out); UDP discovery; security hardening (pair-gating, optional teacher code, no CORS) | Server builds & runs; discovery verified end-to-end |
-| **P1 — Student agent MVP** ✅ | Agent registers, streams one screen, reports telemetry | `ClassInsight.Agent`: discovery ✅, `RegisterStudent` ✅, 1 Hz telemetry ✅, WebRTC **VP8** sender ✅, auto-start service ✅ (elevated install run pending 🟡) | A real Windows PC appears in the roster (✅) and streams its screen on request (✅) |
+| **P1 — Student agent MVP** ✅ | Agent registers, streams one screen, reports telemetry | `PROCTOR.Agent`: discovery ✅, `RegisterStudent` ✅, 1 Hz telemetry ✅, WebRTC **VP8** sender ✅, auto-start service ✅ (elevated install run pending 🟡) | A real Windows PC appears in the roster (✅) and streams its screen on request (✅) |
 | **P2 — Teacher app MVP** 🟡 | Live grid + focus view | Discovery + room choice ✅, live thumbnail grid ✅, focus view ✅, state badges ✅ on WinUI; Android/iOS/macOS heads compile ✅, on-device runs ⬜ | A teacher on any of the 4 platforms sees live student screens in a grid (Windows ✅; others need devices) |
 | **P3 — Telemetry views** ✅ | Processes & bandwidth UI | Processes view ✅, live bandwidth view ✅, foreground app + browser host ✅, quality switching ✅, sort/filter/density ✅ | Teacher can inspect any student's processes and live bandwidth (✅) |
 | **P4 — Hardening** ✅ | Production readiness | Reconnection ✅, multi-monitor ✅, STUN/TURN config ✅ (no TURN server tested), multi-room ✅, manual address ✅, PowerShell installer ✅, **MSI** ✅, DXGI capture ✅; code signing needs the institution's certificate | Stable 40-student room (✅ simulated; field run recommended); agent deployable by IT via installer (✅ MSI + script) |
@@ -736,8 +736,8 @@ this document and `README.md` in sync with reality.
 
 ## 10. Testing strategy
 
-`tests/ClassInsight.Tests` (xUnit, in the `ClassInsight` solution) — **52 tests, all passing**
-(`dotnet test ClassInsight.slnx`):
+`tests/PROCTOR.Tests` (xUnit, in the `PROCTOR` solution) — **52 tests, all passing**
+(`dotnet test PROCTOR.slnx`):
 
 - **Unit tests:** discovery codec (round trip, forced source host/path, bad magic/version/port,
   room-name sanitising), manual-address parsing, roster/pair authorization and teardown,
@@ -763,7 +763,7 @@ this document and `README.md` in sync with reality.
 
 - **Server:** runs on the teacher's machine or a small lab server; configured via
   `appsettings.json` (`Port`, `RoomName`, `TeacherCode`); listens on `0.0.0.0`.
-- **Agent:** `installer/` builds **`ClassInsight.Agent.msi`** (WiX v5, `dotnet build -c Release`)
+- **Agent:** `installer/` builds **`PROCTOR.Agent.msi`** (WiX v5, `dotnet build -c Release`)
   for GPO software installation / Intune / SCCM / imaging (`msiexec /i … /qn`); the equivalent
   `deploy/Install-Agent.ps1` remains for script-based deployment. Both install the
   self-contained agent as an auto-start LocalSystem service with restart-on-failure and a
@@ -776,7 +776,7 @@ this document and `README.md` in sync with reality.
 - **Networking:** allow UDP 47800 and the hub TCP port between lab devices, plus UDP between
   teacher and student for WebRTC media. Where broadcast is blocked, type the server address in
   the teacher app or set `ServerAddress` on agents. Across segmented networks, configure
-  `ClassInsight:IceServers` with a TURN server.
+  `PROCTOR:IceServers` with a TURN server.
 
 ---
 
@@ -798,7 +798,7 @@ this document and `README.md` in sync with reality.
 
 ## 13. Glossary
 
-- **Agent** — the ClassInsight program on a student's Windows PC.
+- **Agent** — the PROCTOR program on a student's Windows PC.
 - **Room** — one server instance = one classroom/lab; all its clients share a roster.
 - **Roster** — the live set of connected students and teachers.
 - **Signalling** — the SDP/ICE exchange that sets up a WebRTC connection.
@@ -815,16 +815,16 @@ traceable to real work.
 
 - **0.25 — 2026-11-17**
   - **Viewing notice is installable** (FR-SEC-05): the student "being viewed by your teacher" notice
-    (already switchable with `ClassInsight:ShowViewingIndicator`) now has an MSI property
+    (already switchable with `PROCTOR:ShowViewingIndicator`) now has an MSI property
     `SHOWVIEWINGINDICATOR` and a `Build-AgentSetup.ps1 -HideViewingIndicator` switch, so IT can turn
     it off per lab at install time. Still shown by default. Agent/MSI 0.3.1.
 
 - **0.24 — 2026-11-16**
   - **Agent setup .exe per lab** (P4): `installer\Build-AgentSetup.ps1` builds
-    `ClassInsight-Agent-Setup.exe` (agent 0.3.0, self-contained) with a lab's server fingerprint,
+    `PROCTOR-Agent-Setup.exe` (agent 0.3.0, self-contained) with a lab's server fingerprint,
     address, room, enrolment key and remote-control setting built in, so IT just double-clicks it
     on each PC; the setup also forwards those settings from its command line to the MSI. Output in
-    `ClassInsight\dist\` (not committed). A setup with an enrolment key built in must be kept private.
+    `PROCTOR\dist\` (not committed). A setup with an enrolment key built in must be kept private.
 
 - **0.23 — 2026-11-16**
   - **Agent enrolment** completes NFR-SEC-06 (✅): per-PC agent keys, signed single-use challenge
@@ -871,8 +871,8 @@ traceable to real work.
 
 - **0.13 — 2026-11-15**
   - **Repository move:** the back end (Shared, Server, Agent, Tests, installers) now lives in
-    this repo under `ClassInsight/` (it had been in the unrelated SENGEN repository).
-  - **Agent setup.exe:** `ClassInsight/installer/setup` builds `ClassInsight-Agent-Setup.exe`
+    this repo under `PROCTOR/` (it had been in the unrelated SENGEN repository).
+  - **Agent setup.exe:** `PROCTOR/installer/setup` builds `PROCTOR-Agent-Setup.exe`
     (WiX Burn bundle around the MSI): double-click install, or `/quiet /norestart`.
   - **Classroom control (P5):** lock/unlock, messages, open web page, log off/restart/shut down,
     room limits (web block/allow lists, blocked programs, internet off, mute), raise hand — with
@@ -924,7 +924,7 @@ traceable to real work.
     launches the monitor inside the console session; the installer protects the state folder.
   - **Mobile/Apple heads (FR-TEACH-05 🟡):** networking permissions, multicast lock and
     local-network entitlements; all four heads compile with 0 warnings.
-  - **`ClassInsight.Tests` (47 tests, all pass)** and a runtime harness; GUI re-verified on WinUI
+  - **`PROCTOR.Tests` (47 tests, all pass)** and a runtime harness; GUI re-verified on WinUI
     (room chooser, live grid, focus + display 2, search/density).
 
 - **0.10 — 2026-11-13**
@@ -945,7 +945,7 @@ traceable to real work.
 - **0.9 — 2026-11-13**
   - **Custom window chrome (title bar) + usability pass.** Replaced the default OS title bar with
     integrated app chrome via MAUI's `Window.TitleBar`: a dark branded bar carrying the purple
-    "ClassInsight" wordmark, keeping the native minimize/maximize/close buttons and the drag/resize
+    "PROCTOR" wordmark, keeping the native minimize/maximize/close buttons and the drag/resize
     behaviour, so the app reads like a real product rather than a default-chrome window.
     **GUI-verified** on screen. Also hid the Shell nav bar (`Shell.NavBarIsVisible="False"`) on the
     three tab pages so the oversized page title no longer repeats what the active tab already says —
@@ -981,7 +981,7 @@ traceable to real work.
     compiled bindings (so every binding path is validated); on-screen render still to be confirmed.
   - **Agent install hardening (security review follow-ups).** The agent-as-service installer was
     hardened in three rounds against binary-path privilege escalation: install into a protected
-    `%ProgramFiles%\ClassInsight` (ACL: Admins/SYSTEM full, Users read+execute); wipe any
+    `%ProgramFiles%\PROCTOR` (ACL: Admins/SYSTEM full, Users read+execute); wipe any
     pre-existing dir to kill planted DLLs; allowlist-based ACL/owner verification over the whole
     tree; create the dir already holding the protected DACL (no TOCTOU window); and verify every
     installed file against the source bundle by SHA-256. Validator/mechanics spot-checked.
@@ -992,10 +992,10 @@ traceable to real work.
     `AddWindowsService` + Event Log sink when running as a service), while remaining a normal
     `dotnet run` console app for development — the service wiring is a no-op unless the SCM
     launched the process. Added `deploy/Install-Agent.ps1` / `Uninstall-Agent.ps1` / `README.md`:
-    install registers `ClassInsightAgent` as `Automatic` start under `LocalSystem` with
+    install registers `PROCTORAgent` as `Automatic` start under `LocalSystem` with
     restart-on-failure, so a managed lab PC auto-joins the classroom at boot with no student
     action and no per-machine config (discovery finds the server). Agent builds 0/0; console
-    startup verified ("ClassInsight agent starting on …").
+    startup verified ("PROCTOR agent starting on …").
   - **Casual-termination resistance (FR-AGENT-07 → 🟡).** Falls out of the above: a
     `LocalSystem` service can't be stopped by a standard student without admin, and `sc failure`
     restarts it on exit. Full verification on a locked-down account still pending.
@@ -1040,14 +1040,14 @@ traceable to real work.
     shared-network deployment; no code change now.
 
 - **0.3 — 2026-11-13**
-  - **Server + agent restored and running end-to-end.** `ClassInsight.Server` and
-    `ClassInsight.Agent` (lost from disk earlier, see 0.2) were rebuilt from the shared
+  - **Server + agent restored and running end-to-end.** `PROCTOR.Server` and
+    `PROCTOR.Agent` (lost from disk earlier, see 0.2) were rebuilt from the shared
     wire contract and both client implementations, then verified at runtime on one machine:
     the agent auto-discovered the server over UDP, registered as a student with **no code**,
     and the server logged the join (with the real socket IP) and a clean leave. Both build
-    0 warnings / 0 errors; a new `ClassInsight.slnx` ties Shared + Server + Agent together.
+    0 warnings / 0 errors; a new `PROCTOR.slnx` ties Shared + Server + Agent together.
   - **Open teacher mode is the shipped default.** `appsettings.json` sets
-    `ClassInsight:AllowOpenTeacherMode=true`, so teachers join with no code on the trusted
+    `PROCTOR:AllowOpenTeacherMode=true`, so teachers join with no code on the trusted
     lab VLAN (FR-SEC-03); `ServerIdentity` logs a prominent warning that this is VLAN-only
     and, in closed mode, prints a generated 6-digit join code to the console.
   - **Server internals** (reconstructed): `ClassroomHub` (roster + pair-gated SDP/ICE relay
@@ -1075,11 +1075,11 @@ traceable to real work.
     is identical on Windows, macOS, iOS and Android from one codebase. This **largely
     retires R-1**; the open items are the agent's real screen-capture → H.264 source and
     measuring the managed decoder's cost at scale.
-  - **`ClassInsight.Shared` rebuilt in place.** The sibling `ClassInsight` solution was
+  - **`PROCTOR.Shared` rebuilt in place.** The sibling `PROCTOR` solution was
     lost from disk during development. `Protocol.cs` and the four contract files
     (`Discovery`, `Roster`, `Signaling`, `Telemetry`) were restored verbatim;
     `Discovery/LanDiscoveryClient.cs` was reconstructed from its call sites and §3 (noted
-    in a header comment on that file). `ClassInsight.Server` and `ClassInsight.Agent` were
+    in a header comment on that file). `PROCTOR.Server` and `PROCTOR.Agent` were
     **restored in 0.3** (see above).
   - **Zero-friction teacher connect.** The teacher app now auto-connects on launch with
     no join code and only shows the code box if the server rejects it (see §8). Paired
@@ -1096,5 +1096,5 @@ traceable to real work.
 
 ---
 
-*This plan is the basis of the ClassInsight system. Update it as decisions change —
+*This plan is the basis of the PROCTOR system. Update it as decisions change —
 requirement IDs are stable references for tests, commits, and reviews.*

@@ -1,4 +1,4 @@
-using PROCTORSystemMulti_ProjectApp.ClassInsight;
+using PROCTORSystemMulti_ProjectApp.PROCTOR;
 
 namespace PROCTORSystemMulti_ProjectApp;
 
@@ -173,7 +173,7 @@ public partial class FocusPage : ContentPage
         const string full = "Full screen (students can't close it)", window = "In a window";
         var choice = await DisplayActionSheetAsync($"Show {_tile.MachineName}'s screen to the class", "Cancel", null, full, window);
         if (choice != full && choice != window) return;
-        var error = await _vm.Broadcaster.StartAsync(choice == full ? global::ClassInsight.Shared.Contracts.BroadcastMode.FullScreen : global::ClassInsight.Shared.Contracts.BroadcastMode.Window, null, _tile);
+        var error = await _vm.Broadcaster.StartAsync(choice == full ? global::PROCTOR.Shared.Contracts.BroadcastMode.FullScreen : global::PROCTOR.Shared.Contracts.BroadcastMode.Window, null, _tile);
         await DisplayAlertAsync(error is null ? "Showing to the class" : "Couldn't show this screen",
             error ?? $"The class now sees {_tile.MachineName}'s screen, and the student has been told. Stop it from the dashboard banner or this button.", "OK");
     }

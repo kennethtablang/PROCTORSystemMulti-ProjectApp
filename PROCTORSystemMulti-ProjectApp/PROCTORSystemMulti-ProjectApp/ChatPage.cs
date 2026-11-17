@@ -1,4 +1,4 @@
-using PROCTORSystemMulti_ProjectApp.ClassInsight;
+using PROCTORSystemMulti_ProjectApp.PROCTOR;
 
 namespace PROCTORSystemMulti_ProjectApp;
 
@@ -49,7 +49,7 @@ public sealed class ChatPage : ContentPage
             },
         };
 
-        _input = new Entry { Placeholder = "Type a message…", MaxLength = global::ClassInsight.Shared.Contracts.ClassroomLimits.MaxTextLength, ReturnType = ReturnType.Send };
+        _input = new Entry { Placeholder = "Type a message…", MaxLength = global::PROCTOR.Shared.Contracts.ClassroomLimits.MaxTextLength, ReturnType = ReturnType.Send };
         _input.Completed += async (_, _) => await SendAsync();
         var send = new Button { Text = "Send", Padding = new Thickness(16, 4) };
         send.Clicked += async (_, _) => await SendAsync();

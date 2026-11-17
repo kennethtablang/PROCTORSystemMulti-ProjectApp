@@ -46,9 +46,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- Shared ClassInsight wire contracts — server, agent and teacher app all
+		<!-- Shared PROCTOR wire contracts — server, agent and teacher app all
 		     reference this one library so the protocol can never drift (NFR-MAIN-01). -->
-		<ProjectReference Include="..\..\ClassInsight\src\ClassInsight.Shared\ClassInsight.Shared.csproj" />
+		<ProjectReference Include="..\..\PROCTOR\src\PROCTOR.Shared\PROCTOR.Shared.csproj" />
 	</ItemGroup>
 
 </Project>

@@ -1,6 +1,6 @@
 using System.ComponentModel;
-using ClassInsight.Shared.Contracts;
-using PROCTORSystemMulti_ProjectApp.ClassInsight;
+using PROCTOR.Shared.Contracts;
+using PROCTORSystemMulti_ProjectApp.PROCTOR;
 
 namespace PROCTORSystemMulti_ProjectApp;
 

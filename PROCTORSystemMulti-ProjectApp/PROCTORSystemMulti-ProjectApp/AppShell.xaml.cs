@@ -13,7 +13,7 @@
         protected override async void OnAppearing()
         {
             base.OnAppearing();
-            if (_lockShown || !ClassInsight.TeacherPin.IsSet) return;
+            if (_lockShown || !PROCTOR.TeacherPin.IsSet) return;
             _lockShown = true;
             await Navigation.PushModalAsync(new LockPage(), animated: false);
         }

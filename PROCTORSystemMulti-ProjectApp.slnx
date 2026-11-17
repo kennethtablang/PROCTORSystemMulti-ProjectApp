@@ -12,10 +12,10 @@
     <Platform Project="x64" />
   </Project>
   <Project Path="PROCTORSystemMulti-ProjectApp/PROCTORSystemMulti-ProjectApp/PROCTORSystemMulti-ProjectApp.csproj" />
-  <Folder Name="/ClassInsight/">
-    <Project Path="ClassInsight/src/ClassInsight.Shared/ClassInsight.Shared.csproj" />
-    <Project Path="ClassInsight/src/ClassInsight.Server/ClassInsight.Server.csproj" />
-    <Project Path="ClassInsight/src/ClassInsight.Agent/ClassInsight.Agent.csproj" />
-    <Project Path="ClassInsight/tests/ClassInsight.Tests/ClassInsight.Tests.csproj" />
+  <Folder Name="/PROCTOR/">
+    <Project Path="PROCTOR/src/PROCTOR.Shared/PROCTOR.Shared.csproj" />
+    <Project Path="PROCTOR/src/PROCTOR.Server/PROCTOR.Server.csproj" />
+    <Project Path="PROCTOR/src/PROCTOR.Agent/PROCTOR.Agent.csproj" />
+    <Project Path="PROCTOR/tests/PROCTOR.Tests/PROCTOR.Tests.csproj" />
   </Folder>
 </Solution>

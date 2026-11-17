@@ -1,5 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
-using PROCTORSystemMulti_ProjectApp.ClassInsight;
+using PROCTORSystemMulti_ProjectApp.PROCTOR;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 
 namespace PROCTORSystemMulti_ProjectApp

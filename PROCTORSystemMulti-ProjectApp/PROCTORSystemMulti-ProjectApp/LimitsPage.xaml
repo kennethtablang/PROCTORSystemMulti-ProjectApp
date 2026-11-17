@@ -29,14 +29,14 @@
             <Label Text="Blocked programs" FontAttributes="Bold" FontSize="15" Margin="0,8,0,0" />
             <Editor x:Name="Apps" HeightRequest="90" AutoSize="Disabled"
                     Placeholder="One program per line, e.g.&#10;steam&#10;discord.exe" />
-            <Label Text="Listed programs are closed when they start. Windows itself and ClassInsight can never be blocked."
+            <Label Text="Listed programs are closed when they start. Windows itself and PROCTOR can never be blocked."
                    FontSize="11" TextColor="Gray" />
 
             <!-- Internet / sound -->
             <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
                 <VerticalStackLayout Grid.Column="0" Spacing="2">
                     <Label Text="Turn off the internet" FontAttributes="Bold" FontSize="15" />
-                    <Label Text="The lab network and ClassInsight keep working." FontSize="11" TextColor="Gray" />
+                    <Label Text="The lab network and PROCTOR keep working." FontSize="11" TextColor="Gray" />
                 </VerticalStackLayout>
                 <Switch x:Name="BlockInternet" Grid.Column="1" VerticalOptions="Center" />
             </Grid>

@@ -1,0 +1,37 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <!--
+    MSI for the PROCTOR student agent (plan P4: "agent packaging (MSI/service)").
+    Build:  dotnet build -c Release   (from this folder)
+    Output: bin\Release\PROCTOR.Agent.msi
+    Deploy: msiexec /i PROCTOR.Agent.msi /qn   (GPO software installation, Intune, SCCM, imaging)
+
+    The agent is published self-contained (no .NET install needed on lab PCs) into obj\ before
+    the MSI is linked, so the MSI always carries a fresh build of the agent.
+  -->
+  <PropertyGroup>
+    <OutputName>PROCTOR.Agent</OutputName>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <AgentProject>$(MSBuildThisFileDirectory)..\src\PROCTOR.Agent\PROCTOR.Agent.csproj</AgentProject>
+    <!-- No trailing slash: inside a quoted command-line argument it would escape the quote. -->
+    <AgentPublishDir>$(MSBuildThisFileDirectory)obj\agent-publish</AgentPublishDir>
+    <DefineConstants>AgentDir=$(AgentPublishDir)\</DefineConstants>
+    <SuppressIces>ICE61</SuppressIces>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Explicit sources: the setup.exe bundle in setup/ is a separate project and must not be
+         compiled into the MSI (the SDK would otherwise glob every .wxs under this folder). -->
+    <Compile Include="Package.wxs" />
+  </ItemGroup>
+
+  <Target Name="PublishAgent" BeforeTargets="BeforeBuild">
+    <RemoveDir Directories="$(AgentPublishDir)" />
+    <Exec Command="dotnet publish &quot;$(AgentProject)&quot; -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o &quot;$(AgentPublishDir)&quot; -nologo -v q" />
+  </Target>
+</Project>

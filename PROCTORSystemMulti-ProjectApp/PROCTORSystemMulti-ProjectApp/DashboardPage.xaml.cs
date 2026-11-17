@@ -1,6 +1,6 @@
 using System.ComponentModel;
-using ClassInsight.Shared.Contracts;
-using PROCTORSystemMulti_ProjectApp.ClassInsight;
+using PROCTOR.Shared.Contracts;
+using PROCTORSystemMulti_ProjectApp.PROCTOR;
 
 namespace PROCTORSystemMulti_ProjectApp;
 
@@ -93,7 +93,7 @@ public partial class DashboardPage : ContentPage
     private async Task Collect()
     {
         var prompt = await DisplayPromptAsync("Collect work", "What should students hand in? (shown to them)", "Start collecting", "Cancel",
-            "e.g. Your finished worksheet", global::ClassInsight.Shared.Contracts.ClassroomLimits.MaxTextLength);
+            "e.g. Your finished worksheet", global::PROCTOR.Shared.Contracts.ClassroomLimits.MaxTextLength);
         if (prompt is null) return;
         var error = await _vm.StartCollectingAsync(prompt);
         if (error is not null) await DisplayAlertAsync("Couldn't start collecting", error, "OK");

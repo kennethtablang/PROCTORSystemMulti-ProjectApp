@@ -24,7 +24,7 @@ namespace PROCTORSystemMulti_ProjectApp.Droid
             try
             {
                 var wifi = (WifiManager?)GetSystemService(WifiService);
-                _multicastLock = wifi?.CreateMulticastLock("ClassInsightDiscovery");
+                _multicastLock = wifi?.CreateMulticastLock("PROCTORDiscovery");
                 _multicastLock?.SetReferenceCounted(false);
                 _multicastLock?.Acquire();
             }

@@ -5,11 +5,14 @@
      (5 s, 5 s, then 10 s; failure count reset daily) - FR-AGENT-02/07,
    * pre-creates %ProgramData%\PROCTOR (agent install id) with a protected ACL
      (Administrators/SYSTEM full, Users read) - FR-SEC-07,
+   * adds a Windows Firewall rule letting the agent receive screen-share video (WebRTC, UDP)
+     from PCs on the local subnet; removed again on uninstall,
    * upgrades in place (MajorUpgrade) and starts the service at the end of install.
   The service then launches the monitor inside the signed-in student's session (see README).
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+     xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall">
   <Package Name="PROCTOR Agent"
            Manufacturer="PROCTOR"
            Version="0.3.1"
@@ -68,7 +71,17 @@
       <Directory Id="INSTALLFOLDER" Name="PROCTOR">
 
         <Component Id="AgentService" Guid="*">
-          <File Id="AgentExe" Source="$(var.AgentDir)PROCTOR.Agent.exe" KeyPath="yes" />
+          <File Id="AgentExe" Source="$(var.AgentDir)PROCTOR.Agent.exe" KeyPath="yes">
+            <!-- The agent only dials out to the server, but WebRTC media (the teacher's broadcast,
+                 remote control) arrives over UDP from other lab PCs. Scoped to this exe and the
+                 local subnet; cross-subnet labs use a TURN relay (outbound) instead. -->
+            <fw:FirewallException Id="AgentWebRtcUdp"
+                                  Name="PROCTOR Agent (screen sharing)"
+                                  Description="Lets the PROCTOR agent receive screen-share video from PCs on the local network."
+                                  Protocol="udp"
+                                  Scope="localSubnet"
+                                  Profile="all" />
+          </File>
           <ServiceInstall Id="AgentServiceInstall"
                           Name="PROCTORAgent"
                           DisplayName="PROCTOR Agent"

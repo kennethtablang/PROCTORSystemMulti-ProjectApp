@@ -22,6 +22,11 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     throw 'This script must be run as Administrator (needed to remove a Windows service).'
 }
 
+if (Get-NetFirewallRule -Name "$ServiceName-WebRtc-Udp" -ErrorAction SilentlyContinue) {
+    Remove-NetFirewallRule -Name "$ServiceName-WebRtc-Udp"
+    Write-Host "Removed firewall rule '$ServiceName-WebRtc-Udp'."
+}
+
 $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if (-not $svc) {
     Write-Host "Service '$ServiceName' is not installed; nothing to do."

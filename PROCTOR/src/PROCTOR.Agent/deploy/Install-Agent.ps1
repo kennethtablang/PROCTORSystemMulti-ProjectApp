@@ -263,6 +263,19 @@ New-Service -Name $ServiceName `
 # Treat a non-zero exit as a failure so the recovery actions above apply even on a clean crash.
 & sc.exe failureflag $ServiceName 1 | Out-Null
 
+# --- firewall: same rule as the MSI ---------------------------------------
+# The agent only dials out to the server, but WebRTC media (the teacher's broadcast, remote
+# control) arrives over UDP from other lab PCs. Scoped to this exe and the local subnet.
+$fwRule = "$ServiceName-WebRtc-Udp"
+Remove-NetFirewallRule -Name $fwRule -ErrorAction SilentlyContinue
+Write-Host "Adding firewall rule '$fwRule' (UDP, local subnet, $targetExe)..."
+New-NetFirewallRule -Name $fwRule `
+                    -DisplayName 'PROCTOR Agent (screen sharing)' `
+                    -Description 'Lets the PROCTOR agent receive screen-share video from PCs on the local network.' `
+                    -Group 'PROCTOR' `
+                    -Direction Inbound -Action Allow -Protocol UDP `
+                    -Program $targetExe -RemoteAddress LocalSubnet -Profile Any | Out-Null
+
 # --- start ------------------------------------------------------------------
 Write-Host "Starting '$ServiceName'..."
 Start-Service -Name $ServiceName

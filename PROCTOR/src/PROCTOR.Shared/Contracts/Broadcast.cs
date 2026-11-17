@@ -35,8 +35,12 @@ public sealed record BroadcastInfo
 /// <summary>Broadcast stream parameters shared by the teacher (sender) and agents (viewers).</summary>
 public static class BroadcastLimits
 {
-    /// <summary>Width the teacher's screen is sent at (height follows its aspect ratio).</summary>
-    public const int Width = 1280;
+    /// <summary>
+    /// Width the teacher's screen is sent at (height follows its aspect ratio; smaller screens are
+    /// sent at their native size). Full HD is the largest the managed VP8 encoder sustains at
+    /// <see cref="Fps"/>: measured ≈ 71 ms/frame at 1920×1088, 123 ms at 2560×1440, 305 ms at 4K.
+    /// </summary>
+    public const int Width = 1920;
 
     public const int Fps = 10;
 

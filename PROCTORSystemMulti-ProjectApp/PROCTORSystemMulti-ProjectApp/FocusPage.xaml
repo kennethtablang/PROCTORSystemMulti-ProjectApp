@@ -32,17 +32,17 @@
         <FlexLayout Grid.Row="1" Grid.ColumnSpan="2" Wrap="Wrap" AlignItems="Center" Padding="16,6"
                     BackgroundColor="#14161B">
             <Button Text="✋ Lower hand" Clicked="OnLowerHand" IsVisible="{Binding HandRaised}" Margin="0,0,8,4"
-                    Padding="12,4" FontSize="13" BackgroundColor="#F9A825" TextColor="Black" />
-            <Button Text="🔒 Lock" Clicked="OnLock" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
-            <Button Text="🔓 Unlock" Clicked="OnUnlock" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
-            <Button Text="✉ Message" Clicked="OnMessage" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
-            <Button Text="💬 Chat" Clicked="OnChat" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
-            <Button Text="📁 Send file" Clicked="OnSendFile" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
-            <Button x:Name="ControlButton" Text="🖱 Control" Clicked="OnControl" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
-            <Button Text="🌐 Open site" Clicked="OnOpenSite" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
-            <Button Text="⏻ Power…" Clicked="OnPower" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
-            <Button Text="📷 Screenshot" Clicked="OnScreenshot" Margin="0,0,6,4" Padding="12,4" FontSize="13" />
-            <Button Text="📺 Show to class" Clicked="OnShowToClass" Margin="0,0,12,4" Padding="12,4" FontSize="13" />
+                    Padding="10,2" FontSize="12" BackgroundColor="#F9A825" TextColor="Black" />
+            <Button Text="🔒 Lock" Clicked="OnLock" Margin="0,0,6,4" Padding="10,2" FontSize="12" />
+            <Button Text="🔓 Unlock" Clicked="OnUnlock" Margin="0,0,6,4" Padding="10,2" FontSize="12" />
+            <Button Text="✉ Message" Clicked="OnMessage" Margin="0,0,6,4" Padding="10,2" FontSize="12" />
+            <Button Text="💬 Chat" Clicked="OnChat" Margin="0,0,6,4" Padding="10,2" FontSize="12" />
+            <Button Text="📁 Send file" Clicked="OnSendFile" Margin="0,0,6,4" Padding="10,2" FontSize="12" />
+            <Button x:Name="ControlButton" Text="🖱 Control" Clicked="OnControl" Margin="0,0,6,4" Padding="10,2" FontSize="12" />
+            <Button Text="🌐 Open site" Clicked="OnOpenSite" Margin="0,0,6,4" Padding="10,2" FontSize="12" />
+            <Button Text="⏻ Power…" Clicked="OnPower" Margin="0,0,6,4" Padding="10,2" FontSize="12" />
+            <Button Text="📷 Screenshot" Clicked="OnScreenshot" Margin="0,0,6,4" Padding="10,2" FontSize="12" />
+            <Button Text="📺 Show to class" Clicked="OnShowToClass" Margin="0,0,12,4" Padding="10,2" FontSize="12" />
             <Label Text="{Binding LockText}" TextColor="#EF9A9A" FontAttributes="Bold" VerticalOptions="Center"
                    IsVisible="{Binding IsLocked}" Margin="0,0,0,4" />
         </FlexLayout>

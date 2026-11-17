@@ -66,7 +66,8 @@ public static class StreamResolution
     public const int AbsoluteMaxWidth = 3840;
 
     public const int DefaultThumbnailWidth = 480;
-    public const int DefaultFocusWidth = 1280;
+    /// <summary>Full HD: the sharpest focus stream that still holds ~15 fps on a typical lab PC.</summary>
+    public const int DefaultFocusWidth = 1920;
 
     /// <summary>Thumbnail sizes offered in the teacher app.</summary>
     public static readonly IReadOnlyList<(string Label, int Width)> ThumbnailChoices =

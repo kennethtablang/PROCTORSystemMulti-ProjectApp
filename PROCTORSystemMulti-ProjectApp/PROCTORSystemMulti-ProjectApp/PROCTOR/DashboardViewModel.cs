@@ -102,7 +102,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         // Stream resolution settings (remembered per teacher device).
         _thumbIndex = IndexOf(StreamResolution.ThumbnailChoices, LoadPref(PrefThumb), 1);
         Streams.ThumbnailWidth = StreamResolution.ThumbnailChoices[_thumbIndex].Width;
-        _focusIndex = IndexOf(StreamResolution.FocusChoices, LoadPref(PrefFocus), 1);
+        var defaultFocus = IndexOf(StreamResolution.FocusChoices, StreamResolution.DefaultFocusWidth.ToString(), 1);
+        _focusIndex = IndexOf(StreamResolution.FocusChoices, LoadPref(PrefFocus), defaultFocus);
         Streams.FocusWidth = StreamResolution.FocusChoices[_focusIndex].Width;
         _columns = DeviceInfo.Idiom == DeviceIdiom.Phone ? 1 : DeviceInfo.Idiom == DeviceIdiom.Tablet ? 2 : 3;
     }

@@ -6,7 +6,7 @@
     Copies the agent into a protected program folder, locks its ACL so only administrators and
     SYSTEM can modify it, and registers PROCTOR.Agent.exe as a Windows service that starts
     automatically at boot - before any user logs in - so a managed lab PC joins the classroom
-    with no student action and no per-machine configuration (discovery finds the server). Also
+    with no student action and no per-machine conclaudefiguration (discovery finds the server). Also
     configures restart-on-failure so the agent recovers if it exits (FR-AGENT-07, within the lab
     trust model).
 
@@ -211,23 +211,35 @@ if ($problems) {
 
 # --- protected state folder for the agent's random install id (FR-SEC-07) -------------------
 # %ProgramData% lets standard users create files in new subfolders, so pre-create ours with a
-# protected DACL. An agent-id a non-admin planted before the first run is discarded so a student
-# can't choose (or copy) the identity this machine reports.
+# protected DACL. Anything a non-admin planted there before the first run (agent-id, agent-key)
+# is discarded so a student can't choose (or copy) the identity this machine reports.
 $stateDir = Join-Path $env:ProgramData 'PROCTOR'
 $stateSd = New-Object System.Security.AccessControl.DirectorySecurity
 $stateSd.SetAccessRuleProtection($true, $false)
 $stateSd.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins,'FullControl',$inherit,$none,$allow)))
 $stateSd.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system,'FullControl',$inherit,$none,$allow)))
 $stateSd.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users,'ReadAndExecute',$inherit,$none,$allow)))
+# Never "bless" files of unknown origin with /reset + /setowner: a student could have pre-created
+# the folder and planted an agent-key whose private half they kept, then impersonated this PC.
+# If the folder or anything in it isn't owned by (and writable only by) trusted principals, wipe
+# it and start clean; the agent re-enrols with a fresh key. Files the agent itself created pass.
 if (Test-Path -LiteralPath $stateDir) {
-    $idFile = Join-Path $stateDir 'agent-id'
-    if (Test-Path -LiteralPath $idFile) {
-        $idOwner = try { (Get-Acl -LiteralPath $idFile).GetOwner([Security.Principal.SecurityIdentifier]).Value } catch { '' }
-        if ($TrustedSids -notcontains $idOwner) {
-            Write-Host "Discarding an agent-id not created by the agent ($idOwner)."
-            Remove-Item -LiteralPath $idFile -Force
+    $stateProblem = Get-ItemSecurityProblem -Path $stateDir
+    if (-not $stateProblem) {
+        foreach ($item in @(Get-ChildItem -LiteralPath $stateDir -Recurse -Force -ErrorAction Stop)) {
+            $p = Get-ItemSecurityProblem -Path $item.FullName
+            if ($p) { $stateProblem = "$($item.FullName): $p"; break }
         }
     }
+    if ($stateProblem) {
+        Write-Host "Discarding untrusted $stateDir ($stateProblem)."
+        Remove-Item -LiteralPath $stateDir -Recurse -Force
+        if (Test-Path -LiteralPath $stateDir) {
+            throw "Could not remove untrusted $stateDir (files in use?). Resolve and re-run."
+        }
+    }
+}
+if (Test-Path -LiteralPath $stateDir) {
     Set-Acl -LiteralPath $stateDir -AclObject $stateSd
     & icacls $stateDir /reset /T /C /Q | Out-Null
     & icacls $stateDir /setowner "*S-1-5-32-544" /T /C /Q | Out-Null

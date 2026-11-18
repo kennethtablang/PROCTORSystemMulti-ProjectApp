@@ -18,7 +18,7 @@ namespace PROCTOR.Agent.Services;
 /// It is click-through, never takes focus, stays on top, and is excluded from screen capture
 /// (<c>WDA_EXCLUDEFROMCAPTURE</c>) so it never shows up in the teacher's own view. Institutions
 /// whose policy doesn't call for notice can switch it off with
-/// <c>PROCTOR:ShowViewingIndicator=false</c>.
+/// <c>PROCTOR:ShowViewingIndicator</c> (off by default; <c>true</c> shows it).
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed class ViewingIndicator : IDisposable

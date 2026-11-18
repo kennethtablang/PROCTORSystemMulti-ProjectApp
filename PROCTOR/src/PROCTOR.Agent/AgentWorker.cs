@@ -94,7 +94,8 @@ public sealed class AgentWorker : BackgroundService
 
         // On-screen notice while a teacher is viewing (FR-SEC-05). On by default; an institution
         // whose policy doesn't require notice can turn it off.
-        if (section.GetValue<bool?>("ShowViewingIndicator") ?? true)
+        // Off unless turned on (SHOWVIEWINGINDICATOR=true / Build-AgentSetup.ps1 -ShowViewingIndicator).
+        if (section.GetValue<bool?>("ShowViewingIndicator") ?? false)
             _indicator = new ViewingIndicator(loggerFactory.CreateLogger<ViewingIndicator>());
 
         // Classroom control (P5): messages, lock screen, notices and the raise-hand tray icon, plus

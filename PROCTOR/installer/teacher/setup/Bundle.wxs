@@ -4,7 +4,8 @@
   Last screen: Launch opens the teacher app.
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Bundle Name="PROCTOR Teacher"
           IconSourceFile="$(sys.SOURCEFILEDIR)..\..\..\..\branding\proctor.ico"
           Manufacturer="PROCTOR"
@@ -26,11 +27,22 @@
       <Payload SourceFile="proctor-logo.png" />
     </BootstrapperApplication>
 
+    <!-- "Run the classroom service on this PC" (first screen). Ticked = teacher PC the class connects
+         to; unticked = teacher app only, for a laptop. An earlier install's choice is the default, so
+         updates (the app's Update now runs this setup /passive) keep it. Command line: INSTALLSERVICE=0. -->
+    <Variable Name="INSTALLSERVICE" Type="numeric" Value="1" bal:Overridable="yes" />
+    <util:RegistrySearch Id="FindInstallService" Variable="SAVEDINSTALLSERVICE" Root="HKLM"
+                         Key="Software\PROCTOR\Teacher" Value="InstallService" Bitness="always64" />
+    <SetVariable Id="UseSavedInstallService" Variable="INSTALLSERVICE" Value="[SAVEDINSTALLSERVICE]" Type="numeric"
+                 After="FindInstallService" Condition="SAVEDINSTALLSERVICE = &quot;0&quot; OR SAVEDINSTALLSERVICE = &quot;1&quot;" />
+
     <!-- The finish page's Launch button (run unelevated, as the signed-in teacher). -->
     <Variable Name="LaunchTarget" Value="[ProgramFiles64Folder]PROCTOR Teacher\App\PROCTORSystemMulti-ProjectApp.WinUI.exe" />
 
     <Chain>
-      <MsiPackage SourceFile="$(var.PROCTOR.Teacher.Installer.TargetPath)" Vital="yes" Visible="no" />
+      <MsiPackage SourceFile="$(var.PROCTOR.Teacher.Installer.TargetPath)" Vital="yes" Visible="no">
+        <MsiProperty Name="INSTALLSERVICE" Value="[INSTALLSERVICE]" />
+      </MsiPackage>
     </Chain>
   </Bundle>
 </Wix>

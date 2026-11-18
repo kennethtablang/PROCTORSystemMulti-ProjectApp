@@ -15,6 +15,27 @@ public sealed partial class DashboardViewModel
 {
     private LanAddresses.Candidate? _thisPc;
 
+    /// <summary>
+    /// This PC runs the classroom service (installed by PROCTOR Teacher with "Run the classroom
+    /// service on this PC": App\ and Server\ side by side). False on a teacher laptop installed as
+    /// "teacher app only": it connects to the lab's teacher PC, so it must not tell anyone to point
+    /// student PCs at itself.
+    /// </summary>
+    private static readonly bool HasLocalService = DetectLocalService();
+
+    private static bool DetectLocalService()
+    {
+        try
+        {
+            return OperatingSystem.IsWindows()
+                && File.Exists(Path.Combine(AppContext.BaseDirectory, "..", "Server", "PROCTOR.Server.exe"));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public ICommand CopyServerAddressCommand { get; private set; } = null!;
     public ICommand CopySetupCommandCommand { get; private set; } = null!;
     public ICommand CopyTestCommandCommand { get; private set; } = null!;
@@ -48,6 +69,7 @@ public sealed partial class DashboardViewModel
         Raise(nameof(ServerKey));
         Raise(nameof(HasServerKey));
         Raise(nameof(ServerKeyHint));
+        Raise(nameof(ShowStudentSteps));
         Raise(nameof(TestCommand));
         Raise(nameof(NetworkNote));
         Raise(nameof(HasNetworkNote));
@@ -59,7 +81,10 @@ public sealed partial class DashboardViewModel
 
     public string ConnectGuideTitle => ConnectedServer is { } s
         ? $"Connect student PCs to “{s.RoomName}”"
-        : "Connect student PCs";
+        : HasLocalService ? "Connect student PCs" : "Connect to the lab's teacher PC";
+
+    /// <summary>Student-PC setup steps: only when they would point at a real server.</summary>
+    public bool ShowStudentSteps => ConnectedServer is not null || HasLocalService;
 
     private global::PROCTOR.Shared.Contracts.DiscoveryResponse? ConnectedServer =>
         IsConnected ? _client.CurrentServer : null;
@@ -69,10 +94,15 @@ public sealed partial class DashboardViewModel
     /// <summary>host:port student PCs must reach. Never an example: the live server's, or this PC's.</summary>
     public string StudentServerAddress => ConnectedServer is { } s
         ? $"{s.Host}:{s.Port}"
-        : _thisPc is null ? "No network connection" : ThisPcAddress;
+        : _thisPc is null ? "No network connection"
+        : HasLocalService ? ThisPcAddress : "Not connected yet";
 
     public string AddressSourceText => ConnectedServer is not null
         ? "Address of the classroom server this app is connected to."
+        : !HasLocalService && _thisPc is not null
+            ? "This PC runs the teacher app only. Type the lab teacher PC's address in the box below " +
+              "(e.g. 192.168.2.10:5080; PROCTOR Teacher on that PC shows it) and press Connect. This app " +
+              "remembers it. The student PCs stay set up as they are."
         : _thisPc is { } p
             ? $"Not connected to a server yet. When the PROCTOR Classroom Service runs on this PC, this is its address ({p.AdapterName})."
             : "This PC has no network connection. Connect it to the lab network first.";
@@ -123,12 +153,15 @@ public sealed partial class DashboardViewModel
     // Students need to reach this PC only when the server runs here (or nothing is connected yet).
     // A teacher laptop connected to a server on a wired PC can sit behind any Wi-Fi.
     private bool ServerIsThisPc => ConnectedServer is not { } s
-        || (_thisPc is { } p && string.Equals(s.Host, p.Address.ToString(), StringComparison.OrdinalIgnoreCase))
+        ? HasLocalService
+        : (_thisPc is { } p && string.Equals(s.Host, p.Address.ToString(), StringComparison.OrdinalIgnoreCase))
         || s.Host is "127.0.0.1" or "localhost";
 
     public string ManualAddressHint => _thisPc is null
         ? "Server not found automatically? Enter its address (host:port)"
-        : $"Server not found automatically? Enter its address (this PC: {ThisPcAddress})";
+        : HasLocalService
+            ? $"Server not found automatically? Enter its address (this PC: {ThisPcAddress})"
+            : "Lab teacher PC's address, e.g. 192.168.2.10:5080";
 
     private async Task CopyAsync(string text, string what)
     {

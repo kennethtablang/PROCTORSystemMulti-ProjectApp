@@ -10,7 +10,7 @@
     <Font Id="2" Height="-22" Weight="500" Foreground="graytext">Segoe UI</Font>
     <Font Id="3" Height="-12" Weight="500" Foreground="windowtext" Background="window">Segoe UI</Font>
 
-    <Window Width="485" Height="300" HexStyle="100a0000" FontId="0" Caption="#(loc.Caption)">
+    <Window Width="485" Height="350" HexStyle="100a0000" FontId="0" Caption="#(loc.Caption)">
         <ImageControl X="11" Y="11" Width="64" Height="64" ImageFile="proctor-logo.png" Visible="yes"/>
         <Label X="80" Y="11" Width="-11" Height="64" FontId="1" Visible="yes" DisablePrefix="yes">#(loc.Title)</Label>
 
@@ -30,6 +30,9 @@
             <Label X="11" Y="112" Width="-11" Height="56" FontId="3" DisablePrefix="yes">#(loc.InstallMessage)</Label>
             <Hypertext Name="MoreInfoLink" X="11" Y="172" Width="-11" Height="20" TabStop="yes" FontId="3">#(loc.MoreInfoLink)</Hypertext>
             <Label X="11" Y="198" Width="-11" Height="20" FontId="3" DisablePrefix="yes">#(loc.InstallVersion)</Label>
+            <!-- Named after the bundle variable: WixStdBA reads and writes INSTALLSERVICE (1/0). -->
+            <Checkbox Name="INSTALLSERVICE" X="11" Y="226" Width="-11" Height="17" TabStop="yes" FontId="3">#(loc.InstallServiceCheckbox)</Checkbox>
+            <Label X="29" Y="245" Width="-11" Height="40" FontId="3" DisablePrefix="yes">#(loc.InstallServiceHelp)</Label>
             <Button Name="InstallUpdateButton" X="11" Y="-11" Width="200" Height="23" TabStop="yes" FontId="0" EnableCondition="WixStdBAUpdateAvailable" HideWhenDisabled="yes">#(loc.UpdateButton)</Button>
             <Button Name="OptionsButton" X="-171" Y="-11" Width="75" Height="23" TabStop="yes" FontId="0" VisibleCondition="NOT WixStdBASuppressOptionsUI">
                 <Text>#(loc.InstallOptionsButton)</Text>

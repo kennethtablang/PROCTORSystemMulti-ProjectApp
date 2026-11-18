@@ -7,7 +7,9 @@
   <String Id="CheckingForUpdatesLabel" Value="Checking for updates" />
   <String Id="UpdateButton" Value="&amp;Update to version [WixStdBAUpdateAvailable]" />
   <String Id="InstallHeader" Value="Welcome" />
-  <String Id="InstallMessage" Value="Setup will install the PROCTOR teacher app and the classroom service that student PCs connect to. Install it on the teacher's PC. Click Install to continue or Cancel to exit." />
+  <String Id="InstallMessage" Value="Setup will install the PROCTOR teacher app and, on the lab's teacher PC, the classroom service that student PCs connect to. Click Install to continue or Cancel to exit." />
+  <String Id="InstallServiceCheckbox" Value="&amp;Run the classroom service on this PC (the lab's teacher PC)" />
+  <String Id="InstallServiceHelp" Value="Untick on a teacher laptop: it then connects to the lab's teacher PC, and the student PCs stay set up as they are." />
   <String Id="MoreInfoLink" Value="&lt;a href=&quot;https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp&quot;&gt;More information&lt;/a&gt; about PROCTOR: features, requirements and release notes." />
   <String Id="InstallMessageOptions" Value="Setup will install [WixBundleName] on your computer. Click Install to continue, Options to set installation options, or Cancel to exit." />
   <String Id="InstallVersion" Value="Version [WixBundleVersion]" />

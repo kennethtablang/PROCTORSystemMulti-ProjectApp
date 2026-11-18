@@ -39,7 +39,7 @@ cd PROCTOR\installer
 | `-RoomName` | Join only this room. |
 | `-EnrollmentKey` | Lab enrolment key (server `AgentEnrollment=Key`). Anyone holding a setup built with it can read the key out of the file, so **keep that setup like a password**; or leave it out and pass `ENROLLMENTKEY=...` at install time. |
 | `-AllowRemoteControl` | Allow teacher remote control (requires `-ServerFingerprint`). |
-| `-HideViewingIndicator` | Don't show students the "Your screen is being viewed by your teacher" notice. Use only where your acceptable-use/privacy policy already tells students the lab PCs are monitored. |
+| `-ShowViewingIndicator` | Show students a "Your screen is being viewed by your teacher" notice while a teacher views their screen. Off by default: make sure your acceptable-use/privacy policy tells students the lab PCs are monitored. (`-HideViewingIndicator` still works and is the default.) |
 
 `.\Build-AgentSetup.ps1` with no parameters builds a generic setup (`dist\PROCTOR-Agent-Setup.exe`)
 that finds the server on the LAN and trusts the first one it meets.
@@ -79,7 +79,7 @@ overrides `appsettings.json`, and is remembered so later upgrades keep it):
 | `ROOMNAME` | `PROCTOR:RoomName` — join only this room. |
 | `ENROLLMENTKEY` | The lab enrolment key, when the server runs with `AgentEnrollment=Key`. Stored only in an admin-only registry key (never a settings file) and hidden from installer logs. |
 | `ALLOWREMOTECONTROL` | `PROCTOR:AllowRemoteControl` — `true` to allow remote control (also needs `SERVERFINGERPRINT`). |
-| `SHOWVIEWINGINDICATOR` | `PROCTOR:ShowViewingIndicator` — `false` to hide the "being viewed by your teacher" notice (default shows it). |
+| `SHOWVIEWINGINDICATOR` | `PROCTOR:ShowViewingIndicator` — `true` to show the "being viewed by your teacher" notice (default: hidden). |
 
 The MSI installs into `%ProgramFiles%\PROCTOR`, registers the same `PROCTORAgent` service
 (Automatic, LocalSystem, restart on failure 5 s / 5 s / 5 s, reset daily), creates
@@ -133,7 +133,7 @@ At the Windows logon screen there is no user desktop to capture; the agent stays
 | `PROCTOR:ServerFingerprint` | The classroom server's TLS key fingerprint, exactly as the server prints it at start-up. **Recommended.** With it the agent connects to that server only; without it the agent trusts the first server it reaches and remembers it as `TrustedServerFingerprint` under `HKLM\SOFTWARE\PROCTOR\Agent`, which students can't change or delete (then refuses any other). |
 | `PROCTOR:ServerAddress` | `host` or `host:port` to try when UDP broadcast discovery is blocked. |
 | `PROCTOR:ReportBrowserActivity` | Report the foreground browser tab's **host** (domain only). Default `true`. |
-| `PROCTOR:ShowViewingIndicator` | Show the student a small "Your screen is being viewed by your teacher" notice while viewed. Default `true` (FR-SEC-05). |
+| `PROCTOR:ShowViewingIndicator` | Show the student a small "Your screen is being viewed by your teacher" notice while viewed. Default `false` (FR-SEC-05: switchable per lab). |
 | `PROCTOR:EnableClassroomControl` | Messages, lock, polls, timer, chat, limits and the tray icon. Default `true`. |
 | `PROCTOR:AllowPowerCommands` | Obey log off / restart / shut down from the teacher. Default `true`. |
 | `PROCTOR:AllowRemoteControl` | Let a teacher control this PC's keyboard and mouse (the student sees a red banner while it happens). **Off by default.** It only takes effect when `ServerFingerprint` is also set (the agent is pinned to your classroom server's key, so a rogue server can't drive the PC), and the server also needs a teacher join code or `AllowStrongControlsInOpenMode`. Default `false`. |

@@ -67,6 +67,7 @@ public sealed class AgentWorker : BackgroundService
     // Which server's TLS key this agent trusts, and this PC's own key (NFR-SEC-06).
     private readonly ServerPin _pin;
     private readonly AgentUpdater _updater;
+    private bool _updateGateLogged;
     private readonly AgentIdentity _identity;
 
     // Remote control (FR-CTRL-05): null unless IT opted in (see the constructor).
@@ -230,7 +231,16 @@ public sealed class AgentWorker : BackgroundService
         }
 
         // Follow the teacher's PC: install the agent version it carries, if newer (in the background).
-        _ = _updater.CheckAsync(hub, server, presented, ct);
+        // The update runs as SYSTEM, so, like remote control, only from a server IT pinned by
+        // fingerprint: a trusted-on-first-use pin could belong to a rogue server that answered first.
+        if (_pin.IsStrict && presented == _pin.Configured)
+            _ = _updater.CheckAsync(hub, server, presented, ct);
+        else if (!_updateGateLogged)
+        {
+            _updateGateLogged = true;
+            _logger.LogInformation("Automatic agent updates are off: they need PROCTOR:ServerFingerprint " +
+                                   "(build the setup with Build-AgentSetup.ps1 -ServerFingerprint).");
+        }
 
         await TelemetryLoopAsync(hub, closed.Task, ct);
     }

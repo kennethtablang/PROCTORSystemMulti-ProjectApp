@@ -29,6 +29,7 @@ public sealed class ClassroomHub : Hub
     private readonly FileTransfers _files;
     private readonly RemoteControlState _remote;
     private readonly AgentStore _agents;
+    private readonly WebLimitsStore _webLimits;
     private const string NonceItem = "enrol-nonce";
     private readonly ILogger<ClassroomHub> _logger;
 
@@ -44,8 +45,10 @@ public sealed class ClassroomHub : Hub
         FileTransfers files,
         RemoteControlState remote,
         AgentStore agents,
+        WebLimitsStore webLimits,
         ILogger<ClassroomHub> logger)
     {
+        _webLimits = webLimits;
         _agents = agents;
         _remote = remote;
         _files = files;
@@ -111,12 +114,14 @@ public sealed class ClassroomHub : Hub
         var entry = _room.AddOrUpdateStudent(Context.ConnectionId, info);
         _logger.LogInformation("Student joined: {Name} ({Ip})", info.MachineName, info.IpAddress);
 
-        await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentJoined, entry.ToSnapshot());
+        await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentJoined, Snapshot(entry));
         await BroadcastRosterToTeachers();
 
-        // A student who joins mid-lesson gets the room's current web/app limits straight away.
-        if (!_room.Policy.IsEmpty)
-            await Clients.Caller.SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
+        // A student who joins mid-lesson gets the room's current limits straight away (with this
+        // PC's own website limits, if it has any).
+        var effective = EffectivePolicy(info.MachineId);
+        if (!effective.IsEmpty)
+            await Clients.Caller.SendAsync(Protocol.ClientMethods.PolicyUpdated, effective);
 
         // ...the class countdown, if one is running...
         if (_timer.Snapshot() is { Running: true } countdown)
@@ -214,7 +219,7 @@ public sealed class ClassroomHub : Hub
         _logger.LogInformation("Teacher joined: {Device} ({Platform})", info.DeviceName, info.Platform);
 
         // Give the newly-admitted teacher the full roster and the room's current limits immediately.
-        await Clients.Caller.SendAsync(Protocol.ClientMethods.RosterUpdated, _room.BuildRoster());
+        await Clients.Caller.SendAsync(Protocol.ClientMethods.RosterUpdated, Roster());
         await Clients.Caller.SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
         if (_polls.Results(_room.StudentCount) is { } results)
             await Clients.Caller.SendAsync(Protocol.ClientMethods.PollResultsUpdated, results);
@@ -672,11 +677,35 @@ public sealed class ClassroomHub : Hub
         if (StrongControlsBlocked && (clean.BlockInternet || clean.BlockedApps.Count > 0))
             throw new HubException("Turning off the internet and blocking programs need a teacher join code on this server (it runs in open mode).");
         _room.Policy = clean;
+        _webLimits.SetClass(clean.Web);   // website limits outlast the lesson (saved to disk)
         await PushPolicyAsync();
         _logger.LogInformation("Teacher {Teacher} set limits: web {Mode} ({Hosts} sites), {Apps} blocked apps, internet {Net}, mute {Mute}.",
             Context.ConnectionId, clean.WebMode, clean.WebHosts.Count, clean.BlockedApps.Count,
             clean.BlockInternet ? "off" : "on", clean.MuteSound);
         return clean;
+    }
+
+    /// <summary>
+    /// Give selected students their own website limits (a whitelist or blacklist of their own),
+    /// replacing the class's for them; null limits put them back on the class's. Kept by PC, so
+    /// they follow the PC across reconnects and restarts. Returns how many students it applied to.
+    /// </summary>
+    public async Task<int> SetStudentWebLimits(StudentWebLimitsRequest request)
+    {
+        if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can set limits.");
+        if (request?.Students is not { Count: > 0 }) throw new HubException("Choose at least one student.");
+        var limits = request.Limits is null ? null : ClassroomLimits.CleanWeb(request.Limits);
+        var targets = ResolveTargets(request.Students);
+        foreach (var id in targets)
+        {
+            if (!_room.TryGetStudent(id, out var student) || student is null) continue;
+            _webLimits.SetMachine(student.Info.MachineId, limits);
+            await Clients.Client(id).SendAsync(Protocol.ClientMethods.PolicyUpdated, EffectivePolicy(student.Info.MachineId));
+        }
+        await BroadcastRosterToTeachers();
+        _logger.LogInformation("Teacher {Teacher} set own website limits for {Count} student(s): {Mode} ({Hosts} sites).",
+            Context.ConnectionId, targets.Count, limits?.WebMode.ToString() ?? "class", limits?.WebHosts.Count ?? 0);
+        return targets.Count;
     }
 
     /// <summary>A student raises (or lowers) their hand to ask for help.</summary>
@@ -716,8 +745,23 @@ public sealed class ClassroomHub : Hub
 
     private async Task PushPolicyAsync()
     {
-        await Clients.Clients(_room.StudentConnectionIds).SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
+        // Each student gets the class policy with its own website limits, if it has any.
+        foreach (var id in _room.StudentConnectionIds.ToArray())
+            if (_room.TryGetStudent(id, out var student) && student is not null)
+                await Clients.Client(id).SendAsync(Protocol.ClientMethods.PolicyUpdated, EffectivePolicy(student.Info.MachineId));
         await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.PolicyUpdated, _room.Policy);
+    }
+
+    /// <summary>The room's policy as one PC sees it: its own website limits replace the class's.</summary>
+    private ClassPolicy EffectivePolicy(string? machineId) => _room.Policy.WithWeb(_webLimits.ForMachine(machineId));
+
+    private StudentSnapshot Snapshot(RoomRegistry.StudentEntry entry) =>
+        entry.ToSnapshot() with { OwnWebLimits = _webLimits.ForMachine(entry.Info.MachineId) };
+
+    private RosterSnapshot Roster()
+    {
+        var roster = _room.BuildRoster();
+        return roster with { Students = roster.Students.Select(s => s with { OwnWebLimits = _webLimits.ForMachine(s.MachineId) }).ToArray() };
     }
 
     /// <summary>Explicit roster pull (teachers normally rely on the pushed snapshot).</summary>
@@ -725,7 +769,7 @@ public sealed class ClassroomHub : Hub
     {
         if (!_room.IsTeacher(Context.ConnectionId))
             throw new HubException("Only teachers can read the roster.");
-        return _room.BuildRoster();
+        return Roster();
     }
 
     /// <summary>
@@ -883,11 +927,14 @@ public sealed class ClassroomHub : Hub
                     new RemoteControlInfo { TeacherConnectionId = id, Active = false });
             if (_room.TeacherCount == 0) await ClosePollAsync();
             if (_room.TeacherCount == 0 && _timer.Stop()) await PushTimerAsync();
-            if (_room.TeacherCount == 0 && !_room.Policy.IsEmpty)
+            // Programs, internet and sound limits end with the lesson (a crashed teacher app must not
+            // leave a lab without internet); website limits stay until a teacher changes them.
+            var policy = _room.Policy;
+            if (_room.TeacherCount == 0 && (policy.BlockedApps.Count > 0 || policy.BlockInternet || policy.MuteSound))
             {
-                _room.Policy = new ClassPolicy();
+                _room.Policy = new ClassPolicy().WithWeb(policy.Web);
                 await PushPolicyAsync();
-                _logger.LogInformation("Last teacher left: room limits cleared.");
+                _logger.LogInformation("Last teacher left: program, internet and sound limits cleared; website limits kept.");
             }
 
             // Tell each agent this teacher was watching to stop encoding for it right away,
@@ -911,7 +958,7 @@ public sealed class ClassroomHub : Hub
     }
 
     private Task BroadcastRosterToTeachers() =>
-        Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.RosterUpdated, _room.BuildRoster());
+        Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.RosterUpdated, Roster());
 
     /// <summary>
     /// Reject a client whose wire-protocol version doesn't match this server's (FR-DISC-06).

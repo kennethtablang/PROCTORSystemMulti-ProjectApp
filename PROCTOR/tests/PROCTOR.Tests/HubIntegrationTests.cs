@@ -32,6 +32,7 @@ public sealed class ServerFactory : WebApplicationFactory<ClassroomHub>
             // Each test server gets its own throwaway TLS identity (never %ProgramData%).
             ["PROCTOR:CertificatePath"] = Path.Combine(Path.GetTempPath(), "ci-test-" + Guid.NewGuid().ToString("N") + ".pfx"),
             ["PROCTOR:AgentStorePath"] = Path.Combine(Path.GetTempPath(), "ci-test-agents-" + Guid.NewGuid().ToString("N") + ".json"),
+            ["PROCTOR:WebLimitsPath"] = Path.Combine(Path.GetTempPath(), "ci-test-web-" + Guid.NewGuid().ToString("N") + ".json"),
             // Every test peer comes from the same in-memory address: don't let the enrolment rate limit get in the way.
             ["PROCTOR:EnrollmentsPerAddressPerHour"] = "100000",
             ["PROCTOR:EnrollmentsPerTenMinutes"] = "100000",

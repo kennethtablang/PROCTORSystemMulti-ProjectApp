@@ -186,6 +186,8 @@ public partial class FocusPage : ContentPage
         await DisplayAlertAsync("Screenshot", path is null ? "There's no picture yet." : $"Saved to:\n{path}", "OK");
     }
 
+    private async void OnWebsites(object? sender, EventArgs e) => await Navigation.PushModalAsync(new WebsitesPage(_vm, _tile));
+
     // Live metrics panel: collapsible; the screen takes the freed space (its column/row is Auto).
     private void OnToggleMetrics(object? sender, EventArgs e)
     {

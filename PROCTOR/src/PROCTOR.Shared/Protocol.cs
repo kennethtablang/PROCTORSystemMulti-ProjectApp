@@ -146,6 +146,8 @@ public static class Protocol
 
         /// <summary>Teacher → server: set the room-wide web/app limits (empty policy clears them).</summary>
         public const string SetPolicy = nameof(SetPolicy);
+        /// <summary>Give selected students their own website limits (or back to the class's).</summary>
+        public const string SetStudentWebLimits = nameof(SetStudentWebLimits);
 
         /// <summary>Student → server: raise (true) or lower (false) their hand to ask for help.</summary>
         public const string RaiseHand = nameof(RaiseHand);

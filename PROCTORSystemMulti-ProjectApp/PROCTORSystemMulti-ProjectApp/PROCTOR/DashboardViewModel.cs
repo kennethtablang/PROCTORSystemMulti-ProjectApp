@@ -351,6 +351,20 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Give students their own website limits (null: the class's). Returns an error to show, or null.</summary>
+    public async Task<string?> SetStudentWebLimitsAsync(IReadOnlyList<string> students, WebLimits? limits)
+    {
+        try
+        {
+            await _client.SetStudentWebLimitsAsync(students, limits);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
+    }
+
     /// <summary>Set the room's limits. Returns an error to show, or null.</summary>
     public async Task<string?> SetPolicyAsync(ClassPolicy policy)
     {
@@ -695,6 +709,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         if (_byConnection.TryGetValue(snap.ConnectionId, out var existing))
         {
             existing.State = snap.State;
+            existing.OwnWebLimits = snap.OwnWebLimits;
             return;
         }
         var tile = new StudentTile(snap);

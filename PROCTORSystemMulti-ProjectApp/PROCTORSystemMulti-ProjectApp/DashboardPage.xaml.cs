@@ -64,6 +64,7 @@ public partial class DashboardPage : ContentPage
     private async void OnOpenSiteAll(object? sender, EventArgs e) => await ClassActions.OpenSiteAsync(this, _vm, null, "the whole class");
     private async void OnPowerAll(object? sender, EventArgs e) => await ClassActions.PowerAsync(this, _vm, null, "every student PC");
     private async void OnLimits(object? sender, EventArgs e) => await Navigation.PushModalAsync(new LimitsPage(_vm));
+    private async void OnWebsites(object? sender, EventArgs e) => await Navigation.PushModalAsync(new WebsitesPage(_vm));
     private async void OnShowScreen(object? sender, EventArgs e)
     {
         if (!_vm.Broadcaster.IsSupported)

@@ -642,7 +642,10 @@ public sealed class AgentWorker : BackgroundService
         _files?.Clear();
         _ui?.ShowTimer(new LessonTimer());
         _ = StopBroadcastViewerAsync();
-        _enforcer.Apply(new ClassPolicy());
+        // Lost the server: programs, internet and sound limits are lifted (never strand a PC), but
+        // the website whitelist / blacklist stays until the server says otherwise (a restart of the
+        // agent clears it until it reconnects and gets it again).
+        _enforcer.Apply(new ClassPolicy().WithWeb(_enforcer.Current.Web));
     }
 
     private async Task StartSenderAsync(HubConnection hub, string teacherId, StreamRequest request)

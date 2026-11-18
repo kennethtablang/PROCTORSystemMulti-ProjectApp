@@ -25,6 +25,7 @@ public sealed class StudentTile : INotifyPropertyChanged
         _state = snap.State;
         _isLocked = snap.IsLocked;
         _handRaised = snap.HandRaised;
+        _ownWebLimits = snap.OwnWebLimits;
         if (snap.LastTelemetry is { } t) Apply(t);
 
         // Flip HasVideo when the first frame lands / the stream is cleared. Updated fires per
@@ -61,6 +62,24 @@ public sealed class StudentTile : INotifyPropertyChanged
         set { if (_isLocked != value) { _isLocked = value; Raise(); Raise(nameof(LockText)); } }
     }
     public string LockText => _isLocked ? "Locked" : "";
+
+    private WebLimits? _ownWebLimits;
+    /// <summary>This PC's own website list (replacing the class's), or null when it follows the class.</summary>
+    public WebLimits? OwnWebLimits
+    {
+        get => _ownWebLimits;
+        set { _ownWebLimits = value; Raise(); Raise(nameof(HasOwnWebLimits)); Raise(nameof(OwnWebLimitsText)); }
+    }
+
+    public bool HasOwnWebLimits => _ownWebLimits is not null;
+
+    public string OwnWebLimitsText => _ownWebLimits switch
+    {
+        null => "",
+        { WebMode: WebLimitMode.AllowOnlyListed } w => $"Own websites: only {w.WebHosts.Count} allowed",
+        { WebMode: WebLimitMode.BlockListed } w => $"Own websites: {w.WebHosts.Count} blocked",
+        _ => "Own websites: no limits",
+    };
 
     private bool _handRaised;
     /// <summary>The student has raised their hand asking for help.</summary>

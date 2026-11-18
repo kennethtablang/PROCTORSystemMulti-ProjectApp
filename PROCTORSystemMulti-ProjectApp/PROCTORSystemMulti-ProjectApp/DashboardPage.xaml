@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:ci="clr-namespace:PROCTORSystemMulti_ProjectApp.PROCTOR"
@@ -130,15 +130,16 @@
              "more" menu), view controls on the right (search, sort, stream quality, screen size,
              room). Status messages appear as a short-lived pill at the bottom right. -->
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" IsVisible="{Binding IsConnected}">
-            <FlexLayout Grid.Column="0" Wrap="Wrap" AlignItems="Center" AlignContent="Start"
-                        IsVisible="{Binding HasStudents}">
+            <!-- Shown whenever connected, so website lists and other limits can be set before students arrive. -->
+            <FlexLayout Grid.Column="0" Wrap="Wrap" AlignItems="Center" AlignContent="Start">
                 <ci:IconButton Glyph="{x:Static ci:Icons.Lock}" ToolTip="Lock all screens" Clicked="OnLockAll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Unlock}" ToolTip="Unlock all screens" Clicked="OnUnlockAll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Message}" ToolTip="Send a message to the class" Clicked="OnMessageAll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Globe}" ToolTip="Open a website on every PC" Clicked="OnOpenSiteAll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Screen}" ToolTip="Show my screen to the class" Clicked="OnShowScreen" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Poll}" ToolTip="Poll" Clicked="OnPoll" Margin="0,0,4,4" />
-                <ci:IconButton Glyph="{x:Static ci:Icons.Limits}" ToolTip="Limits: websites, programs, internet, sound" Clicked="OnLimits" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Websites}" ToolTip="Websites: allow list (whitelist) or block list (blacklist)" Clicked="OnWebsites" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Limits}" ToolTip="Limits: programs, internet, sound" Clicked="OnLimits" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Power}" ToolTip="Log off, restart or shut down" Clicked="OnPowerAll" Margin="0,0,4,4" />
                 <BoxView WidthRequest="1" HeightRequest="20" Color="#3A3E47" Margin="4,0,8,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Send}" ToolTip="Send files to the class" Clicked="OnSendFiles" Margin="0,0,4,4" />
@@ -148,7 +149,7 @@
                 <ci:IconButton Glyph="{x:Static ci:Icons.Camera}" ToolTip="Save snapshots of all screens" Clicked="OnSnapshot" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Attendance}" ToolTip="Export attendance (CSV)" Clicked="OnAttendance" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Key}" ToolTip="Teacher PIN" Clicked="OnPin" Margin="0,0,4,4" />
-                <ci:IconButton Glyph="{x:Static ci:Icons.SignOut}" ToolTip="Lock this app now (needs a teacher PIN)" Clicked="OnLockApp" Margin="0,0,10,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.SignOut}" ToolTip="Lock this app now (needs a teacher PIN)" Clicked="OnLockApp" Margin="0,0,8,4" />
                 <Label Text="{Binding PolicySummary}" FontSize="11" TextColor="#7E57C2" VerticalOptions="Center"
                        Margin="0,0,10,4" />
                 <Label Text="{Binding PollBadge}" FontSize="11" TextColor="#2E7D32" FontAttributes="Bold"
@@ -157,16 +158,16 @@
 
             <HorizontalStackLayout Grid.Column="1" Spacing="6" VerticalOptions="Start">
                 <HorizontalStackLayout Spacing="6" IsVisible="{Binding HasStudents}">
-                    <SearchBar Placeholder="Search" Text="{Binding SearchText}" WidthRequest="170"
+                    <SearchBar Placeholder="Search" Text="{Binding SearchText}" WidthRequest="140"
                                ToolTipProperties.Text="Search name, user, app or site" />
                     <Picker ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex}" WidthRequest="96"
                             ToolTipProperties.Text="Sort by" />
-                    <Picker ItemsSource="{Binding ThumbnailChoices}" SelectedIndex="{Binding ThumbnailSizeIndex}" WidthRequest="122"
+                    <Picker ItemsSource="{Binding ThumbnailChoices}" SelectedIndex="{Binding ThumbnailSizeIndex}" WidthRequest="112"
                             ToolTipProperties.Text="Stream quality" />
                     <!-- Screen size: drag to make the student screens bigger or smaller (columns follow). -->
                     <Label Text="{x:Static ci:Icons.ZoomOut}" FontFamily="Segoe MDL2 Assets" FontSize="12"
                            VerticalOptions="Center" TextColor="#9AA0A6" />
-                    <Slider Minimum="180" Maximum="960" Value="{Binding TileSize}" WidthRequest="110"
+                    <Slider Minimum="180" Maximum="960" Value="{Binding TileSize}" WidthRequest="90"
                             VerticalOptions="Center" ToolTipProperties.Text="Screen size"
                             SemanticProperties.Description="Student screen size" />
                     <Label Text="{x:Static ci:Icons.ZoomIn}" FontFamily="Segoe MDL2 Assets" FontSize="12"
@@ -249,7 +250,7 @@
                             <TapGestureRecognizer Tapped="OnTileTapped" />
                         </Border.GestureRecognizers>
                         <VerticalStackLayout Spacing="4">
-                            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="5">
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="5">
                                 <Label Grid.Column="0" Text="{Binding Header}" FontAttributes="Bold" FontSize="12"
                                        LineBreakMode="TailTruncation" />
                                 <!-- Badges: raised hand (needs help), locked, unread chat. -->
@@ -259,6 +260,9 @@
                                 <Label Grid.Column="2" Text="{x:Static ci:Icons.Lock}" FontFamily="Segoe MDL2 Assets"
                                        FontSize="12" TextColor="#C62828" VerticalOptions="Center" IsVisible="{Binding IsLocked}"
                                        ToolTipProperties.Text="Locked" />
+                                <Label Grid.Column="6" Text="{x:Static ci:Icons.Websites}" FontFamily="Segoe MDL2 Assets"
+                                       FontSize="11" TextColor="#4FC3F7" VerticalOptions="Center" IsVisible="{Binding HasOwnWebLimits}"
+                                       ToolTipProperties.Text="{Binding OwnWebLimitsText}" />
                                 <Label Grid.Column="3" Text="{x:Static ci:Icons.Chat}" FontFamily="Segoe MDL2 Assets"
                                        FontSize="12" TextColor="#7E57C2" VerticalOptions="Center" IsVisible="{Binding HasUnreadChat}"
                                        ToolTipProperties.Text="Unread messages" />

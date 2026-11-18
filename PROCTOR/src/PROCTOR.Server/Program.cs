@@ -62,10 +62,18 @@ builder.Services.AddSingleton<ChatThrottle>();
 builder.Services.AddSingleton<FileTransfers>();
 builder.Services.AddSingleton<RemoteControlState>();
 builder.Services.AddSingleton<AgentStore>();
+builder.Services.AddSingleton<WebLimitsStore>();
 builder.Services.AddSingleton<AgentUpdatePackage>();
 builder.Services.AddHostedService<DiscoveryBeaconService>();
 
 var app = builder.Build();
+
+// Website limits outlast lessons and restarts: start the room with the saved class whitelist /
+// blacklist (each PC's own list is applied as it joins).
+{
+    var room = app.Services.GetRequiredService<RoomRegistry>();
+    room.Policy = new ClassPolicy().WithWeb(app.Services.GetRequiredService<WebLimitsStore>().Class);
+}
 if (localSettingsNote is not null)
 {
     if (localSettingsNote.StartsWith("Ignoring", StringComparison.Ordinal)) app.Logger.LogWarning("{Note}", localSettingsNote);

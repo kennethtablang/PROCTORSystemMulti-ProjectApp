@@ -195,7 +195,7 @@ public class ClassroomControlHubTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Policy_is_cleaned_pushed_to_late_joiners_and_lifted_when_no_teacher_remains()
+    public async Task Policy_is_cleaned_pushed_to_late_joiners_and_partly_lifted_when_no_teacher_remains()
     {
         await using var teacher = await _factory.ConnectAsync();
         await teacher.RegisterTeacherAsync();
@@ -215,9 +215,12 @@ public class ClassroomControlHubTests : IAsyncLifetime
         var pushed = (ClassPolicy)(await late.WaitForAsync(Protocol.ClientMethods.PolicyUpdated))[0]!;
         Assert.Equal(["youtube.com"], pushed.WebHosts);
 
-        // Last teacher leaves: limits are lifted for everyone.
+        // Last teacher leaves: sound (and program / internet) limits are lifted for everyone; the
+        // website blacklist stays until a teacher changes it.
         await teacher.Hub.StopAsync();
-        await late.WaitForAsync(Protocol.ClientMethods.PolicyUpdated, a => ((ClassPolicy)a[0]!).IsEmpty);
+        var after = (ClassPolicy)(await late.WaitForAsync(Protocol.ClientMethods.PolicyUpdated, a => !((ClassPolicy)a[0]!).MuteSound))[0]!;
+        Assert.Equal(WebLimitMode.BlockListed, after.WebMode);
+        Assert.Equal(["youtube.com"], after.WebHosts);
     }
 
     [Fact]

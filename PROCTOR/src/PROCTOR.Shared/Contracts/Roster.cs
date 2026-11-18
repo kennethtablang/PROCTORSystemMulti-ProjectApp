@@ -131,6 +131,9 @@ public sealed record StudentSnapshot
 
     /// <summary>True while the student has their hand raised asking for help.</summary>
     public bool HandRaised { get; init; }
+
+    /// <summary>This PC's own website limits, replacing the class's; null when it follows the class.</summary>
+    public WebLimits? OwnWebLimits { get; init; }
 }
 
 /// <summary>Full roster payload pushed to teachers.</summary>

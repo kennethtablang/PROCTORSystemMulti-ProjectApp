@@ -7,23 +7,9 @@
     <ScrollView>
         <VerticalStackLayout Padding="24,20" Spacing="14" MaximumWidthRequest="760">
 
-            <Label Text="Limits for the whole class" FontSize="20" FontAttributes="Bold" />
-            <Label Text="Applied to every student PC in this room, including students who join later. They are lifted automatically when the last teacher disconnects."
+            <Label Text="Programs, internet and sound for the whole class" FontSize="18" FontAttributes="Bold" />
+            <Label Text="Applied to every student PC in this room, including students who join later. They are lifted automatically when the last teacher disconnects. Website lists (the Websites button) stay."
                    FontSize="12" TextColor="Gray" />
-
-            <!-- Web limits (FR-CTRL-06) -->
-            <Label Text="Websites" FontAttributes="Bold" FontSize="15" Margin="0,8,0,0" />
-            <Picker x:Name="WebMode" WidthRequest="320" HorizontalOptions="Start">
-                <Picker.Items>
-                    <x:String>No web limits</x:String>
-                    <x:String>Block these sites</x:String>
-                    <x:String>Allow only these sites</x:String>
-                </Picker.Items>
-            </Picker>
-            <Editor x:Name="WebHosts" HeightRequest="120" AutoSize="Disabled"
-                    Placeholder="One site per line, e.g.&#10;youtube.com&#10;tiktok.com" />
-            <Label Text="A site also covers its sub-domains (youtube.com includes m.youtube.com). A blocked tab is closed and the student sees why."
-                   FontSize="11" TextColor="Gray" />
 
             <!-- App blocking -->
             <Label Text="Blocked programs" FontAttributes="Bold" FontSize="15" Margin="0,8,0,0" />
@@ -49,7 +35,7 @@
 
             <HorizontalStackLayout Spacing="10" Margin="0,12,0,0">
                 <Button Text="Apply" Clicked="OnApply" Padding="22,6" />
-                <Button Text="Remove all limits" Clicked="OnClear" Padding="16,6" BackgroundColor="Transparent"
+                <Button Text="Remove these limits" Clicked="OnClear" Padding="16,6" BackgroundColor="Transparent"
                         TextColor="#C62828" BorderColor="#C62828" BorderWidth="1" />
                 <Button Text="Cancel" Clicked="OnCancel" Padding="16,6" BackgroundColor="Transparent"
                         TextColor="Gray" />

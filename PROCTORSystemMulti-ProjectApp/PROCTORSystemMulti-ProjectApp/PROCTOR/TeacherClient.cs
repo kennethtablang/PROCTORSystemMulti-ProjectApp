@@ -433,6 +433,21 @@ public sealed class TeacherClient : IAsyncDisposable
         }
     }
 
+    /// <summary>Give students their own website limits (null: back to the class's); returns how many.</summary>
+    public async Task<int> SetStudentWebLimitsAsync(IReadOnlyList<string> students, WebLimits? limits)
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try
+        {
+            return await hub.InvokeAsync<int>(Protocol.ServerMethods.SetStudentWebLimits,
+                new StudentWebLimitsRequest { Students = students, Limits = limits });
+        }
+        catch (HubException ex)
+        {
+            throw new InvalidOperationException(ServerMessage(ex), ex);
+        }
+    }
+
     /// <summary>Put a poll to the class; returns it with its id, or throws with the server's reason.</summary>
     public async Task<Poll> StartPollAsync(Poll poll)
     {

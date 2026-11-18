@@ -3,7 +3,7 @@ using PROCTORSystemMulti_ProjectApp.PROCTOR;
 
 namespace PROCTORSystemMulti_ProjectApp;
 
-/// <summary>Edit the room's web / app / internet / sound limits (P5, FR-CTRL-06).</summary>
+/// <summary>Edit the room's program / internet / sound limits (P5). Websites have their own window.</summary>
 public partial class LimitsPage : ContentPage
 {
     private readonly DashboardViewModel _vm;
@@ -14,8 +14,6 @@ public partial class LimitsPage : ContentPage
         _vm = vm;
 
         var p = vm.Policy;
-        WebMode.SelectedIndex = (int)p.WebMode;
-        WebHosts.Text = string.Join(Environment.NewLine, p.WebHosts);
         Apps.Text = string.Join(Environment.NewLine, p.BlockedApps);
         BlockInternet.IsToggled = p.BlockInternet;
         Mute.IsToggled = p.MuteSound;
@@ -23,33 +21,26 @@ public partial class LimitsPage : ContentPage
 
     private async void OnApply(object? sender, EventArgs e)
     {
+        // The website part is left as it is (the Websites window sets it).
         var policy = new ClassPolicy
         {
-            WebMode = (WebLimitMode)Math.Max(0, WebMode.SelectedIndex),
-            WebHosts = Lines(WebHosts.Text),
             BlockedApps = Lines(Apps.Text),
             BlockInternet = BlockInternet.IsToggled,
             MuteSound = Mute.IsToggled,
-        };
+        }.WithWeb(_vm.Policy.Web);
 
         // Catch typos before sending: anything the server would drop is reported here.
-        var badHosts = policy.WebHosts.Where(h => ClassroomLimits.CleanHost(h) is null).ToArray();
         var badApps = policy.BlockedApps.Where(a => ClassroomLimits.CleanAppName(a) is null).ToArray();
-        if (badHosts.Length > 0 || badApps.Length > 0)
+        if (badApps.Length > 0)
         {
-            ShowError(string.Join("  ",
-                badHosts.Length > 0 ? $"Not a site: {string.Join(", ", badHosts)}." : "",
-                badApps.Length > 0 ? $"Can't block: {string.Join(", ", badApps)} (not a program name, or protected)." : "").Trim());
+            ShowError($"Can't block: {string.Join(", ", badApps)} (not a program name, or protected).");
             return;
         }
-        if (policy.WebMode == WebLimitMode.AllowOnlyListed && policy.WebHosts.Count == 0
-            && !await DisplayAlertAsync("Block every website?", "\"Allow only these sites\" with an empty list blocks all websites.", "Block all", "Cancel"))
-            return;
 
         await Save(policy);
     }
 
-    private async void OnClear(object? sender, EventArgs e) => await Save(new ClassPolicy());
+    private async void OnClear(object? sender, EventArgs e) => await Save(new ClassPolicy().WithWeb(_vm.Policy.Web));
 
     private async void OnCancel(object? sender, EventArgs e) => await Navigation.PopModalAsync();
 

@@ -49,9 +49,11 @@ public enum WebLimitMode
 }
 
 /// <summary>
-/// Room-wide limits a teacher sets: web limits and blocked applications. The server keeps the
-/// current policy in memory, pushes it to every student (including ones that join later) and
-/// clears it when the last teacher leaves, so a crashed teacher app can't leave a lab restricted.
+/// Room-wide limits a teacher sets: web limits and blocked applications. The server pushes the
+/// current policy to every student (including ones that join later). Website limits stay until a
+/// teacher changes them (kept on disk across restarts, and on student PCs while the server is out
+/// of reach); programs, internet and sound limits are cleared when the last teacher leaves, so a
+/// crashed teacher app can't leave a lab without internet.
 /// </summary>
 public sealed record ClassPolicy
 {
@@ -70,8 +72,34 @@ public sealed record ClassPolicy
     public bool MuteSound { get; init; }
 
     /// <summary>True when the policy restricts nothing.</summary>
-    public bool IsEmpty => (WebMode == WebLimitMode.Off || (WebMode == WebLimitMode.BlockListed && WebHosts.Count == 0))
-                           && BlockedApps.Count == 0 && !BlockInternet && !MuteSound;
+    public bool IsEmpty => !HasWebLimits && BlockedApps.Count == 0 && !BlockInternet && !MuteSound;
+
+    /// <summary>True when the website part restricts something.</summary>
+    public bool HasWebLimits => !(WebMode == WebLimitMode.Off || (WebMode == WebLimitMode.BlockListed && WebHosts.Count == 0));
+
+    /// <summary>The website part (mode + sites).</summary>
+    public WebLimits Web => new() { WebMode = WebMode, WebHosts = WebHosts };
+
+    /// <summary>This policy with its website part replaced (a student's own website limits).</summary>
+    public ClassPolicy WithWeb(WebLimits? web) => web is null ? this : this with { WebMode = web.WebMode, WebHosts = web.WebHosts };
+}
+
+/// <summary>Website limits on their own: a whitelist ("allow only") or a blacklist ("block").</summary>
+public sealed record WebLimits
+{
+    public WebLimitMode WebMode { get; init; } = WebLimitMode.Off;
+
+    /// <summary>Site hosts, e.g. <c>youtube.com</c> (also matches its sub-domains).</summary>
+    public IReadOnlyList<string> WebHosts { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>Give selected students their own website limits; <see cref="Limits"/> null puts them back on the class's.</summary>
+public sealed record StudentWebLimitsRequest
+{
+    /// <summary>Student connection ids (at least one).</summary>
+    public IReadOnlyList<string> Students { get; init; } = Array.Empty<string>();
+
+    public WebLimits? Limits { get; init; }
 }
 
 /// <summary>Limits and validation shared by the server (enforcement) and clients (early feedback).</summary>
@@ -184,6 +212,17 @@ public static class ClassroomLimits
         name = name.Trim().ToLowerInvariant();
         if (name.Length is 0 or > 100 || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return null;
         return ProtectedApps.Contains(name) ? null : name;
+    }
+
+    /// <summary>Validate and normalise website limits (unknown mode → off, dedupe and cap the sites).</summary>
+    public static WebLimits CleanWeb(WebLimits? web)
+    {
+        if (web is null) return new WebLimits();
+        return new WebLimits
+        {
+            WebMode = Enum.IsDefined(web.WebMode) ? web.WebMode : WebLimitMode.Off,
+            WebHosts = web.WebHosts.Select(CleanHost).OfType<string>().Distinct().Take(MaxPolicyHosts).ToArray(),
+        };
     }
 
     /// <summary>Validate and normalise a whole policy (dedupe, cap sizes, drop protected apps).</summary>

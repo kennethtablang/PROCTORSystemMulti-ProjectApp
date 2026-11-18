@@ -40,10 +40,25 @@ if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "ProctorVersion '$version' in 
 $tag = "v$version"
 
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'The GitHub CLI (gh) is not installed: https://cli.github.com' }
-& gh auth status 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Sign in to GitHub first: gh auth login' }
-& gh release view $tag --repo $repo 2>$null | Out-Null
-if ($LASTEXITCODE -eq 0) { throw "Release $tag already exists. Bump ProctorVersion in Directory.Build.props first." }
+
+# Windows PowerShell 5.1 turns a native program's stderr into terminating errors under
+# ErrorActionPreference=Stop, so relax it around gh: it writes progress and expected answers
+# ("release not found") there. Success is judged by the exit code.
+function Test-Gh {
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & gh @args 2>&1 | Out-Null; return ($LASTEXITCODE -eq 0) }
+    finally { $ErrorActionPreference = $saved }
+}
+function Invoke-Gh {
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & gh @args 2>&1 | ForEach-Object { Write-Host "$_" }; return $LASTEXITCODE }
+    finally { $ErrorActionPreference = $saved }
+}
+
+if (-not (Test-Gh auth status)) { throw 'Sign in to GitHub first: gh auth login' }
+if (Test-Gh release view $tag --repo $repo) { throw "Release $tag already exists. Bump ProctorVersion in Directory.Build.props first." }
 
 $commit = (& git -C $root rev-parse HEAD).Trim()
 if (-not (& git -C $root branch -r --contains $commit)) { throw "The current commit $($commit.Substring(0,7)) isn't pushed to GitHub yet: push it first." }
@@ -78,6 +93,6 @@ if ($NotesFile) { $ghArgs += @('--notes-file', $NotesFile) }
 elseif ($Notes) { $ghArgs += @('--notes', $Notes) }
 else { $ghArgs += '--generate-notes' }
 if ($Draft) { $ghArgs += '--draft' }
-& gh @ghArgs
-if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit code $LASTEXITCODE)." }
+$code = Invoke-Gh @ghArgs
+if ($code -ne 0) { throw "gh release create failed (exit code $code)." }
 Write-Host "Published $tag." -ForegroundColor Green

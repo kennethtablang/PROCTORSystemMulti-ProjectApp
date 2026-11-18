@@ -18,12 +18,14 @@ public sealed partial class DashboardViewModel
     public ICommand CopyServerAddressCommand { get; private set; } = null!;
     public ICommand CopySetupCommandCommand { get; private set; } = null!;
     public ICommand CopyTestCommandCommand { get; private set; } = null!;
+    public ICommand CopyServerKeyCommand { get; private set; } = null!;
 
     private void InitConnectGuide()
     {
         CopyServerAddressCommand = new Command(async () => await CopyAsync(StudentServerAddress, "Server address"));
         CopySetupCommandCommand = new Command(async () => await CopyAsync(SetupCommand, "Setup command"));
         CopyTestCommandCommand = new Command(async () => await CopyAsync(TestCommand, "Test command"));
+        CopyServerKeyCommand = new Command(async () => await CopyAsync(ServerKey, "Server key"));
 
         RefreshThisPc();
         // Wi-Fi switched networks, cable plugged in, VPN up/down: the address to give students changes.
@@ -43,6 +45,9 @@ public sealed partial class DashboardViewModel
         Raise(nameof(StudentServerAddress));
         Raise(nameof(AddressSourceText));
         Raise(nameof(SetupCommand));
+        Raise(nameof(ServerKey));
+        Raise(nameof(HasServerKey));
+        Raise(nameof(ServerKeyHint));
         Raise(nameof(TestCommand));
         Raise(nameof(NetworkNote));
         Raise(nameof(HasNetworkNote));
@@ -69,10 +74,26 @@ public sealed partial class DashboardViewModel
     public string AddressSourceText => ConnectedServer is not null
         ? "Address of the classroom server this app is connected to."
         : _thisPc is { } p
-            ? $"Not connected to a server yet. When the server runs on this PC, this is its address ({p.AdapterName}). Start the server and keep its window open."
+            ? $"Not connected to a server yet. When the PROCTOR Classroom Service runs on this PC, this is its address ({p.AdapterName})."
             : "This PC has no network connection. Connect it to the lab network first.";
 
-    public string SetupCommand => $"PROCTOR-Agent-Setup.exe SERVERADDRESS={StudentServerAddress}";
+    /// <summary>
+    /// The connected server's key (fingerprint). Student PCs are locked to one key: a setup built for
+    /// another teacher PC refuses this one (by design: nobody can pose as the teacher's PC), and the
+    /// only symptom is a port test that passes while no student appears. So show it, and put it in
+    /// the setup command.
+    /// </summary>
+    public string ServerKey => IsConnected && _client.CurrentFingerprint is { Length: > 0 } f ? ServerTrust.Format(f) : "";
+
+    public bool HasServerKey => ServerKey.Length > 0;
+
+    public string ServerKeyHint => HasServerKey
+        ? "Student PCs must be set up with this key (the command below does it). A student setup made for another teacher PC refuses this one."
+        : "Shown once this app is connected to the server.";
+
+    public string SetupCommand => HasServerKey
+        ? $"PROCTOR-Agent-Setup.exe SERVERFINGERPRINT=\"{ServerKey}\" SERVERADDRESS={StudentServerAddress}"
+        : $"PROCTOR-Agent-Setup.exe SERVERADDRESS={StudentServerAddress}";
 
     public string TestCommand
     {

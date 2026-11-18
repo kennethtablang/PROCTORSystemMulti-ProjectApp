@@ -30,6 +30,14 @@ public static class Icons
     public const string ZoomOut = "";
     public const string ZoomIn = "";
     public const string Back = "";
+    public const string Timer = "";
+    public const string Collect = "";
+    public const string Shuffle = "";
+    public const string Attendance = "";
+    public const string Key = "";
+    public const string SignOut = "";
+    public const string Pane = "";
+    public const string Settings = "";
 }
 
 /// <summary>

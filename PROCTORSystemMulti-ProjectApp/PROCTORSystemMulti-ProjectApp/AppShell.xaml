@@ -7,23 +7,12 @@
     Shell.FlyoutBehavior="Disabled"
     Title="PROCTOR">
 
-    <!-- Navbar: switch between the live views, all backed by one shared connection (FR-TEACH-03).
-         Classroom control is a later tab. -->
-    <TabBar>
-        <ShellContent
-            Title="Dashboard"
-            ContentTemplate="{DataTemplate local:DashboardPage}"
-            Route="Dashboard" />
-
-        <ShellContent
-            Title="Processes"
-            ContentTemplate="{DataTemplate local:ProcessesPage}"
-            Route="Processes" />
-
-        <ShellContent
-            Title="Bandwidth"
-            ContentTemplate="{DataTemplate local:BandwidthPage}"
-            Route="Bandwidth" />
-    </TabBar>
+    <!-- One page: the dashboard (no tab strip). Per-student processes and bandwidth are in the
+         student view's Live metrics panel. -->
+    <ShellContent
+        Title="Dashboard"
+        ContentTemplate="{DataTemplate local:DashboardPage}"
+        Route="Dashboard"
+        Shell.TabBarIsVisible="False" />
 
 </Shell>

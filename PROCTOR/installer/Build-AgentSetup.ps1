@@ -31,12 +31,9 @@
 .PARAMETER AllowRemoteControl
   Allow teachers to take remote keyboard/mouse control of these PCs (needs -ServerFingerprint).
 
-.PARAMETER ShowViewingIndicator
-  Show the student a "Your screen is being viewed by your teacher" notice while a teacher views
-  their screen. Off by default (lab PCs are covered by the institution's acceptable-use policy).
-
 .PARAMETER HideViewingIndicator
-  Hide that notice explicitly (the default; kept for older build scripts). Use only where
+  No effect (kept so older build commands still work): student PCs show no "being viewed by your
+  teacher" notice. Lab PCs should be covered by the institution's acceptable-use policy; use only where
   your institution's acceptable-use/privacy policy already tells students the lab PCs are monitored;
   on by default so students are informed.
 
@@ -58,7 +55,6 @@ param(
     [string]$RoomName,
     [string]$EnrollmentKey,
     [switch]$AllowRemoteControl,
-    [switch]$ShowViewingIndicator,
     [switch]$HideViewingIndicator,
     [string]$Name,
     [string]$OutputDir = (Join-Path $PSScriptRoot '..\dist')
@@ -115,7 +111,7 @@ $lines = @(
     (Var 'SERVERADDRESS' $ServerAddress)
     (Var 'ROOMNAME' $RoomName)
     (Var 'ALLOWREMOTECONTROL' $(if ($AllowRemoteControl) { 'true' } else { '' }))
-    (Var 'SHOWVIEWINGINDICATOR' $(if ($ShowViewingIndicator) { 'true' } elseif ($HideViewingIndicator) { 'false' } else { '' }))
+    (Var 'SHOWVIEWINGINDICATOR' '')
     (Var 'ENROLLMENTKEY' $EnrollmentKey -hidden)
     '</Include>'
 )
@@ -152,7 +148,6 @@ Write-Host ("  Server address : " + $(if ($ServerAddress) { $ServerAddress } els
 Write-Host ("  Room           : " + $(if ($RoomName) { $RoomName } else { '(any)' }))
 Write-Host ("  Enrolment key  : " + $(if ($EnrollmentKey) { 'built in - keep this setup private' } else { '(none)' }))
 Write-Host ("  Remote control : " + $(if ($AllowRemoteControl) { 'allowed' } else { 'off' }))
-Write-Host ("  Viewing notice : " + $(if ($ShowViewingIndicator) { 'shown to students' } else { 'hidden (default)' }))
 Write-Host ""
 Write-Host "Install on each lab PC: double-click it (needs an administrator), or silently:"
 Write-Host "  PROCTOR-Agent-Setup$suffix.exe /quiet /norestart"

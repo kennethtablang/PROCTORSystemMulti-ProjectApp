@@ -47,7 +47,6 @@ public sealed class AgentWorker : BackgroundService
     private readonly string _machineId;
     private readonly SystemTelemetryCollector _telemetry;
     private readonly BrowserActivityProbe? _browser;
-    private readonly ViewingIndicator? _indicator;
     private readonly ClassroomUi? _ui;
     private readonly PolicyEnforcer _enforcer;
     private volatile HubConnection? _hub;
@@ -91,12 +90,6 @@ public sealed class AgentWorker : BackgroundService
 
         if (section.GetValue<bool?>("ReportBrowserActivity") ?? true)
             _browser = new BrowserActivityProbe(loggerFactory.CreateLogger<BrowserActivityProbe>());
-
-        // On-screen notice while a teacher is viewing (FR-SEC-05). On by default; an institution
-        // whose policy doesn't require notice can turn it off.
-        // Off unless turned on (SHOWVIEWINGINDICATOR=true / Build-AgentSetup.ps1 -ShowViewingIndicator).
-        if (section.GetValue<bool?>("ShowViewingIndicator") ?? false)
-            _indicator = new ViewingIndicator(loggerFactory.CreateLogger<ViewingIndicator>());
 
         // Classroom control (P5): messages, lock screen, notices and the raise-hand tray icon, plus
         // enforcement of the room's web/app/internet/sound limits.
@@ -174,7 +167,6 @@ public sealed class AgentWorker : BackgroundService
             _enforcer.Dispose();
             _ui?.Dispose();
             _browser?.Dispose();
-            _indicator?.Dispose();
         }
     }
 
@@ -401,7 +393,6 @@ public sealed class AgentWorker : BackgroundService
                     await sender.DisposeAsync();
                     _logger.LogInformation("Stopped stream to teacher {Teacher}; {Count} viewer(s) left.", teacherId, _senders.Count);
                 }
-                UpdateIndicator();
             }
             finally
             {
@@ -681,7 +672,6 @@ public sealed class AgentWorker : BackgroundService
                 _logger.LogWarning(ex, "Could not start stream to {Teacher}.", teacherId);
                 if (_senders.TryRemove(teacherId, out var s)) await s.DisposeAsync();
             }
-            UpdateIndicator();
         }
         finally
         {
@@ -724,7 +714,6 @@ public sealed class AgentWorker : BackgroundService
             foreach (var key in _senders.Keys.ToArray())
                 if (_senders.TryRemove(key, out var sender))
                     await sender.DisposeAsync();
-            UpdateIndicator();
         }
         finally
         {
@@ -732,7 +721,6 @@ public sealed class AgentWorker : BackgroundService
         }
     }
 
-    private void UpdateIndicator() => _indicator?.SetViewing(!_senders.IsEmpty);
 
     private static async Task SafeDelay(TimeSpan delay, CancellationToken ct)
     {

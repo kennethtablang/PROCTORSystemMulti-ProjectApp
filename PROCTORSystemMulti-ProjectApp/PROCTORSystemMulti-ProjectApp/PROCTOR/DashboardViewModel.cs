@@ -649,7 +649,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
 
         // No server, or the one found wants a code: let the teacher type another address (e.g. the
         // lab teacher PC from a laptop whose own network has a different PROCTOR server).
-        if (outcome is ConnectOutcome.NoServer or ConnectOutcome.NeedsJoinCode) ShowManualEntry = true;
+        // Several rooms: the teacher may want one that didn't answer discovery, so allow typing too.
+        if (outcome is ConnectOutcome.NoServer or ConnectOutcome.NeedsJoinCode || NeedsRoomChoice) ShowManualEntry = true;
         if (outcome == ConnectOutcome.Connected && _client.CurrentServer is { } s) SavePref(PrefRoom, s.RoomName);
     }
 
@@ -829,5 +830,24 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
 public sealed record RoomOption(global::PROCTOR.Shared.Contracts.DiscoveryResponse Server)
 {
     public string Title => Server.RoomName;
-    public string Detail => $"{Server.Host}:{Server.Port}";
+    /// <summary>Address, marked "this PC" when the room runs here (rooms often share a name).</summary>
+    public string Detail => IsThisPc ? $"{Server.Host}:{Server.Port} · this PC" : $"{Server.Host}:{Server.Port}";
+
+    private bool IsThisPc
+    {
+        get
+        {
+            if (Server.Host is "127.0.0.1" or "localhost") return true;
+            try
+            {
+                return System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                    .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+                    .Any(a => a.Address.ToString() == Server.Host);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
 }

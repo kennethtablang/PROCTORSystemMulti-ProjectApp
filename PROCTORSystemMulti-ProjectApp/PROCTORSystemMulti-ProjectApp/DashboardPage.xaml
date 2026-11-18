@@ -126,58 +126,58 @@
             <Button Grid.Column="1" Text="Connect" Command="{Binding ConnectManualCommand}" />
         </Grid>
 
-        <!-- Room + view controls: search, sort, stream quality, screen size (FR-TEACH-06). The status
-             messages appear as a short-lived pill at the top right (see the end of this page). -->
-        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="6" ColumnSpacing="8"
-              IsVisible="{Binding IsConnected}">
-            <HorizontalStackLayout Grid.Row="0" Grid.Column="1" Spacing="8">
-                <Label Text="{Binding VisibleCountText}" FontAttributes="Bold" FontSize="12" VerticalOptions="Center" />
-                <Button Text="Switch room" Command="{Binding SwitchRoomCommand}" FontSize="11"
-                        BackgroundColor="Transparent" TextColor="#7E57C2" BorderColor="#B794F6" BorderWidth="1" />
-            </HorizontalStackLayout>
-
-            <FlexLayout Grid.Row="0" Grid.Column="0" Wrap="Wrap" AlignItems="Center"
+        <!-- One toolbar row: every class action and teacher tool on the left (all visible, no
+             "more" menu), view controls on the right (search, sort, stream quality, screen size,
+             room). Status messages appear as a short-lived pill at the bottom right. -->
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" IsVisible="{Binding IsConnected}">
+            <FlexLayout Grid.Column="0" Wrap="Wrap" AlignItems="Center" AlignContent="Start"
                         IsVisible="{Binding HasStudents}">
-                <SearchBar Placeholder="Search name, user, app or site" Text="{Binding SearchText}"
-                           WidthRequest="240" Margin="0,0,10,4" />
-                <HorizontalStackLayout Spacing="6" Margin="0,0,10,4">
-                    <Label Text="Sort" VerticalOptions="Center" FontSize="12" />
-                    <Picker ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex}" WidthRequest="110" />
-                </HorizontalStackLayout>
-                <HorizontalStackLayout Spacing="6" Margin="0,0,10,4">
-                    <Label Text="Quality" VerticalOptions="Center" FontSize="12" />
-                    <Picker ItemsSource="{Binding ThumbnailChoices}" SelectedIndex="{Binding ThumbnailSizeIndex}" WidthRequest="130" />
-                </HorizontalStackLayout>
-                <!-- Screen size: drag to make the student screens bigger or smaller (columns follow). -->
-                <HorizontalStackLayout Spacing="4" Margin="0,0,0,4">
+                <ci:IconButton Glyph="{x:Static ci:Icons.Lock}" ToolTip="Lock all screens" Clicked="OnLockAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Unlock}" ToolTip="Unlock all screens" Clicked="OnUnlockAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Message}" ToolTip="Send a message to the class" Clicked="OnMessageAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Globe}" ToolTip="Open a website on every PC" Clicked="OnOpenSiteAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Screen}" ToolTip="Show my screen to the class" Clicked="OnShowScreen" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Poll}" ToolTip="Poll" Clicked="OnPoll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Limits}" ToolTip="Limits: websites, programs, internet, sound" Clicked="OnLimits" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Power}" ToolTip="Log off, restart or shut down" Clicked="OnPowerAll" Margin="0,0,4,4" />
+                <BoxView WidthRequest="1" HeightRequest="20" Color="#3A3E47" Margin="4,0,8,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Send}" ToolTip="Send files to the class" Clicked="OnSendFiles" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Collect}" ToolTip="Collect work (click again to stop collecting)" Clicked="OnCollectToggle" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Timer}" ToolTip="Lesson timer" Clicked="OnTimer" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Shuffle}" ToolTip="Pick a random student" Clicked="OnPick" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Camera}" ToolTip="Save snapshots of all screens" Clicked="OnSnapshot" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Attendance}" ToolTip="Export attendance (CSV)" Clicked="OnAttendance" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Key}" ToolTip="Teacher PIN" Clicked="OnPin" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.SignOut}" ToolTip="Lock this app now (needs a teacher PIN)" Clicked="OnLockApp" Margin="0,0,10,4" />
+                <Label Text="{Binding PolicySummary}" FontSize="11" TextColor="#7E57C2" VerticalOptions="Center"
+                       Margin="0,0,10,4" />
+                <Label Text="{Binding PollBadge}" FontSize="11" TextColor="#2E7D32" FontAttributes="Bold"
+                       VerticalOptions="Center" Margin="0,0,0,4" />
+            </FlexLayout>
+
+            <HorizontalStackLayout Grid.Column="1" Spacing="6" VerticalOptions="Start">
+                <HorizontalStackLayout Spacing="6" IsVisible="{Binding HasStudents}">
+                    <SearchBar Placeholder="Search" Text="{Binding SearchText}" WidthRequest="170"
+                               ToolTipProperties.Text="Search name, user, app or site" />
+                    <Picker ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex}" WidthRequest="96"
+                            ToolTipProperties.Text="Sort by" />
+                    <Picker ItemsSource="{Binding ThumbnailChoices}" SelectedIndex="{Binding ThumbnailSizeIndex}" WidthRequest="122"
+                            ToolTipProperties.Text="Stream quality" />
+                    <!-- Screen size: drag to make the student screens bigger or smaller (columns follow). -->
                     <Label Text="{x:Static ci:Icons.ZoomOut}" FontFamily="Segoe MDL2 Assets" FontSize="12"
                            VerticalOptions="Center" TextColor="#9AA0A6" />
-                    <Slider Minimum="180" Maximum="960" Value="{Binding TileSize}" WidthRequest="160"
+                    <Slider Minimum="180" Maximum="960" Value="{Binding TileSize}" WidthRequest="110"
                             VerticalOptions="Center" ToolTipProperties.Text="Screen size"
                             SemanticProperties.Description="Student screen size" />
                     <Label Text="{x:Static ci:Icons.ZoomIn}" FontFamily="Segoe MDL2 Assets" FontSize="12"
-                           VerticalOptions="Center" TextColor="#9AA0A6" />
+                           VerticalOptions="Center" TextColor="#9AA0A6" Margin="0,0,4,0" />
                 </HorizontalStackLayout>
-            </FlexLayout>
+                <Label Text="{Binding VisibleCountText}" FontAttributes="Bold" FontSize="12" VerticalOptions="Center" />
+                <Button Text="Switch room" Command="{Binding SwitchRoomCommand}" FontSize="11" VerticalOptions="Center"
+                        BackgroundColor="Transparent" TextColor="#7E57C2" BorderColor="#B794F6" BorderWidth="1" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Settings}" ToolTip="Settings" Clicked="OnSettings" VerticalOptions="Center" />
+            </HorizontalStackLayout>
         </Grid>
-
-        <!-- Class controls (P5): act on the whole class. Per-student actions live in the focus view. -->
-        <FlexLayout Wrap="Wrap" AlignItems="Center" IsVisible="{Binding HasStudents}">
-            <Label Text="Whole class" FontSize="12" FontAttributes="Bold" VerticalOptions="Center" Margin="0,0,8,4" />
-            <ci:IconButton Glyph="{x:Static ci:Icons.Lock}" ToolTip="Lock all screens" Clicked="OnLockAll" Margin="0,0,4,4" />
-            <ci:IconButton Glyph="{x:Static ci:Icons.Unlock}" ToolTip="Unlock all screens" Clicked="OnUnlockAll" Margin="0,0,4,4" />
-            <ci:IconButton Glyph="{x:Static ci:Icons.Message}" ToolTip="Send a message to the class" Clicked="OnMessageAll" Margin="0,0,4,4" />
-            <ci:IconButton Glyph="{x:Static ci:Icons.Globe}" ToolTip="Open a website on every PC" Clicked="OnOpenSiteAll" Margin="0,0,4,4" />
-            <ci:IconButton Glyph="{x:Static ci:Icons.Screen}" ToolTip="Show my screen to the class" Clicked="OnShowScreen" Margin="0,0,4,4" />
-            <ci:IconButton Glyph="{x:Static ci:Icons.Poll}" ToolTip="Poll" Clicked="OnPoll" Margin="0,0,4,4" />
-            <ci:IconButton Glyph="{x:Static ci:Icons.Limits}" ToolTip="Limits: websites, programs, internet, sound" Clicked="OnLimits" Margin="0,0,4,4" />
-            <ci:IconButton Glyph="{x:Static ci:Icons.Power}" ToolTip="Log off, restart or shut down" Clicked="OnPowerAll" Margin="0,0,4,4" />
-            <ci:IconButton Glyph="{x:Static ci:Icons.More}" ToolTip="More tools" Clicked="OnMore" Margin="0,0,12,4" />
-            <Label Text="{Binding PolicySummary}" FontSize="11" TextColor="#7E57C2" VerticalOptions="Center"
-                   Margin="0,0,12,4" />
-            <Label Text="{Binding PollBadge}" FontSize="11" TextColor="#2E7D32" FontAttributes="Bold"
-                   VerticalOptions="Center" Margin="0,0,0,4" />
-        </FlexLayout>
 
         <!-- Lesson timer running -->
         <Border IsVisible="{Binding TimerRunning}" BackgroundColor="#EDE7F6" Stroke="#7E57C2" Padding="12,6">

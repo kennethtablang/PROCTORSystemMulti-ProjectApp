@@ -11,6 +11,7 @@ namespace PROCTORSystemMulti_ProjectApp;
 public partial class FocusPage : ContentPage
 {
     private const double NarrowWidth = 760;
+    private const string PrefMetrics = "proctor.focus.metrics";
 
     private readonly StudentTile _tile;
     private readonly DashboardViewModel _vm;
@@ -45,6 +46,7 @@ public partial class FocusPage : ContentPage
         };
 
         SizeChanged += (_, _) => ApplyLayout();
+        ApplyMetrics(Preferences.Default.Get(PrefMetrics, true));
     }
 
     protected override void OnAppearing()
@@ -182,6 +184,21 @@ public partial class FocusPage : ContentPage
     {
         var path = DashboardViewModel.SaveScreenshot(_tile);
         await DisplayAlertAsync("Screenshot", path is null ? "There's no picture yet." : $"Saved to:\n{path}", "OK");
+    }
+
+    // Live metrics panel: collapsible; the screen takes the freed space (its column/row is Auto).
+    private void OnToggleMetrics(object? sender, EventArgs e)
+    {
+        var show = !DetailPanel.IsVisible;
+        Preferences.Default.Set(PrefMetrics, show);
+        ApplyMetrics(show);
+    }
+
+    private void ApplyMetrics(bool show)
+    {
+        DetailPanel.IsVisible = show;
+        MetricsButton.ToolTip = show ? "Hide live metrics" : "Show live metrics";
+        MetricsButton.BackgroundColor = Color.FromArgb(show ? "#2A2D34" : "#4A3B6B");
     }
 
     /// <summary>Side panel on wide windows; panel stacked under the video on phones (NFR-USE-03).</summary>

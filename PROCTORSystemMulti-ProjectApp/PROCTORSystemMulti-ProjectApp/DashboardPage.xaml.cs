@@ -80,26 +80,26 @@ public partial class DashboardPage : ContentPage
 
     private async void OnStopShowScreen(object? sender, EventArgs e) => await _vm.Broadcaster.StopAsync();
 
-    // ---- more tools: timer, random pick, snapshots, attendance, PIN ----
-    private async void OnMore(object? sender, EventArgs e)
+    // ---- teacher tools (each its own button in the toolbar) ----
+    private async void OnTimer(object? sender, EventArgs e) => await StartTimer();
+    private async void OnPick(object? sender, EventArgs e) => await PickStudent();
+    private async void OnSnapshot(object? sender, EventArgs e) => await SnapshotAll();
+    private async void OnAttendance(object? sender, EventArgs e) => await ExportAttendance();
+    private async void OnPin(object? sender, EventArgs e) => await ManagePin();
+    private async void OnSendFiles(object? sender, EventArgs e) => await ClassActions.SendFilesAsync(this, _vm, null, "the whole class");
+
+    private async void OnCollectToggle(object? sender, EventArgs e)
     {
-        const string timer = "Lesson timer…", pick = "Pick a random student", snap = "Snapshot all screens",
-            attendance = "Export attendance (CSV)", pin = "Teacher PIN…", lockNow = "Lock this app now",
-            send = "Send files to the class…", collect = "Collect work…", stopCollect = "Stop collecting work";
-        var options = new List<string> { timer, send, _vm.IsCollecting ? stopCollect : collect, pick, snap, attendance, pin };
-        if (TeacherPin.IsSet) options.Add(lockNow);
-        switch (await DisplayActionSheetAsync("Teacher tools", "Cancel", null, options.ToArray()))
-        {
-            case timer: await StartTimer(); break;
-            case pick: await PickStudent(); break;
-            case snap: await SnapshotAll(); break;
-            case attendance: await ExportAttendance(); break;
-            case pin: await ManagePin(); break;
-            case send: await ClassActions.SendFilesAsync(this, _vm, null, "the whole class"); break;
-            case collect: await Collect(); break;
-            case stopCollect: await _vm.StopCollectingAsync(); break;
-            case lockNow: await Navigation.PushModalAsync(new LockPage()); break;
-        }
+        if (_vm.IsCollecting) await _vm.StopCollectingAsync();
+        else await Collect();
+    }
+
+    private async void OnLockApp(object? sender, EventArgs e) => await TeacherPinFlow.LockNowAsync(this);
+
+    private async void OnSettings(object? sender, EventArgs e)
+    {
+        if (Navigation.ModalStack.LastOrDefault() is SettingsPage) return;
+        await Navigation.PushModalAsync(new SettingsPage(_vm));
     }
 
     private async Task Collect()
@@ -164,25 +164,7 @@ public partial class DashboardPage : ContentPage
         await DisplayAlertAsync("Attendance exported", path, "OK");
     }
 
-    private async Task ManagePin()
-    {
-        if (TeacherPin.IsSet)
-        {
-            var choice = await DisplayActionSheetAsync("Teacher PIN", "Cancel", null, "Change PIN", "Remove PIN");
-            if (choice is null or "Cancel") return;
-            var current = await DisplayPromptAsync("Teacher PIN", "Current PIN:", "OK", "Cancel", maxLength: TeacherPin.MaxLength, keyboard: Keyboard.Numeric);
-            if (current is null) return;
-            if (!await TeacherPin.VerifyAsync(current)) { await DisplayAlertAsync("Teacher PIN", "That PIN isn't right.", "OK"); return; }
-            if (choice == "Remove PIN") { TeacherPin.Clear(); await DisplayAlertAsync("Teacher PIN", "PIN removed.", "OK"); return; }
-        }
-        var pin = await DisplayPromptAsync("Teacher PIN", $"New PIN ({TeacherPin.MinLength}–{TeacherPin.MaxLength} digits). It's asked when the app opens and when you lock it.", "Next", "Cancel", maxLength: TeacherPin.MaxLength, keyboard: Keyboard.Numeric);
-        if (pin is null) return;
-        if (!TeacherPin.IsValidFormat(pin)) { await DisplayAlertAsync("Teacher PIN", $"Use {TeacherPin.MinLength}–{TeacherPin.MaxLength} digits.", "OK"); return; }
-        var again = await DisplayPromptAsync("Teacher PIN", "Type it again:", "Save", "Cancel", maxLength: TeacherPin.MaxLength, keyboard: Keyboard.Numeric);
-        if (again != pin) { await DisplayAlertAsync("Teacher PIN", "The PINs didn't match.", "OK"); return; }
-        TeacherPin.Set(pin);
-        await DisplayAlertAsync("Teacher PIN", "PIN saved. Use \"Lock this app now\" when you step away.", "OK");
-    }
+    private Task ManagePin() => TeacherPinFlow.ManageAsync(this);
 
     private async void OnPoll(object? sender, EventArgs e) => await Navigation.PushModalAsync(new PollPage(_vm));
 

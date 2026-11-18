@@ -109,9 +109,10 @@
                           Wait="yes" />
         </Component>
 
-        <Component Id="AgentSettings" Guid="*" NeverOverwrite="yes">
-          <!-- Per-lab settings (RoomName, ServerAddress, ...). NeverOverwrite keeps an admin's
-               edits across upgrades. -->
+        <Component Id="AgentSettings" Guid="*">
+          <!-- The shipped defaults, replaced by every update (not NeverOverwrite: with the upgrade
+               removing the old version first, that left the file deleted). Per-lab settings live
+               in proctor.ini beside it (written from the install properties, kept on upgrade). -->
           <File Id="AgentAppSettings" Source="$(var.AgentDir)appsettings.json" KeyPath="yes" />
         </Component>
 

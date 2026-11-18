@@ -10,7 +10,7 @@
     <Grid x:Name="Root" RowDefinitions="Auto,Auto,*,Auto" ColumnDefinitions="*,Auto">
 
         <!-- Status / identity bar -->
-        <Grid Grid.Row="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8"
+        <Grid Grid.Row="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="8"
               Padding="12,6" BackgroundColor="#181A1F">
             <VerticalStackLayout Grid.Column="0" Spacing="2">
                 <Label Text="{Binding Header}" FontAttributes="Bold" FontSize="14" TextColor="White"
@@ -24,7 +24,10 @@
             <Picker x:Name="DisplayPicker" Grid.Column="2" ItemsSource="{Binding DisplayLabels}"
                     IsVisible="{Binding HasMultipleDisplays}" WidthRequest="300" TextColor="White"
                     SelectedIndexChanged="OnDisplayChanged" />
-            <ci:IconButton Grid.Column="3" Glyph="{x:Static ci:Icons.Back}" ToolTip="Back to the class"
+            <!-- Show / hide the Live metrics panel (remembered). -->
+            <ci:IconButton x:Name="MetricsButton" Grid.Column="3" Glyph="{x:Static ci:Icons.Pane}" ToolTip="Hide live metrics"
+                           Clicked="OnToggleMetrics" BackgroundColor="#2A2D34" IconColor="White" />
+            <ci:IconButton Grid.Column="4" Glyph="{x:Static ci:Icons.Back}" ToolTip="Back to the class"
                            Clicked="OnStopClicked" BackgroundColor="#2A2D34" IconColor="White" />
         </Grid>
 
@@ -67,10 +70,28 @@
                     <Label Text="Live metrics" FontAttributes="Bold" FontSize="13" TextColor="#9AA0A6" />
 
                     <VerticalStackLayout Spacing="4">
-                        <Label Text="{Binding CpuText}" FontSize="14" TextColor="White" />
-                        <Label Text="{Binding MemoryText}" FontSize="14" TextColor="White" />
-                        <Label Text="{Binding BandwidthText}" FontSize="13" TextColor="#C7CCD1" />
-                        <Label Text="{Binding TotalsText}" FontSize="12" TextColor="#8A9096" />
+                        <Label Text="{Binding CpuText}" FontSize="13" TextColor="White" />
+                        <Label Text="{Binding MemoryText}" FontSize="13" TextColor="White" />
+                    </VerticalStackLayout>
+
+                    <!-- Bandwidth (was its own tab): live download / upload with bars, session totals. -->
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Bandwidth" FontAttributes="Bold" FontSize="12" TextColor="#9AA0A6" />
+                        <Grid ColumnDefinitions="22,*,Auto" ColumnSpacing="8">
+                            <Label Grid.Column="0" Text="Dn" FontSize="11" TextColor="#64B5F6" VerticalOptions="Center" />
+                            <ProgressBar Grid.Column="1" Progress="{Binding DownloadBarFraction}" ProgressColor="#64B5F6"
+                                         VerticalOptions="Center" />
+                            <Label Grid.Column="2" Text="{Binding DownloadRateText}" FontSize="12" TextColor="#E8EAED"
+                                   WidthRequest="86" HorizontalTextAlignment="End" VerticalOptions="Center" />
+                        </Grid>
+                        <Grid ColumnDefinitions="22,*,Auto" ColumnSpacing="8">
+                            <Label Grid.Column="0" Text="Up" FontSize="11" TextColor="#81C784" VerticalOptions="Center" />
+                            <ProgressBar Grid.Column="1" Progress="{Binding UploadBarFraction}" ProgressColor="#81C784"
+                                         VerticalOptions="Center" />
+                            <Label Grid.Column="2" Text="{Binding UploadRateText}" FontSize="12" TextColor="#E8EAED"
+                                   WidthRequest="86" HorizontalTextAlignment="End" VerticalOptions="Center" />
+                        </Grid>
+                        <Label Text="{Binding TotalsText}" FontSize="11" TextColor="#8A9096" />
                     </VerticalStackLayout>
 
                     <VerticalStackLayout Spacing="2">

@@ -56,30 +56,64 @@ function Get-Problem([string]$path) {
 }
 
 $stamp = Get-Date -Format yyyyMMdd-HHmmss
-$dirProblem = Get-Problem $dir
-if ($dirProblem) {
-    # The folder itself came from someone else: nothing in it (key, enrolled-PC list) can be trusted,
-    # and the service refuses to create a new identity inside it. Set the whole folder aside.
-    Rename-Item -LiteralPath $dir -NewName "Server.untrusted-$stamp"
-    Write-Output "Set aside an untrusted server folder ($dirProblem). The service creates a new identity."
+$ReparsePoint = [IO.FileAttributes]::ReparsePoint
+function Test-Link([IO.FileSystemInfo]$item) { ($item.Attributes -band $ReparsePoint) -ne 0 }
+
+# This runs as SYSTEM: never follow a link (junction / symbolic link) that someone placed here, or
+# the permission changes below would land wherever it points (e.g. C:\Windows\System32).
+$parent = Get-Item -LiteralPath (Split-Path $dir -Parent) -Force
+if (Test-Link $parent) {
+    Write-Output "Left $dir alone: its parent folder is a link. The service decides whether to trust it."
     exit 0
 }
-$problem = Get-Problem $pfx
+$root = Get-Item -LiteralPath $dir -Force
 
-if ($problem) {
-    $aside = "$pfx.untrusted-$stamp"
-    Rename-Item -LiteralPath $pfx -NewName (Split-Path $aside -Leaf)
-    Write-Output "Set aside an untrusted server identity ($problem): $aside. The service creates a new one."
+function Set-Aside([string]$why) {
+    # Renames the folder (or the link itself, never its target). Nothing in it (key, enrolled-PC
+    # list) is trusted again, and the service creates a new identity.
+    Rename-Item -LiteralPath $dir -NewName "Server.untrusted-$stamp"
+    Write-Output "Set aside an untrusted server folder ($why). The service creates a new identity."
     exit 0
+}
+
+if (Test-Link $root) { Set-Aside 'it is a link' }
+$dirProblem = Get-Problem $dir
+if ($dirProblem) { Set-Aside $dirProblem }
+
+# Everything inside, found without entering links (Get-ChildItem -Recurse in Windows PowerShell
+# follows them). A link, or anything another account could have written, means the folder can't
+# be trusted as a whole.
+$items = New-Object 'Collections.Generic.List[IO.FileSystemInfo]'
+$pending = New-Object 'Collections.Generic.Stack[IO.DirectoryInfo]'
+$pending.Push($root)
+while ($pending.Count -gt 0) {
+    # GetFileSystemInfos (not Enumerate...): reads the whole listing and closes the folder, so a
+    # Set-Aside from inside this loop can still rename it.
+    foreach ($child in $pending.Pop().GetFileSystemInfos()) {
+        if (Test-Link $child) { Set-Aside "it contains a link: $($child.Name)" }
+        $items.Add($child)
+        if ($child -is [IO.DirectoryInfo]) { $pending.Push($child) }
+    }
+}
+foreach ($item in $items) {
+    $problem = Get-Problem $item.FullName
+    if (-not $problem) { continue }
+    if ($item.FullName -eq $pfx) {
+        $aside = "$pfx.untrusted-$stamp"
+        Rename-Item -LiteralPath $pfx -NewName (Split-Path $aside -Leaf)
+        Write-Output "Set aside an untrusted server identity ($problem): $aside. The service creates a new one."
+        exit 0
+    }
+    Set-Aside "$($item.Name) is $problem"
 }
 
 # Adopt: owner Administrators; SYSTEM (the service) and Administrators only, every other entry
 # removed (the service refuses a key any other account can write, even an administrator's own
-# user account). Users must never read the private key.
-& icacls $dir /setowner "*$Admins" /T /C /Q | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "Couldn't make Administrators the owner of $dir (icacls exit code $LASTEXITCODE)." }
-
-function Set-AdminOnlyAcl([IO.FileSystemInfo]$item) {
+# user account). Users must never read the private key. Item by item over the list above (no
+# icacls /T, which would follow links).
+function Set-AdminOnly([IO.FileSystemInfo]$item) {
+    & icacls $item.FullName /setowner "*$Admins" /C /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Couldn't make Administrators the owner of $($item.FullName) (icacls exit code $LASTEXITCODE)." }
     $isDir = $item -is [IO.DirectoryInfo]
     $acl = if ($isDir) { New-Object Security.AccessControl.DirectorySecurity } else { New-Object Security.AccessControl.FileSecurity }
     $acl.SetAccessRuleProtection($true, $false)   # no inherited entries
@@ -91,9 +125,8 @@ function Set-AdminOnlyAcl([IO.FileSystemInfo]$item) {
     $item.SetAccessControl($acl)   # writes the access list only; the owner set above stays
 }
 # Contents first (deepest first), the folder itself last: it stays listable until the end.
-$items = @(Get-ChildItem -LiteralPath $dir -Force -Recurse) | Sort-Object { $_.FullName.Length } -Descending
-foreach ($item in $items) { Set-AdminOnlyAcl $item }
-Set-AdminOnlyAcl (Get-Item -LiteralPath $dir -Force)
+foreach ($item in ($items | Sort-Object { $_.FullName.Length } -Descending)) { Set-AdminOnly $item }
+Set-AdminOnly $root
 
 Write-Output "Kept the existing server identity (same fingerprint) for the PROCTOR service."
 exit 0

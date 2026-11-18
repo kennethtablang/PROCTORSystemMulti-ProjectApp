@@ -330,7 +330,7 @@ public sealed class TeacherClient : IAsyncDisposable
             return ConnectOutcome.Error;
         }
 
-        Status?.Invoke($"Connected to \"{server.RoomName}\".");
+        Status?.Invoke($"Connected to {server.RoomName}");
         Registered?.Invoke();
         return ConnectOutcome.Connected;
     }

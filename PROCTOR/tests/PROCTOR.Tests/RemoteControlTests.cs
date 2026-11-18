@@ -30,15 +30,28 @@ public class RemoteControlTests
         Assert.False(RemoteControlLimits.IsValid(new RemoteInputEvent { Kind = kind, X = x, Y = y, VirtualKey = vk, Delta = delta }));
 
     [Fact]
-    public async Task Open_mode_refuses_remote_control()
+    public async Task Open_mode_can_keep_remote_control_for_teachers_with_a_code()
     {
-        await using var factory = new ServerFactory();
+        // Default: every control works in open mode. IT can reserve the strong ones for code holders.
+        await using var factory = new ServerFactory(("PROCTOR:AllowStrongControlsInOpenMode", "false"));
         await using var student = await factory.ConnectAsync();
         await student.RegisterStudentAsync();
         await using var teacher = await factory.ConnectAsync();
         await teacher.RegisterTeacherAsync();
         await Assert.ThrowsAsync<HubException>(() => teacher.Hub.InvokeAsync(Protocol.ServerMethods.StartRemoteControl, student.Id));
         await student.AssertNoneAsync(Protocol.ClientMethods.RemoteControlChanged);
+    }
+
+    [Fact]
+    public async Task Open_mode_allows_remote_control_by_default()
+    {
+        await using var factory = new ServerFactory();
+        await using var student = await factory.ConnectAsync();
+        await student.RegisterStudentAsync();
+        await using var teacher = await factory.ConnectAsync();
+        await teacher.RegisterTeacherAsync();
+        await teacher.Hub.InvokeAsync(Protocol.ServerMethods.StartRemoteControl, student.Id);
+        await student.WaitForAsync(Protocol.ClientMethods.RemoteControlChanged);
     }
 
     [Fact]

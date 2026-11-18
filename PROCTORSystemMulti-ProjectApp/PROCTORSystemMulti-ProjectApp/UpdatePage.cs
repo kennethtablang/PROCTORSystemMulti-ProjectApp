@@ -63,7 +63,7 @@ public sealed class UpdatePage : ContentPage
                 Spacing = 10,
                 Children =
                 {
-                    new Label { Text = "⬆  Update available", FontSize = 20, FontAttributes = FontAttributes.Bold, TextColor = Colors.White },
+                    new Label { Text = "Update available", FontSize = 18, FontAttributes = FontAttributes.Bold, TextColor = Colors.White },
                     new Label
                     {
                         Text = $"PROCTOR {release.VersionText} is ready. You have {ProductVersion.Text}.",

@@ -54,9 +54,9 @@ public sealed partial class DashboardViewModel
                 {
                     var size = source.Length;
                     if (size > FileLimits.MaxSize) return $"“{name}” is bigger than {FileLimits.MaxSize / (1024 * 1024)} MB.";
-                    OnUi(() => TransferText = $"📁 Sending “{name}”…");
+                    OnUi(() => TransferText = $"Sending “{name}”…");
                     var progress = new Progress<long>(sent =>
-                        TransferText = $"📁 Sending “{name}”… {(size == 0 ? 100 : sent * 100 / size)}%");
+                        TransferText = $"Sending “{name}”… {(size == 0 ? 100 : sent * 100 / size)}%");
                     var accepted = await FileSender.SendAsync(
                         _client.OfferFileAsync, _client.SendFileChunkAsync, _client.FinishFileAsync, _client.CancelFileAsync,
                         source,
@@ -65,7 +65,7 @@ public sealed partial class DashboardViewModel
                     OnUi(() =>
                     {
                         _outgoing[accepted.TransferId] = new Outgoing { Name = name, Receivers = accepted.Targets.Count };
-                        TransferText = $"📁 “{name}” sent — waiting for {accepted.Targets.Count} PC(s) to save it…";
+                        TransferText = $"“{name}” sent — waiting for {accepted.Targets.Count} PC(s) to save it…";
                     });
                 }
                 finally
@@ -75,7 +75,7 @@ public sealed partial class DashboardViewModel
             }
             catch (Exception ex)
             {
-                OnUi(() => TransferText = $"📁 “{name}” wasn't sent.");
+                OnUi(() => TransferText = $"“{name}” wasn't sent.");
                 return ex.Message;
             }
         }
@@ -87,7 +87,7 @@ public sealed partial class DashboardViewModel
         if (!_outgoing.TryGetValue(r.TransferId, out var o)) return;
         if (r.Ok) o.Ok++;
         else o.Failed.Add($"{r.FromName}: {r.Error ?? "failed"}");
-        var text = $"📁 “{o.Name}” saved on {o.Ok} of {o.Receivers} PC(s)";
+        var text = $"“{o.Name}” saved on {o.Ok} of {o.Receivers} PC(s)";
         if (o.Failed.Count > 0) text += $" · {o.Failed.Count} failed ({string.Join("; ", o.Failed.Take(3))}{(o.Failed.Count > 3 ? "…" : "")})";
         TransferText = text;
         if (o.Ok + o.Failed.Count >= o.Receivers) _outgoing.Remove(r.TransferId);
@@ -115,7 +115,7 @@ public sealed partial class DashboardViewModel
             _collectedFrom.Clear();
             IsCollecting = true;
             Raise(nameof(IsCollecting));
-            TransferText = $"📥 Collecting work from {asked} student(s) · nothing handed in yet";
+            TransferText = $"Collecting work from {asked} student(s) · nothing handed in yet";
             return null;
         }
         catch (Exception ex) { return ex.Message; }
@@ -126,7 +126,7 @@ public sealed partial class DashboardViewModel
         try { await _client.EndHandInAsync(); } catch { }
         IsCollecting = false;
         Raise(nameof(IsCollecting));
-        TransferText = _collectedFiles == 0 ? "" : $"📥 Collected {_collectedFiles} file(s) from {_collectedFrom.Count} student(s).";
+        TransferText = _collectedFiles == 0 ? "" : $"Collected {_collectedFiles} file(s) from {_collectedFrom.Count} student(s).";
     }
 
     private void OnFileOffered(FileOffer offer)
@@ -172,7 +172,7 @@ public sealed partial class DashboardViewModel
                 FileLimits.MarkAsDownloaded(target);   // a student's file: SmartScreen / Protected View treat it as untrusted
                 _collectedFiles++;
                 _collectedFrom.Add(a.Offer.FromConnectionId ?? student);
-                TransferText = $"📥 Collecting work · {_collectedFiles} file(s) from {_collectedFrom.Count} student(s) · latest: {a.Offer.FromName}";
+                TransferText = $"Collecting work · {_collectedFiles} file(s) from {_collectedFrom.Count} student(s) · latest: {a.Offer.FromName}";
                 _ = Report(finish.TransferId, null);
             }
             catch (Exception ex) { _ = Report(finish.TransferId, "It couldn't be saved: " + ex.Message); }

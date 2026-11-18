@@ -14,20 +14,32 @@ public partial class DashboardPage : ContentPage
         _vm = vm;
         BindingContext = _vm;
 
-        // Grid density (FR-TEACH-06). GridItemsLayout isn't in the visual tree, so it can't bind
-        // to the page's context; drive its Span from the view model instead.
-        ApplyColumns();
+        // Screen size (FR-TEACH-06): the Size slider sets how wide a student screen should be; the
+        // columns follow from the grid's width, and the picture keeps a 16:9 shape.
+        // GridItemsLayout isn't in the visual tree, so its Span is set here rather than bound.
+        Application.Current!.Resources[ThumbHeightKey] = 140d;
+        TileGrid.SizeChanged += (_, _) => ApplyTileSize();
         _vm.PropertyChanged += OnVmPropertyChanged;
     }
 
+    private const string ThumbHeightKey = "TileThumbHeight";
+    private const double TileSpacing = 10;
+    private const double TileChrome = 2 * 8 + 4;   // tile padding + border
+
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(DashboardViewModel.Columns)) ApplyColumns();
+        if (e.PropertyName == nameof(DashboardViewModel.TileSize)) ApplyTileSize();
     }
 
-    private void ApplyColumns()
+    private void ApplyTileSize()
     {
-        if (TileGrid.ItemsLayout is GridItemsLayout layout) layout.Span = _vm.Columns;
+        var width = TileGrid.Width;
+        if (width <= 0) return;
+        var span = Math.Clamp((int)Math.Floor((width + TileSpacing) / (_vm.TileSize + TileSpacing)), 1, 12);
+        _vm.Columns = span;
+        if (TileGrid.ItemsLayout is GridItemsLayout layout && layout.Span != span) layout.Span = span;
+        var tileWidth = (width - TileSpacing * (span - 1)) / span;
+        Application.Current!.Resources[ThumbHeightKey] = Math.Max(60, Math.Round((tileWidth - TileChrome) * 9 / 16));
     }
 
     protected override async void OnAppearing()
@@ -71,9 +83,9 @@ public partial class DashboardPage : ContentPage
     // ---- more tools: timer, random pick, snapshots, attendance, PIN ----
     private async void OnMore(object? sender, EventArgs e)
     {
-        const string timer = "⏱ Lesson timer…", pick = "🎲 Pick a random student", snap = "📷 Snapshot all screens",
-            attendance = "📋 Export attendance (CSV)", pin = "🔐 Teacher PIN…", lockNow = "🔒 Lock this app now",
-            send = "📁 Send files to the class…", collect = "📥 Collect work…", stopCollect = "📥 Stop collecting work";
+        const string timer = "Lesson timer…", pick = "Pick a random student", snap = "Snapshot all screens",
+            attendance = "Export attendance (CSV)", pin = "Teacher PIN…", lockNow = "Lock this app now",
+            send = "Send files to the class…", collect = "Collect work…", stopCollect = "Stop collecting work";
         var options = new List<string> { timer, send, _vm.IsCollecting ? stopCollect : collect, pick, snap, attendance, pin };
         if (TeacherPin.IsSet) options.Add(lockNow);
         switch (await DisplayActionSheetAsync("Teacher tools", "Cancel", null, options.ToArray()))
@@ -131,8 +143,8 @@ public partial class DashboardPage : ContentPage
             await DisplayAlertAsync("Pick a student", "No students are connected.", "OK");
             return;
         }
-        if (await DisplayAlertAsync("🎲 Picked", tile.Header, "Tell them", "OK"))
-            await _vm.SendCommandAsync(CommandKind.Message, [tile.ConnectionId], "🎲 You've been picked — your teacher would like to hear from you!");
+        if (await DisplayAlertAsync("Picked", tile.Header, "Tell them", "OK"))
+            await _vm.SendCommandAsync(CommandKind.Message, [tile.ConnectionId], "You've been picked — your teacher would like to hear from you!");
     }
 
     private async Task SnapshotAll()

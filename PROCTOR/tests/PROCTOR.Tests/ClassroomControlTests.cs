@@ -152,14 +152,16 @@ public class ClassroomControlHubTests : IAsyncLifetime
     [Fact]
     public async Task Invalid_commands_are_refused()
     {
-        await using var s1 = await _factory.ConnectAsync();
+        // Strong controls reserved for code holders (not the default).
+        await using var factory = new ServerFactory(("PROCTOR:AllowStrongControlsInOpenMode", "false"));
+        await using var s1 = await factory.ConnectAsync();
         await s1.RegisterStudentAsync();
-        await using var teacher = await _factory.ConnectAsync();
+        await using var teacher = await factory.ConnectAsync();
         await teacher.RegisterTeacherAsync();
 
         await Assert.ThrowsAsync<HubException>(() => Send(teacher, new ClassroomCommand { Kind = CommandKind.Message, Text = "  " }));
         await Assert.ThrowsAsync<HubException>(() => Send(teacher, new ClassroomCommand { Kind = CommandKind.OpenUrl, Url = "file:///C:/x.exe" }));
-        // Open mode: the strong controls are off unless IT allows them.
+        // Open mode with strong controls reserved: refused, pointing at the join code.
         var ex = await Assert.ThrowsAsync<HubException>(() => Send(teacher, new ClassroomCommand { Kind = CommandKind.ShutDown }));
         Assert.Contains("join code", ex.Message);
         await Assert.ThrowsAsync<HubException>(() => teacher.Hub.InvokeAsync<ClassPolicy>(Protocol.ServerMethods.SetPolicy,

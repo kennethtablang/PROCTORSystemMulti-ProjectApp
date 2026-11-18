@@ -122,8 +122,8 @@ internal sealed class PolicyEnforcer : IDisposable
         _lastTabClose = DateTime.UtcNow;
         _browser.Invalidate();
         Notice(host, policy.WebMode == WebLimitMode.AllowOnlyListed
-            ? $"🚫  {host} isn't on your teacher's list of allowed sites."
-            : $"🚫  {host} is blocked by your teacher.");
+            ? $"{host} isn't on your teacher's list of allowed sites."
+            : $"{host} is blocked by your teacher.");
         _logger.LogInformation("Closed a browser tab on {Host} (web limits).", host);
     }
 
@@ -143,7 +143,7 @@ internal sealed class PolicyEnforcer : IDisposable
                     if (!blocked.Contains(name) || ClassroomLimits.ProtectedApps.Contains(name)) continue;
                     if (p.SessionId != mySession) continue;   // only the student's own session
                     p.Kill();
-                    Notice(name, $"🚫  {name} is blocked by your teacher.");
+                    Notice(name, $"{name} is blocked by your teacher.");
                     _logger.LogInformation("Closed blocked app {Name} (pid {Pid}).", name, p.Id);
                 }
                 catch { /* exited, or access denied (elevated process in dev mode) */ }
@@ -165,7 +165,7 @@ internal sealed class PolicyEnforcer : IDisposable
         RemoveFirewallRule(quiet: true);
         var ok = Netsh($"advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=out action=block remoteip={PublicRanges} enable=yes");
         _internetBlocked = ok;
-        if (ok) { _logger.LogInformation("Internet access blocked (LAN still reachable)."); _ui?.ShowNotice("🌐  Your teacher has turned off the internet."); }
+        if (ok) { _logger.LogInformation("Internet access blocked (LAN still reachable)."); _ui?.ShowNotice("Your teacher has turned off the internet."); }
         else _logger.LogWarning("Could not block internet access (needs the agent service's admin rights).");
     }
 
@@ -174,7 +174,7 @@ internal sealed class PolicyEnforcer : IDisposable
         var ok = Netsh($"advfirewall firewall delete rule name=\"{FirewallRuleName}\"");
         if (_internetBlocked && !quiet)
         {
-            if (ok) _ui?.ShowNotice("🌐  Internet access is back on.");
+            if (ok) _ui?.ShowNotice("Internet access is back on.");
             _logger.LogInformation("Internet access restored.");
         }
         _internetBlocked = false;

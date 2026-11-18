@@ -41,7 +41,7 @@ public static class ClassActions
         const string logOff = "Log off", restart = "Restart", shutDown = "Shut down";
         // Whole class: also offer to switch on the lab PCs that are off (Wake-on-LAN).
         var offline = targets is null ? vm.OfflineComputers() : [];
-        var wake = $"⚡ Switch on offline computers ({offline.Count})";
+        var wake = $"Switch on offline computers ({offline.Count})";
         var options = offline.Count > 0 ? new[] { wake, logOff, restart, shutDown } : new[] { logOff, restart, shutDown };
         var choice = await page.DisplayActionSheetAsync($"Power — {who}", "Cancel", null, options);
         if (choice == wake)

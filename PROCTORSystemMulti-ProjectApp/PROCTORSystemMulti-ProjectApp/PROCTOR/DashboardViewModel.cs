@@ -23,6 +23,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     private const string PrefServer = "proctor.server";
     private const string PrefThumb = "proctor.thumbwidth";
     private const string PrefFocus = "proctor.focuswidth";
+    private const string PrefTileSize = "proctor.tilesize";
 
     private readonly TeacherClient _client = new();
     private readonly Dictionary<string, StudentTile> _byConnection = new();
@@ -107,6 +108,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         _focusIndex = IndexOf(StreamResolution.FocusChoices, LoadPref(PrefFocus), defaultFocus);
         Streams.FocusWidth = StreamResolution.FocusChoices[_focusIndex].Width;
         _columns = DeviceInfo.Idiom == DeviceIdiom.Phone ? 1 : DeviceInfo.Idiom == DeviceIdiom.Tablet ? 2 : 3;
+        _tileSize = double.TryParse(LoadPref(PrefTileSize), System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var size) ? Math.Clamp(size, MinTileSize, MaxTileSize) : 320;
     }
 
     // ---- connection state -------------------------------------------------
@@ -115,7 +118,35 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     public string JoinCode { get => _joinCode; set { _joinCode = value; Raise(); } }
 
     private string _status = "Looking for the classroom server…";
-    public string Status { get => _status; private set { _status = value; Raise(); } }
+    public string Status { get => _status; private set { _status = value; Raise(); ShowStatusBriefly(); } }
+
+    private bool _statusShown = true;
+    private IDispatcherTimer? _statusTimer;
+    /// <summary>The status pill at the top right: shown for a few seconds after each message, and while searching.</summary>
+    public bool StatusVisible => _statusShown || _isSearching;
+
+    private void ShowStatusBriefly()
+    {
+        _statusShown = true;
+        Raise(nameof(StatusVisible));
+        try
+        {
+            if (_statusTimer is null)
+            {
+                if (Application.Current?.Dispatcher is not { } dispatcher) return;
+                _statusTimer = dispatcher.CreateTimer();
+                _statusTimer.Interval = TimeSpan.FromSeconds(5);
+                _statusTimer.IsRepeating = false;
+                _statusTimer.Tick += (_, _) => { _statusShown = false; Raise(nameof(StatusVisible)); };
+            }
+            _statusTimer.Stop();
+            _statusTimer.Start();
+        }
+        catch
+        {
+            // No UI dispatcher yet (start-up): the message simply stays until the next one.
+        }
+    }
 
     private bool _isConnected;
     public bool IsConnected
@@ -140,7 +171,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
 
     // The background discover/reconnect loop is running (doesn't block the manual controls).
     private bool _isSearching;
-    public bool IsSearching { get => _isSearching; private set { _isSearching = value; Raise(); } }
+    public bool IsSearching { get => _isSearching; private set { _isSearching = value; Raise(); Raise(nameof(StatusVisible)); } }
 
     /// <summary>
     /// False by default so the app "just opens and connects". It flips true only when a
@@ -189,8 +220,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         TrustIsChange = p.Previous is not null;
         TrustFingerprint = global::PROCTOR.Shared.ServerTrust.Format(p.Fingerprint);
         TrustTitle = TrustIsChange
-            ? $"⚠ The identity of \u201C{p.Server.RoomName}\u201D has CHANGED"
-            : $"🔐 New classroom server: \u201C{p.Server.RoomName}\u201D ({p.Server.Host})";
+            ? $"Warning: the identity of \u201C{p.Server.RoomName}\u201D has CHANGED"
+            : $"New classroom server: \u201C{p.Server.RoomName}\u201D ({p.Server.Host})";
         TrustDetail = TrustIsChange
             ? "This server presents a different key from the one you trusted before. That happens if the server was reinstalled — "
               + "but it is also what an impostor would look like. Only continue if IT confirms the new fingerprint below "
@@ -252,7 +283,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     public bool IsBroadcasting => Broadcaster.IsActive;
 
     public string BroadcastText => Broadcaster.IsActive
-        ? $"📺 Showing {(Broadcaster.ShowingStudent is { } shown ? shown.MachineName + "'s" : "your")} screen ({(Broadcaster.Mode == BroadcastMode.FullScreen ? "full screen" : "in a window")}) · {Broadcaster.Viewers} watching"
+        ? $"Showing {(Broadcaster.ShowingStudent is { } shown ? shown.MachineName + "'s" : "your")} screen ({(Broadcaster.Mode == BroadcastMode.FullScreen ? "full screen" : "in a window")}) · {Broadcaster.Viewers} watching"
         : "";
 
     // ---- polls -------------------------------------------------------------
@@ -266,7 +297,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Short live status for the dashboard bar, e.g. "Poll: 12/20 answered".</summary>
-    public string PollBadge => _pollResults is { Closed: false } r ? $"📊 Poll open · {r.Answered}/{r.Asked} answered" : "";
+    public string PollBadge => _pollResults is { Closed: false } r ? $"Poll open · {r.Answered}/{r.Asked} answered" : "";
 
     public async Task<string?> StartPollAsync(Poll poll)
     {
@@ -282,7 +313,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
 
     public int RaisedHands => Students.Count(s => s.HandRaised);
     public bool HasRaisedHands => RaisedHands > 0;
-    public string RaisedHandsText => RaisedHands == 1 ? "✋ 1 student needs help" : $"✋ {RaisedHands} students need help";
+    public string RaisedHandsText => RaisedHands == 1 ? "1 student needs help" : $"{RaisedHands} students need help";
 
     private void SetHand(string id, bool raised)
     {
@@ -418,12 +449,28 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         get => _columns;
         set
         {
-            var v = Math.Clamp(value, 1, 8);
+            var v = Math.Clamp(value, 1, 12);
             if (v == _columns) return;
             _columns = v; Raise(); Raise(nameof(ColumnsText));
         }
     }
     public string ColumnsText => $"{_columns} per row";
+
+    public const double MinTileSize = 180;
+    public const double MaxTileSize = 960;
+    private double _tileSize;
+    /// <summary>How wide a student screen should be on the dashboard (the Size slider); columns follow.</summary>
+    public double TileSize
+    {
+        get => _tileSize;
+        set
+        {
+            var v = Math.Clamp(Math.Round(value), MinTileSize, MaxTileSize);
+            if (Math.Abs(v - _tileSize) < 1) return;
+            _tileSize = v; Raise();
+            SavePref(PrefTileSize, v.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+    }
 
     public string EmptyText => Students.Count > 0 ? "No students match your search." : "No students connected yet.";
 
@@ -600,7 +647,9 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
             NeedsRoomChoice = false;
         }
 
-        if (outcome == ConnectOutcome.NoServer) ShowManualEntry = true;
+        // No server, or the one found wants a code: let the teacher type another address (e.g. the
+        // lab teacher PC from a laptop whose own network has a different PROCTOR server).
+        if (outcome is ConnectOutcome.NoServer or ConnectOutcome.NeedsJoinCode) ShowManualEntry = true;
         if (outcome == ConnectOutcome.Connected && _client.CurrentServer is { } s) SavePref(PrefRoom, s.RoomName);
     }
 

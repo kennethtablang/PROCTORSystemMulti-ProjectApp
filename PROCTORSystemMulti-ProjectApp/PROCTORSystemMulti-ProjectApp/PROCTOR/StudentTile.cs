@@ -60,7 +60,7 @@ public sealed class StudentTile : INotifyPropertyChanged
         get => _isLocked;
         set { if (_isLocked != value) { _isLocked = value; Raise(); Raise(nameof(LockText)); } }
     }
-    public string LockText => _isLocked ? "🔒 Locked" : "";
+    public string LockText => _isLocked ? "Locked" : "";
 
     private bool _handRaised;
     /// <summary>The student has raised their hand asking for help.</summary>
@@ -78,7 +78,7 @@ public sealed class StudentTile : INotifyPropertyChanged
         set { if (_unreadChat != value) { _unreadChat = value; Raise(); Raise(nameof(ChatBadge)); Raise(nameof(HasUnreadChat)); } }
     }
     public bool HasUnreadChat => _unreadChat > 0;
-    public string ChatBadge => _unreadChat > 0 ? $"💬 {_unreadChat}" : "";
+    public string ChatBadge => _unreadChat > 0 ? _unreadChat.ToString() : "";
 
     /// <summary>Tile outline: amber while the student's hand is up, so it stands out in the grid.</summary>
     public Color TileBorderColor => _handRaised ? Color.FromArgb("#F9A825") : Color.FromArgb("#DDDDDD");
@@ -158,7 +158,7 @@ public sealed class StudentTile : INotifyPropertyChanged
 
     private string? _activeHost;
     /// <summary>Host of the foreground browser tab, if the agent reports it (FR-AGENT-06).</summary>
-    public string ActiveHostText => string.IsNullOrWhiteSpace(_activeHost) ? "" : $"🌐 {_activeHost}";
+    public string ActiveHostText => string.IsNullOrWhiteSpace(_activeHost) ? "" : _activeHost!;
     public bool HasActiveHost => !string.IsNullOrWhiteSpace(_activeHost);
 
     /// <summary>Session-total bytes, shown in the focus detail panel and bandwidth view (FR-TEL-05).</summary>

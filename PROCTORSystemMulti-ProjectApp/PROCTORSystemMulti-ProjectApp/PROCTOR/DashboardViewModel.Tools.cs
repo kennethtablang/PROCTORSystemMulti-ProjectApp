@@ -28,7 +28,7 @@ public sealed partial class DashboardViewModel
             if (!TimerRunning) return "";
             var secs = (int)Math.Ceiling((_timerEndsUtc - DateTime.UtcNow).TotalSeconds);
             var clock = secs >= 3600 ? $"{secs / 3600}:{secs / 60 % 60:00}:{secs % 60:00}" : $"{secs / 60}:{secs % 60:00}";
-            return string.IsNullOrEmpty(_timer.Label) ? $"⏱ {clock} left" : $"⏱ {clock} left · {_timer.Label}";
+            return string.IsNullOrEmpty(_timer.Label) ? $"{clock} left" : $"{clock} left · {_timer.Label}";
         }
     }
 

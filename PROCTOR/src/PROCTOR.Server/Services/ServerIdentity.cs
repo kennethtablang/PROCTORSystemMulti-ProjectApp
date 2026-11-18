@@ -34,9 +34,10 @@ public sealed class ServerIdentity
     public string TeacherCode { get; }
 
     /// <summary>
-    /// In open teacher mode, whether teachers may still use the strongest controls (log off / restart /
-    /// shut down, internet off, closing programs). Off by default: without a join code anyone on the
-    /// network can be a teacher.
+    /// In open teacher mode, whether teachers may also use the strongest controls (remote control,
+    /// sending programs, log off / restart / shut down, internet off, closing programs). On by
+    /// default, so every control works without a join code; set false to keep those for teachers
+    /// who joined with a code (then anyone on the network who opens a teacher app can't use them).
     /// </summary>
     public bool AllowStrongControlsInOpenMode { get; }
 
@@ -64,7 +65,7 @@ public sealed class ServerIdentity
         AllowOpenTeacherMode = section.GetValue<bool?>("AllowOpenTeacherMode") ?? false;
         Host = ResolveLanAddress();
         DiscoveryEnabled = section.GetValue<bool?>("DiscoveryEnabled") ?? true;
-        AllowStrongControlsInOpenMode = section.GetValue<bool?>("AllowStrongControlsInOpenMode") ?? false;
+        AllowStrongControlsInOpenMode = section.GetValue<bool?>("AllowStrongControlsInOpenMode") ?? true;
         IceServers = section.GetSection("IceServers").Get<IceServerConfig[]>()?
             .Where(s => !string.IsNullOrWhiteSpace(s.Urls))
             .ToArray() ?? [];

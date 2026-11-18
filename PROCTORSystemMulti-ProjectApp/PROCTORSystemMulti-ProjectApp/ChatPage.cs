@@ -60,7 +60,7 @@ public sealed class ChatPage : ContentPage
         var header = new Grid
         {
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) },
-            Children = { new Label { Text = $"💬 {tile.Header}", FontSize = 18, FontAttributes = FontAttributes.Bold, VerticalOptions = LayoutOptions.Center } },
+            Children = { new Label { Text = $"Chat with {tile.Header}", FontSize = 16, FontAttributes = FontAttributes.Bold, VerticalOptions = LayoutOptions.Center } },
         };
         header.Add(close, 1, 0);
 

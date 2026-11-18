@@ -503,7 +503,7 @@ internal sealed partial class ClassroomUi : IDisposable
     {
         var title = new TextBlock
         {
-            Text = "🔒  Eyes on your teacher",
+            Text = "Eyes on your teacher",
             FontSize = 40,
             FontWeight = FontWeights.SemiBold,
             Foreground = Brushes.White,
@@ -624,16 +624,16 @@ internal sealed partial class ClassroomUi : IDisposable
         try
         {
             var menu = new Forms.ContextMenuStrip();
-            var toggle = new Forms.ToolStripMenuItem("✋ Raise hand (ask for help)");
+            var toggle = new Forms.ToolStripMenuItem("Raise hand (ask for help)");
             toggle.Click += (_, _) => ToggleHand();
             menu.Items.Add(toggle);
-            var chat = new Forms.ToolStripMenuItem("💬 Message my teacher");
+            var chat = new Forms.ToolStripMenuItem("Message my teacher");
             chat.Click += (_, _) => OpenChatFromTray();
             menu.Items.Add(chat);
-            var handIn = new Forms.ToolStripMenuItem("📤 Hand in work");
+            var handIn = new Forms.ToolStripMenuItem("Hand in work");
             handIn.Click += (_, _) => OpenHandInFromTray();
             menu.Items.Add(handIn);
-            menu.Opening += (_, _) => toggle.Text = _handRaised ? "Lower my hand" : "✋ Raise hand (ask for help)";
+            menu.Opening += (_, _) => toggle.Text = _handRaised ? "Lower my hand" : "Raise hand (ask for help)";
 
             _tray = new Forms.NotifyIcon
             {
@@ -664,7 +664,7 @@ internal sealed partial class ClassroomUi : IDisposable
     {
         if (!_handRaised) return;
         _handRaised = false;
-        if (showNotice) ShowNotice("✋  Your teacher saw your raised hand.");
+        if (showNotice) ShowNotice("Your teacher saw your raised hand.");
     });
 
     private static System.Drawing.Icon BuildTrayIcon()

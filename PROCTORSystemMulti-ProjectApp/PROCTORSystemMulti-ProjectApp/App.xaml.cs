@@ -1,4 +1,4 @@
-﻿namespace PROCTORSystemMulti_ProjectApp
+namespace PROCTORSystemMulti_ProjectApp
 {
     public partial class App : Application
     {
@@ -22,7 +22,7 @@
             {
                 BackgroundColor = Color.FromArgb("#15171C"),
                 ForegroundColor = Colors.White,
-                HeightRequest = 44,
+                HeightRequest = 36,
                 LeadingContent = new HorizontalStackLayout
                 {
                     Spacing = 8,
@@ -31,11 +31,11 @@
                     Children =
                     {
                         // The PROCTOR logo (branding\proctor-logo.svg).
-                        new Image { Source = "proctor_logo.png", WidthRequest = 22, HeightRequest = 22, VerticalOptions = LayoutOptions.Center },
+                        new Image { Source = "proctor_logo.png", WidthRequest = 18, HeightRequest = 18, VerticalOptions = LayoutOptions.Center },
                         new Label
                         {
                             Text = "PROCTOR",
-                            FontSize = 14,
+                            FontSize = 13,
                             FontAttributes = FontAttributes.Bold,
                             TextColor = Color.FromArgb("#B794F6"),
                             VerticalOptions = LayoutOptions.Center,
@@ -54,14 +54,13 @@
 
         private static Button MoreInfoButton()
         {
-            var button = new Button
+            var button = new PROCTOR.IconButton
             {
-                Text = "ⓘ  More information",
-                FontSize = 12,
-                Padding = new Thickness(10, 2),
+                Glyph = PROCTOR.Icons.Info,
+                ToolTip = "More information: version, server key, updates",
+                IconColor = Color.FromArgb("#B794F6"),
                 Margin = new Thickness(0, 0, 8, 0),
                 BackgroundColor = Colors.Transparent,
-                TextColor = Color.FromArgb("#B794F6"),
                 BorderWidth = 0,
                 VerticalOptions = LayoutOptions.Center,
             };

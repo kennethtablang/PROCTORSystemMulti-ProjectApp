@@ -105,18 +105,17 @@ public partial class FocusPage : ContentPage
             await DisplayAlertAsync("Not available here", "Remote control is available on the Windows teacher app.", "OK");
             return;
         }
-        if (!await DisplayAlertAsync($"Control {_tile.MachineName}?",
-                "Your mouse (over the picture) and keyboard will work this PC. The student sees a red \u201Cyour teacher is controlling this computer\u201D banner. Press \u201CStop control\u201D to end.",
-                "Take control", "Cancel"))
-            return;
         try
         {
             _control = await RemoteControlSession.StartAsync(_vm.Client, _tile.ConnectionId, _display);
             _control.Failed += reason => MainThread.BeginInvokeOnMainThread(async () => await StopControlAsync("Control ended: " + reason));
             _capture = input.Attach(Screen, ToFrame, _control.Post);
-            ControlButton.Text = "⏹ Stop control";
+            // Your mouse (over the picture) and keyboard now work this PC; the student sees a red
+            // "your teacher is controlling this computer" banner. Click the button again to stop.
+            ControlButton.Glyph = Icons.Stop;
+            ControlButton.ToolTip = "Stop control";
             ControlButton.BackgroundColor = Color.FromArgb("#C62828");
-            ControlButton.TextColor = Colors.White;
+            ControlButton.IconColor = Colors.White;
         }
         catch (Exception ex)
         {
@@ -132,9 +131,10 @@ public partial class FocusPage : ContentPage
         var session = _control;
         _control = null;
         if (session is not null) await session.StopAsync();
-        ControlButton.Text = "🖱 Control";
+        ControlButton.Glyph = Icons.Control;
+        ControlButton.ToolTip = "Take control (mouse and keyboard)";
         ControlButton.ClearValue(Button.BackgroundColorProperty);
-        ControlButton.ClearValue(Button.TextColorProperty);
+        ControlButton.ClearValue(IconButton.IconColorProperty);
         if (message is not null) await DisplayAlertAsync("Remote control", message, "OK");
     }
 

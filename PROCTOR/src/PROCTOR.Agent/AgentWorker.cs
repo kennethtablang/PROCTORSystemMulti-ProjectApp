@@ -465,7 +465,7 @@ public sealed class AgentWorker : BackgroundService
             var (path, name, error) = await Task.Run(() => _files.Finished(finish));
             if (path is null && error is null) return;   // not ours
             if (error is null)
-                _ui?.ShowNotice($"📁  Your teacher sent you \u201C{name}\u201D. It's in \u201C{StudentFiles.ReceivedFolderName}\u201D on your desktop.", TimeSpan.FromSeconds(8));
+                _ui?.ShowNotice($"Your teacher sent you \u201C{name}\u201D. It's in \u201C{StudentFiles.ReceivedFolderName}\u201D on your desktop.", TimeSpan.FromSeconds(8));
             await ReportFileAsync(hub, finish.TransferId, error);
         });
         hub.On<string>(Protocol.ClientMethods.FileCancelled, id => _files?.Cancelled(id));
@@ -533,11 +533,11 @@ public sealed class AgentWorker : BackgroundService
                 _ = Task.Delay(3000).ContinueWith(_ => UserSession.LogOff(_logger));
                 break;
             case CommandKind.Restart:
-                _ui?.ShowNotice($"🔄  Your teacher is restarting this computer in {ClassroomLimits.PowerCountdownSeconds} seconds. Save your work.", TimeSpan.FromSeconds(15));
+                _ui?.ShowNotice($"Your teacher is restarting this computer in {ClassroomLimits.PowerCountdownSeconds} seconds. Save your work.", TimeSpan.FromSeconds(15));
                 UserSession.Restart(_logger);
                 break;
             case CommandKind.ShutDown:
-                _ui?.ShowNotice($"⏻  Your teacher is shutting down this computer in {ClassroomLimits.PowerCountdownSeconds} seconds. Save your work.", TimeSpan.FromSeconds(15));
+                _ui?.ShowNotice($"Your teacher is shutting down this computer in {ClassroomLimits.PowerCountdownSeconds} seconds. Save your work.", TimeSpan.FromSeconds(15));
                 UserSession.ShutDown(_logger);
                 break;
         }

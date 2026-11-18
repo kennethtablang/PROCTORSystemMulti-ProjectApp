@@ -34,7 +34,7 @@ public sealed class LockPage : ContentPage
             HorizontalOptions = LayoutOptions.Center,
             Children =
             {
-                new Label { Text = "🔐 PROCTOR is locked", FontSize = 24, FontAttributes = FontAttributes.Bold, TextColor = Colors.White, HorizontalOptions = LayoutOptions.Center },
+                new Label { Text = "PROCTOR is locked", FontSize = 22, FontAttributes = FontAttributes.Bold, TextColor = Colors.White, HorizontalOptions = LayoutOptions.Center },
                 new Label { Text = "Enter the teacher PIN to continue.", TextColor = Color.FromArgb("#9AA0A6"), HorizontalOptions = LayoutOptions.Center },
                 _pin,
                 unlock,

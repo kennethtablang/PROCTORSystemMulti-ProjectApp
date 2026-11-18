@@ -122,12 +122,14 @@ public class FileTransferHubTests : IAsyncLifetime
     [Fact]
     public async Task Rules_executables_order_and_who_may_send()
     {
-        await using var s1 = await _factory.ConnectAsync();
+        // Strong controls reserved for code holders (not the default): open mode then sends no programs.
+        await using var factory = new ServerFactory(("PROCTOR:AllowStrongControlsInOpenMode", "false"));
+        await using var s1 = await factory.ConnectAsync();
         await s1.RegisterStudentAsync();
-        await using var teacher = await _factory.ConnectAsync();
+        await using var teacher = await factory.ConnectAsync();
         await teacher.RegisterTeacherAsync();
 
-        // Open mode: no programs.
+        // No programs.
         await Assert.ThrowsAsync<HubException>(() => Send(teacher, [1, 2, 3], new FileOffer { FileName = "setup.exe" }));
         // Too big.
         await Assert.ThrowsAsync<HubException>(() => teacher.Hub.InvokeAsync<FileOffer>(Protocol.ServerMethods.OfferFile,

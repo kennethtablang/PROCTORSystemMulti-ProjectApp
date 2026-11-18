@@ -22,23 +22,23 @@
         <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray200}}" />
     </Style>
 
-    <Style TargetType="Button">
+    <Style TargetType="Button" ApplyToDerivedTypes="True">
         <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource PrimaryDarkText}}" />
         <Setter Property="BackgroundColor" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}" />
         <Setter Property="FontFamily" Value="OpenSansRegular"/>
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontSize" Value="12"/>
         <Setter Property="BorderWidth" Value="0"/>
-        <Setter Property="CornerRadius" Value="6"/>
-        <Setter Property="Padding" Value="12,6"/>
+        <Setter Property="CornerRadius" Value="5"/>
+        <Setter Property="Padding" Value="10,3"/>
         <!-- Compact on desktop (mouse); touch devices keep a 44 px tap target. -->
         <Setter Property="MinimumHeightRequest">
             <Setter.Value>
-                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="28" />
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="24" />
             </Setter.Value>
         </Setter>
         <Setter Property="MinimumWidthRequest">
             <Setter.Value>
-                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="28" />
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="24" />
             </Setter.Value>
         </Setter>
         <Setter Property="VisualStateManager.VisualStateGroups">
@@ -59,8 +59,16 @@
 
     <Style TargetType="CheckBox">
         <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
-        <Setter Property="MinimumHeightRequest" Value="44"/>
-        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="MinimumHeightRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="MinimumWidthRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
@@ -79,9 +87,17 @@
         <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
         <Setter Property="BackgroundColor" Value="Transparent" />
         <Setter Property="FontFamily" Value="OpenSansRegular"/>
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="MinimumHeightRequest" Value="44"/>
-        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="MinimumHeightRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="MinimumWidthRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
@@ -100,10 +116,18 @@
         <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
         <Setter Property="BackgroundColor" Value="Transparent" />
         <Setter Property="FontFamily" Value="OpenSansRegular"/>
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="PlaceholderColor" Value="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray500}}" />
-        <Setter Property="MinimumHeightRequest" Value="44"/>
-        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="MinimumHeightRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="MinimumWidthRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
@@ -122,10 +146,18 @@
         <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
         <Setter Property="BackgroundColor" Value="Transparent" />
         <Setter Property="FontFamily" Value="OpenSansRegular"/>
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="PlaceholderColor" Value="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray500}}" />
-        <Setter Property="MinimumHeightRequest" Value="44"/>
-        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="MinimumHeightRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="MinimumWidthRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
@@ -145,8 +177,16 @@
         <Setter Property="BorderColor" Value="Transparent"/>
         <Setter Property="BorderWidth" Value="0"/>
         <Setter Property="CornerRadius" Value="0"/>
-        <Setter Property="MinimumHeightRequest" Value="44"/>
-        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="MinimumHeightRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="MinimumWidthRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
@@ -166,7 +206,7 @@
         <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
         <Setter Property="BackgroundColor" Value="Transparent" />
         <Setter Property="FontFamily" Value="OpenSansRegular" />
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
@@ -200,9 +240,17 @@
         <Setter Property="TitleColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource Gray200}}" />
         <Setter Property="BackgroundColor" Value="Transparent" />
         <Setter Property="FontFamily" Value="OpenSansRegular"/>
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="MinimumHeightRequest" Value="44"/>
-        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="MinimumHeightRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="MinimumWidthRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
@@ -238,9 +286,17 @@
         <Setter Property="BackgroundColor" Value="Transparent"/>
         <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
         <Setter Property="FontFamily" Value="OpenSansRegular"/>
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="MinimumHeightRequest" Value="44"/>
-        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="MinimumHeightRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="MinimumWidthRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
@@ -265,9 +321,17 @@
         <Setter Property="CancelButtonColor" Value="{StaticResource Gray500}" />
         <Setter Property="BackgroundColor" Value="Transparent" />
         <Setter Property="FontFamily" Value="OpenSansRegular" />
-        <Setter Property="FontSize" Value="14" />
-        <Setter Property="MinimumHeightRequest" Value="44"/>
-        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="MinimumHeightRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="MinimumWidthRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
@@ -288,7 +352,7 @@
         <Setter Property="PlaceholderColor" Value="{StaticResource Gray500}" />
         <Setter Property="BackgroundColor" Value="Transparent" />
         <Setter Property="FontFamily" Value="OpenSansRegular" />
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
@@ -368,9 +432,17 @@
         <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource White}}" />
         <Setter Property="BackgroundColor" Value="Transparent"/>
         <Setter Property="FontFamily" Value="OpenSansRegular"/>
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="MinimumHeightRequest" Value="44"/>
-        <Setter Property="MinimumWidthRequest" Value="44"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="MinimumHeightRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="MinimumWidthRequest">
+            <Setter.Value>
+                <OnIdiom x:TypeArguments="x:Double" Default="44" Desktop="26" />
+            </Setter.Value>
+        </Setter>
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">

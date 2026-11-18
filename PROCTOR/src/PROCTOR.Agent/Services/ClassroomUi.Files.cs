@@ -26,7 +26,7 @@ internal sealed partial class ClassroomUi
         if (!info.Open)
         {
             if (_handInWindow is not null) { _handInWindow.Tag = "dispose"; _handInWindow.Close(); _handInWindow = null; }
-            ShowNotice("📤  Your teacher has stopped collecting work.", TimeSpan.FromSeconds(4));
+            ShowNotice("Your teacher has stopped collecting work.", TimeSpan.FromSeconds(4));
             return;
         }
         EnsureHandInWindow();
@@ -48,7 +48,7 @@ internal sealed partial class ClassroomUi
     {
         if (!_collecting)
         {
-            ShowNotice("📤  Your teacher isn't collecting work right now.", TimeSpan.FromSeconds(4));
+            ShowNotice("Your teacher isn't collecting work right now.", TimeSpan.FromSeconds(4));
             return;
         }
         EnsureHandInWindow();

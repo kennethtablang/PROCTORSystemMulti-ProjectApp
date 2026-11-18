@@ -22,6 +22,10 @@
 
     <MajorUpgrade DowngradeErrorMessage="A newer PROCTOR Agent is already installed." />
 
+    <!-- Icon in Settings > Apps. -->
+    <Icon Id="ProctorIcon" SourceFile="$(sys.SOURCEFILEDIR)..\..\branding\proctor.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProctorIcon" />
+
     <!-- Install-time agent settings, e.g.
            msiexec /i PROCTOR.Agent.msi SERVERFINGERPRINT="1056 91B5 ..." SERVERADDRESS=10.0.0.5 /qn
          Each given value is written to proctor.ini next to the agent (read on top of

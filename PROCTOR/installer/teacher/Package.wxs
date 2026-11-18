@@ -22,6 +22,10 @@
            Compressed="yes">
 
     <MajorUpgrade DowngradeErrorMessage="A newer PROCTOR Teacher is already installed." />
+
+    <!-- Icon in Settings > Apps. -->
+    <Icon Id="ProctorIcon" SourceFile="$(sys.SOURCEFILEDIR)..\..\..\branding\proctor.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProctorIcon" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <!-- "More information" / support links in Settings > Apps. -->

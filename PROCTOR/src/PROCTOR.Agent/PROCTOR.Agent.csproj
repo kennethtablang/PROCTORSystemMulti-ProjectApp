@@ -8,6 +8,7 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>PROCTOR.Agent</RootNamespace>
     <AssemblyName>PROCTOR.Agent</AssemblyName>
+    <ApplicationIcon>..\..\..\branding\proctor.ico</ApplicationIcon>
     <!-- Agent runs headless on lab PCs; no window. WPF is referenced only for its managed
          UI Automation client (System.Windows.Automation), used to read the foreground browser's
          address bar (FR-AGENT-06). -->

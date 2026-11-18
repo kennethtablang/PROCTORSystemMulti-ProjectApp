@@ -10,6 +10,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
   <Bundle Name="PROCTOR Agent"
+          IconSourceFile="$(sys.SOURCEFILEDIR)..\..\..\branding\proctor.ico"
           Manufacturer="PROCTOR"
           Version="$(var.ProctorVersion)"
           UpgradeCode="EA5BE157-0D61-474D-B200-D1AFB3963F61"
@@ -17,7 +18,8 @@
 
     <BootstrapperApplication>
       <!-- No license page: the agent is deployed by the institution on its own machines. -->
-      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="" ShowVersion="yes" />
+      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="" ShowVersion="yes"
+                                              LogoFile="$(sys.SOURCEFILEDIR)..\..\..\branding\proctor-logo-64.png" />
     </BootstrapperApplication>
 
     <?include $(var.LabSettings)?>

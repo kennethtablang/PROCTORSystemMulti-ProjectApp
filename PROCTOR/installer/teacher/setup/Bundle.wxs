@@ -6,6 +6,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
   <Bundle Name="PROCTOR Teacher"
+          IconSourceFile="$(sys.SOURCEFILEDIR)..\..\..\..\branding\proctor.ico"
           Manufacturer="PROCTOR"
           Version="$(var.ProctorVersion)"
           UpgradeCode="3E8B6D27-1C4F-4A95-B0D2-9F61C8E47A05"

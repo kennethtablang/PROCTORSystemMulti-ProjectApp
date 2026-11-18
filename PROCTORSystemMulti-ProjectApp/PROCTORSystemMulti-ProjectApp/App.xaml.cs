@@ -23,14 +23,24 @@
                 BackgroundColor = Color.FromArgb("#15171C"),
                 ForegroundColor = Colors.White,
                 HeightRequest = 44,
-                LeadingContent = new Label
+                LeadingContent = new HorizontalStackLayout
                 {
-                    Text = "PROCTOR",
-                    FontSize = 14,
-                    FontAttributes = FontAttributes.Bold,
-                    TextColor = Color.FromArgb("#B794F6"),
+                    Spacing = 8,
                     VerticalOptions = LayoutOptions.Center,
-                    Margin = new Thickness(16, 0, 0, 0),
+                    Margin = new Thickness(12, 0, 0, 0),
+                    Children =
+                    {
+                        // The PROCTOR logo (branding\proctor-logo.svg).
+                        new Image { Source = "proctor_logo.png", WidthRequest = 22, HeightRequest = 22, VerticalOptions = LayoutOptions.Center },
+                        new Label
+                        {
+                            Text = "PROCTOR",
+                            FontSize = 14,
+                            FontAttributes = FontAttributes.Bold,
+                            TextColor = Color.FromArgb("#B794F6"),
+                            VerticalOptions = LayoutOptions.Center,
+                        },
+                    },
                 },
                 // "More information" on every page: version, address for student PCs, update check, links.
                 TrailingContent = MoreInfoButton(),

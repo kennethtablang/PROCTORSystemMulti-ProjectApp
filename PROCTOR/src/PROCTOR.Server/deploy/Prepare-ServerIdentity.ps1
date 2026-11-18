@@ -9,9 +9,10 @@
     running the server from Visual Studio, or copied from another PC to keep its fingerprint, is
     owned by that user instead. This script:
 
-      * adopts it (owner Administrators; SYSTEM + Administrators only) when its owner is SYSTEM,
-        Administrators or a member of the local Administrators group, and no other account can
-        write it, so the fingerprint every agent pins stays the same;
+      * adopts it (owner Administrators; exactly SYSTEM + Administrators, every other entry
+        removed) when its owner is SYSTEM, Administrators or a member of the local Administrators
+        group, and no account outside those can write it, so the fingerprint every agent pins
+        stays the same;
       * otherwise renames it to *.untrusted-<date> (never deleted, never trusted), so the service
         creates a new identity and starts; agents pinned to the old key must then be reinstalled
         with a setup carrying the new fingerprint.
@@ -19,9 +20,12 @@
     Never blesses a file of unknown origin: a standard user who planted a key there could otherwise
     impersonate the classroom server to every student PC.
 #>
+param(
+    # The server identity folder (a parameter only so the script can be tested on a copy).
+    [string]$Dir = (Join-Path $env:ProgramData 'PROCTOR\Server')
+)
 $ErrorActionPreference = 'Stop'
 
-$dir = Join-Path $env:ProgramData 'PROCTOR\Server'
 $pfx = Join-Path $dir 'server-certificate.pfx'
 if (-not (Test-Path -LiteralPath $pfx)) { exit 0 }   # first install: the service creates its own
 
@@ -43,6 +47,9 @@ function Get-Problem([string]$path) {
         $sid = try { $ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value } catch { $ace.IdentityReference.Value }
         if ($sid -eq 'S-1-3-0') { continue }                                   # CREATOR OWNER
         if ($sid -eq $System -or $sid -eq $Admins -or $sid -eq $TrustedInstaller -or $sid -eq $owner) { continue }
+        # An administrator (e.g. the teacher who ran the server from Visual Studio) could take this
+        # file over anyway, so their write access is no sign of a planted key.
+        if ($adminMembers -contains $sid) { continue }
         return "writable by $($ace.IdentityReference)"
     }
     return $null
@@ -66,11 +73,27 @@ if ($problem) {
     exit 0
 }
 
-# Adopt: SYSTEM (the service) and Administrators only. Users must never read the private key.
+# Adopt: owner Administrators; SYSTEM (the service) and Administrators only, every other entry
+# removed (the service refuses a key any other account can write, even an administrator's own
+# user account). Users must never read the private key.
 & icacls $dir /setowner "*$Admins" /T /C /Q | Out-Null
-& icacls $dir /inheritance:r /grant:r "*${Admins}:(OI)(CI)F" "*${System}:(OI)(CI)F" /C /Q | Out-Null
-Get-ChildItem -LiteralPath $dir -Force -File | ForEach-Object {
-    & icacls $_.FullName /inheritance:r /grant:r "*${Admins}:F" "*${System}:F" /C /Q | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Couldn't make Administrators the owner of $dir (icacls exit code $LASTEXITCODE)." }
+
+function Set-AdminOnlyAcl([IO.FileSystemInfo]$item) {
+    $isDir = $item -is [IO.DirectoryInfo]
+    $acl = if ($isDir) { New-Object Security.AccessControl.DirectorySecurity } else { New-Object Security.AccessControl.FileSecurity }
+    $acl.SetAccessRuleProtection($true, $false)   # no inherited entries
+    $inherit = if ($isDir) { [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit' } else { [Security.AccessControl.InheritanceFlags]::None }
+    foreach ($sid in $System, $Admins) {
+        $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(
+            (New-Object Security.Principal.SecurityIdentifier($sid)), 'FullControl', $inherit, 'None', 'Allow')))
+    }
+    $item.SetAccessControl($acl)   # writes the access list only; the owner set above stays
 }
+# Contents first (deepest first), the folder itself last: it stays listable until the end.
+$items = @(Get-ChildItem -LiteralPath $dir -Force -Recurse) | Sort-Object { $_.FullName.Length } -Descending
+foreach ($item in $items) { Set-AdminOnlyAcl $item }
+Set-AdminOnlyAcl (Get-Item -LiteralPath $dir -Force)
+
 Write-Output "Kept the existing server identity (same fingerprint) for the PROCTOR service."
 exit 0

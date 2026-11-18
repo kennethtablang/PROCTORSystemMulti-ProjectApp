@@ -83,6 +83,25 @@ public class WebLimitsTests
     }
 
     [Fact]
+    public async Task With_strong_controls_reserved_website_limits_end_with_the_lesson()
+    {
+        // Open mode with the strong controls kept for code holders: a codeless teacher can't leave
+        // the lab stuck on a list, nor give a PC its own.
+        await using var factory = new ServerFactory(("PROCTOR:AllowStrongControlsInOpenMode", "false"));
+        await using var a = await factory.ConnectAsync();
+        await a.RegisterStudentAsync("PC-A");
+        await using var teacher = await factory.ConnectAsync();
+        await teacher.RegisterTeacherAsync();
+
+        await Assert.ThrowsAsync<HubException>(() => SetOwn(teacher, a, new WebLimits { WebMode = WebLimitMode.AllowOnlyListed }));
+        await SetClass(teacher, new ClassPolicy { WebMode = WebLimitMode.AllowOnlyListed, WebHosts = ["wikipedia.org"] });
+        await a.WaitForAsync(Protocol.ClientMethods.PolicyUpdated, p => ((ClassPolicy)p[0]!).WebMode == WebLimitMode.AllowOnlyListed);
+
+        await teacher.Hub.StopAsync();
+        await a.WaitForAsync(Protocol.ClientMethods.PolicyUpdated, p => ((ClassPolicy)p[0]!).IsEmpty);
+    }
+
+    [Fact]
     public async Task Website_limits_survive_a_server_restart_and_follow_the_pc()
     {
         var store = Path.Combine(Path.GetTempPath(), "ci-test-web-shared-" + Guid.NewGuid().ToString("N") + ".json");

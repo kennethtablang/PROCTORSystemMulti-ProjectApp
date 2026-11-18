@@ -70,9 +70,14 @@ var app = builder.Build();
 
 // Website limits outlast lessons and restarts: start the room with the saved class whitelist /
 // blacklist (each PC's own list is applied as it joins).
+// (Not when the strong controls are reserved for teachers with a code: see ClassroomHub.SetPolicy.)
 {
-    var room = app.Services.GetRequiredService<RoomRegistry>();
-    room.Policy = new ClassPolicy().WithWeb(app.Services.GetRequiredService<WebLimitsStore>().Class);
+    var identity = app.Services.GetRequiredService<ServerIdentity>();
+    if (!(identity.AllowOpenTeacherMode && !identity.AllowStrongControlsInOpenMode))
+    {
+        var room = app.Services.GetRequiredService<RoomRegistry>();
+        room.Policy = new ClassPolicy().WithWeb(app.Services.GetRequiredService<WebLimitsStore>().Class);
+    }
 }
 if (localSettingsNote is not null)
 {

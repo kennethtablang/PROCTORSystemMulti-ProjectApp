@@ -677,7 +677,10 @@ public sealed class ClassroomHub : Hub
         if (StrongControlsBlocked && (clean.BlockInternet || clean.BlockedApps.Count > 0))
             throw new HubException("Turning off the internet and blocking programs need a teacher join code on this server (it runs in open mode).");
         _room.Policy = clean;
-        _webLimits.SetClass(clean.Web);   // website limits outlast the lesson (saved to disk)
+        // Website limits outlast the lesson (saved to disk) - but not when the strong controls are
+        // reserved for teachers with a code: then anyone opening a teacher app could leave the lab
+        // stuck on a whitelist, so they end with the lesson as before.
+        if (!StrongControlsBlocked) _webLimits.SetClass(clean.Web);
         await PushPolicyAsync();
         _logger.LogInformation("Teacher {Teacher} set limits: web {Mode} ({Hosts} sites), {Apps} blocked apps, internet {Net}, mute {Mute}.",
             Context.ConnectionId, clean.WebMode, clean.WebHosts.Count, clean.BlockedApps.Count,
@@ -693,6 +696,8 @@ public sealed class ClassroomHub : Hub
     public async Task<int> SetStudentWebLimits(StudentWebLimitsRequest request)
     {
         if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can set limits.");
+        if (StrongControlsBlocked)
+            throw new HubException("A student's own website list needs a teacher join code on this server (it runs in open mode).");
         if (request?.Students is not { Count: > 0 }) throw new HubException("Choose at least one student.");
         var limits = request.Limits is null ? null : ClassroomLimits.CleanWeb(request.Limits);
         var targets = ResolveTargets(request.Students);
@@ -753,15 +758,18 @@ public sealed class ClassroomHub : Hub
     }
 
     /// <summary>The room's policy as one PC sees it: its own website limits replace the class's.</summary>
-    private ClassPolicy EffectivePolicy(string? machineId) => _room.Policy.WithWeb(_webLimits.ForMachine(machineId));
+    private ClassPolicy EffectivePolicy(string? machineId) => _room.Policy.WithWeb(OwnWebLimits(machineId));
+
+    // Saved per-PC lists apply only while the strong controls are open to every teacher (see SetPolicy).
+    private WebLimits? OwnWebLimits(string? machineId) => StrongControlsBlocked ? null : _webLimits.ForMachine(machineId);
 
     private StudentSnapshot Snapshot(RoomRegistry.StudentEntry entry) =>
-        entry.ToSnapshot() with { OwnWebLimits = _webLimits.ForMachine(entry.Info.MachineId) };
+        entry.ToSnapshot() with { OwnWebLimits = OwnWebLimits(entry.Info.MachineId) };
 
     private RosterSnapshot Roster()
     {
         var roster = _room.BuildRoster();
-        return roster with { Students = roster.Students.Select(s => s with { OwnWebLimits = _webLimits.ForMachine(s.MachineId) }).ToArray() };
+        return roster with { Students = roster.Students.Select(s => s with { OwnWebLimits = OwnWebLimits(s.MachineId) }).ToArray() };
     }
 
     /// <summary>Explicit roster pull (teachers normally rely on the pushed snapshot).</summary>
@@ -929,12 +937,16 @@ public sealed class ClassroomHub : Hub
             if (_room.TeacherCount == 0 && _timer.Stop()) await PushTimerAsync();
             // Programs, internet and sound limits end with the lesson (a crashed teacher app must not
             // leave a lab without internet); website limits stay until a teacher changes them.
+            // (With the strong controls reserved for code holders, website limits end too.)
             var policy = _room.Policy;
-            if (_room.TeacherCount == 0 && (policy.BlockedApps.Count > 0 || policy.BlockInternet || policy.MuteSound))
+            var keepWeb = !StrongControlsBlocked;
+            if (_room.TeacherCount == 0 && (policy.BlockedApps.Count > 0 || policy.BlockInternet || policy.MuteSound || (!keepWeb && policy.HasWebLimits)))
             {
-                _room.Policy = new ClassPolicy().WithWeb(policy.Web);
+                _room.Policy = keepWeb ? new ClassPolicy().WithWeb(policy.Web) : new ClassPolicy();
                 await PushPolicyAsync();
-                _logger.LogInformation("Last teacher left: program, internet and sound limits cleared; website limits kept.");
+                _logger.LogInformation(keepWeb
+                    ? "Last teacher left: program, internet and sound limits cleared; website limits kept."
+                    : "Last teacher left: room limits cleared.");
             }
 
             // Tell each agent this teacher was watching to stop encoding for it right away,

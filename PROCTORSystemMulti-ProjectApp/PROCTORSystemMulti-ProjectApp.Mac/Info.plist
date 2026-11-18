@@ -29,7 +29,7 @@
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>ClassInsight connects to the classroom server and student computers on this network to show live student screens.</string>
+    <string>PROCTOR connects to the classroom server and student computers on this network to show live student screens.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsLocalNetworking</key>

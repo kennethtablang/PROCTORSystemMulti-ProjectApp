@@ -1,0 +1,16 @@
+<Project>
+  <!--
+    ONE version for the whole PROCTOR system: teacher app, classroom server, student agent and
+    both installers. To release an update:
+      1. bump ProctorVersion here (e.g. 0.4.0 -> 0.4.1),
+      2. run PROCTOR\installer\Publish-Release.ps1, which builds the setups and publishes GitHub
+         release v<ProctorVersion>.
+    Teacher apps then offer the update; student PCs follow from the teacher's PC automatically.
+  -->
+  <PropertyGroup>
+    <ProctorVersion>0.4.0</ProctorVersion>
+    <Version>$(ProctorVersion)</Version>
+    <InformationalVersion>$(ProctorVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+</Project>

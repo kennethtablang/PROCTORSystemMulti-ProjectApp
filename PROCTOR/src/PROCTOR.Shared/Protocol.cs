@@ -38,6 +38,13 @@ public static class Protocol
     /// </summary>
     public const string StatusPath = "/status";
 
+    /// <summary>
+    /// Where the server serves the student-agent MSI it was installed with (agent auto-update):
+    /// agents download it over the TLS connection pinned to the server's key and check its SHA-256
+    /// against <see cref="Contracts.AgentUpdateInfo"/> from the hub.
+    /// </summary>
+    public const string AgentUpdatePath = "/agent-update/PROCTOR.Agent.msi";
+
     /// <summary>Names of hub methods the SERVER invokes ON clients.</summary>
     public static class ClientMethods
     {
@@ -122,6 +129,9 @@ public static class Protocol
 
         /// <summary>STUN/TURN servers the room is configured with (relay fallback, P4).</summary>
         public const string GetIceServers = nameof(GetIceServers);
+
+        /// <summary>Agent → server: the agent version the server offers, if any (<see cref="Contracts.AgentUpdateInfo"/>).</summary>
+        public const string GetAgentUpdate = nameof(GetAgentUpdate);
 
         public const string RequestStream = nameof(RequestStream);
         public const string StopStream = nameof(StopStream);

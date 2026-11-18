@@ -17,7 +17,7 @@
     <InstallerPlatform>x64</InstallerPlatform>
     <!-- Lab settings built into the setup (Build-AgentSetup.ps1 passes a filled-in copy). -->
     <LabSettings Condition="'$(LabSettings)' == ''">$(MSBuildThisFileDirectory)LabSettings.wxi</LabSettings>
-    <DefineConstants>$(DefineConstants);LabSettings=$(LabSettings)</DefineConstants>
+    <DefineConstants>$(DefineConstants);LabSettings=$(LabSettings);ProctorVersion=$(ProctorVersion)</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

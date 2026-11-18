@@ -88,12 +88,16 @@ public sealed class DiscoveryBeaconService : BackgroundService
     private async Task BeaconLoopAsync(UdpClient udp, CancellationToken ct)
     {
         var payload = EncodeResponse();
-        var broadcast = new IPEndPoint(IPAddress.Broadcast, Protocol.DiscoveryPort);
 
         while (!ct.IsCancellationRequested)
         {
-            try { await udp.SendAsync(payload, payload.Length, broadcast); }
-            catch (SocketException) { /* some adapters refuse broadcast */ }
+            // Re-read every round: the server PC may join or leave networks (Wi-Fi switch, VPN).
+            // Directed broadcasts reach each subnet even when 255.255.255.255 leaves by another adapter.
+            foreach (var target in LanAddresses.BroadcastAddresses())
+            {
+                try { await udp.SendAsync(payload, payload.Length, new IPEndPoint(target, Protocol.DiscoveryPort)); }
+                catch (SocketException) { /* some adapters refuse broadcast */ }
+            }
 
             try { await Task.Delay(Protocol.BeaconIntervalMs, ct); }
             catch (OperationCanceledException) { break; }

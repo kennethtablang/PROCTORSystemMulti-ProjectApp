@@ -15,9 +15,10 @@
     <AgentProject>$(MSBuildThisFileDirectory)..\src\PROCTOR.Agent\PROCTOR.Agent.csproj</AgentProject>
     <!-- No trailing slash: inside a quoted command-line argument it would escape the quote. -->
     <AgentPublishDir>$(MSBuildThisFileDirectory)obj\agent-publish</AgentPublishDir>
-    <DefineConstants>AgentDir=$(AgentPublishDir)\</DefineConstants>
+    <DefineConstants>AgentDir=$(AgentPublishDir)\;ProctorVersion=$(ProctorVersion)</DefineConstants>
     <SuppressIces>ICE61</SuppressIces>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
   </PropertyGroup>
 
   <ItemGroup>

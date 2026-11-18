@@ -1,0 +1,131 @@
+<!--
+  PROCTOR Teacher MSI: everything the teacher's PC needs.
+   * App\     the teacher app; Start menu and desktop shortcuts "PROCTOR Teacher".
+   * Server\  the classroom service "PROCTORServer": auto-start, LocalSystem, restart on failure.
+              Student PCs and teacher apps (this one, or on a phone/laptop) connect to it.
+              Firewall: TCP 5080 (connections) and UDP 47800 (discovery, local subnet), for this
+              program only, on every network profile so it works on Wi-Fi marked Public too.
+              Its identity (the key fingerprint agents pin) lives in %ProgramData%\PROCTOR\Server and
+              survives upgrades and uninstalls; Prepare-ServerIdentity.ps1 keeps an existing one usable.
+   * Server\agent-update\  the student-agent MSI this version ships with: older agents fetch and
+              install it from the service (student PCs follow the teacher's PC).
+  Upgrades in place (MajorUpgrade); the update pop-up in the app runs the newer setup.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+     xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall">
+  <Package Name="PROCTOR Teacher"
+           Manufacturer="PROCTOR"
+           Version="$(var.ProctorVersion)"
+           UpgradeCode="7A3C1E52-9D4B-4F86-8B21-5E0C7D9A3F14"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer PROCTOR Teacher is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- "More information" / support links in Settings > Apps. -->
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp/issues" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp/releases" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="PROCTOR Teacher">
+        <Directory Id="APPFOLDER" Name="App" />
+        <Directory Id="SERVERFOLDER" Name="Server">
+          <Directory Id="AGENTUPDATEFOLDER" Name="agent-update" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <StandardDirectory Id="DesktopFolder" />
+
+    <!-- ===== Teacher app ===== -->
+    <ComponentGroup Id="TeacherApp" Directory="APPFOLDER">
+      <Files Include="$(var.TeacherDir)**">
+        <Exclude Files="$(var.TeacherDir)PROCTORSystemMulti-ProjectApp.WinUI.exe" />
+      </Files>
+      <Component Id="TeacherExe">
+        <File Id="TeacherExe" Source="$(var.TeacherDir)PROCTORSystemMulti-ProjectApp.WinUI.exe" KeyPath="yes">
+          <Shortcut Id="TeacherStartMenu" Directory="ProgramMenuFolder" Name="PROCTOR Teacher"
+                    Description="Monitor and manage the classroom's student PCs." WorkingDirectory="APPFOLDER" Advertise="no" />
+          <Shortcut Id="TeacherDesktop" Directory="DesktopFolder" Name="PROCTOR Teacher"
+                    Description="Monitor and manage the classroom's student PCs." WorkingDirectory="APPFOLDER" Advertise="no" />
+          <!-- Live student screens and screen sharing arrive over WebRTC (UDP) from the lab's PCs. -->
+          <fw:FirewallException Id="TeacherWebRtc" Name="PROCTOR Teacher (screen sharing)"
+                                Description="Lets the PROCTOR teacher app receive student screens from PCs on the local network."
+                                Protocol="udp" Scope="localSubnet" Profile="all" />
+        </File>
+      </Component>
+    </ComponentGroup>
+
+    <!-- ===== Classroom service ===== -->
+    <ComponentGroup Id="ClassroomService" Directory="SERVERFOLDER">
+      <Files Include="$(var.ServerDir)**">
+        <Exclude Files="$(var.ServerDir)PROCTOR.Server.exe" />
+        <Exclude Files="$(var.ServerDir)appsettings.json" />
+        <Exclude Files="$(var.ServerDir)appsettings.Development.json" />
+      </Files>
+      <Component Id="ServerService">
+        <File Id="ServerExe" Source="$(var.ServerDir)PROCTOR.Server.exe" KeyPath="yes">
+          <fw:FirewallException Id="ServerTcp" Name="PROCTOR classroom service (TCP 5080)"
+                                Description="Student PCs and PROCTOR teacher apps connect to this PC here."
+                                Protocol="tcp" Port="5080" Scope="any" Profile="all" />
+          <fw:FirewallException Id="ServerDiscovery" Name="PROCTOR classroom discovery (UDP 47800)"
+                                Description="Answers student PCs and teacher apps looking for the classroom on this network."
+                                Protocol="udp" Port="47800" Scope="localSubnet" Profile="all" />
+        </File>
+        <ServiceInstall Id="ServerServiceInstall"
+                        Name="PROCTORServer"
+                        DisplayName="PROCTOR Classroom Service"
+                        Description="Student PCs and the PROCTOR Teacher app connect here. Installed by PROCTOR Teacher."
+                        Type="ownProcess"
+                        Start="auto"
+                        Account="LocalSystem"
+                        ErrorControl="normal"
+                        Vital="yes">
+          <util:ServiceConfig FirstFailureActionType="restart"
+                              SecondFailureActionType="restart"
+                              ThirdFailureActionType="restart"
+                              RestartServiceDelayInSeconds="5"
+                              ResetPeriodInDays="1" />
+        </ServiceInstall>
+        <ServiceControl Id="ServerServiceControl" Name="PROCTORServer" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+      </Component>
+      <Component Id="ServerSettings" NeverOverwrite="yes">
+        <!-- Room name, teacher code, ports...: an administrator's edits survive upgrades. -->
+        <File Id="ServerAppSettings" Source="$(var.ServerDir)appsettings.json" KeyPath="yes" />
+      </Component>
+      <Component Id="ServerIdentityScript">
+        <File Id="PrepareServerIdentityPs1" Source="$(var.ServerDeployDir)Prepare-ServerIdentity.ps1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- ===== Student-agent package handed to older student PCs ===== -->
+    <ComponentGroup Id="AgentUpdate" Directory="AGENTUPDATEFOLDER">
+      <Component Id="AgentUpdateMsi">
+        <File Id="AgentUpdateMsi" Source="$(var.AgentMsi)" Name="PROCTOR.Agent.msi" KeyPath="yes" />
+      </Component>
+      <Component Id="AgentUpdateVersion">
+        <File Id="AgentUpdateVersion" Source="$(var.AgentVersionFile)" Name="version.txt" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="PROCTOR Teacher">
+      <ComponentGroupRef Id="TeacherApp" />
+      <ComponentGroupRef Id="ClassroomService" />
+      <ComponentGroupRef Id="AgentUpdate" />
+    </Feature>
+
+    <!-- Before the service starts: keep an existing server identity usable by it, or set aside one
+         that can't be trusted (see the script). Runs as SYSTEM; never blocks the install. -->
+    <SetProperty Id="PrepareServerIdentity"
+                 Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[#PrepareServerIdentityPs1]&quot;"
+                 Before="PrepareServerIdentity" Sequence="execute" />
+    <CustomAction Id="PrepareServerIdentity" DllEntry="WixQuietExec64" BinaryRef="Wix4UtilCA_X64"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="PrepareServerIdentity" After="InstallFiles" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

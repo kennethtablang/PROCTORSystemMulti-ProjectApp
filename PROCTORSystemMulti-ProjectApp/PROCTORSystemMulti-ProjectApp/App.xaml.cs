@@ -32,9 +32,36 @@
                     VerticalOptions = LayoutOptions.Center,
                     Margin = new Thickness(16, 0, 0, 0),
                 },
+                // "More information" on every page: version, address for student PCs, update check, links.
+                TrailingContent = MoreInfoButton(),
             };
 
+            // Offer GitHub updates while the app is open (first check shortly after start).
+            PROCTOR.UpdateNotifier.Start();
+
             return window;
+        }
+
+        private static Button MoreInfoButton()
+        {
+            var button = new Button
+            {
+                Text = "ⓘ  More information",
+                FontSize = 12,
+                Padding = new Thickness(10, 2),
+                Margin = new Thickness(0, 0, 8, 0),
+                BackgroundColor = Colors.Transparent,
+                TextColor = Color.FromArgb("#B794F6"),
+                BorderWidth = 0,
+                VerticalOptions = LayoutOptions.Center,
+            };
+            button.Clicked += async (_, _) =>
+            {
+                var navigation = Shell.Current?.Navigation;
+                if (navigation is null || navigation.ModalStack.LastOrDefault() is LockPage or AboutPage or UpdatePage) return;
+                await navigation.PushModalAsync(new AboutPage());
+            };
+            return button;
         }
     }
 }

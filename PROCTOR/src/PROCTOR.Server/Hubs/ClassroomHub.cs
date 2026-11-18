@@ -738,6 +738,13 @@ public sealed class ClassroomHub : Hub
         return _room.IsTeacher(id) || _room.IsStudent(id) ? _identity.IceServers : [];
     }
 
+    /// <summary>The agent package this server offers (agent auto-update), to registered students only.</summary>
+    public AgentUpdateInfo? GetAgentUpdate()
+    {
+        if (!_room.IsStudent(Context.ConnectionId)) return null;
+        return Context.GetHttpContext()?.RequestServices.GetService<AgentUpdatePackage>()?.Info;
+    }
+
     // ---- streaming control (teacher -> student) ---------------------------
 
     /// <summary>

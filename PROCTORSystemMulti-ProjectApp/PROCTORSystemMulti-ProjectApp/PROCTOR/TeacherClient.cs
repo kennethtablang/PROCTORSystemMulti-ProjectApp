@@ -33,6 +33,12 @@ public sealed class TeacherClient : IAsyncDisposable
     // fresh GUID each server start) so a legitimate server restart still reconnects.
     private DiscoveryResponse? _pinnedServer;
 
+    // The TLS key that pinned server proved (not merely advertised). When the server PC changes
+    // address (DHCP renewal, another Wi-Fi, cable vs Wi-Fi) the same server is followed by this
+    // key: a server at a new address is accepted only if its TLS handshake presents exactly this
+    // key, which a rogue can't fake, so the join code is still never sent anywhere else.
+    private string? _pinnedFingerprint;
+
     // Distinguishes a drop we caused (disconnect/dispose/failed attempt) from a real network or
     // server-restart drop, so only the latter triggers re-discovery.
     private volatile bool _intentionalClose;
@@ -183,6 +189,13 @@ public sealed class TeacherClient : IAsyncDisposable
             Status?.Invoke($"Confirm the identity of \"{server.RoomName}\" before connecting.");
             return ConnectOutcome.ConfirmServer;
         }
+        // Followed to a new address by its advertised key: only the very same TLS key will do.
+        if (target is null && _pinnedServer is { } pinned && !SameEndpoint(pinned, server)
+            && !string.Equals(presented, _pinnedFingerprint, StringComparison.OrdinalIgnoreCase))
+        {
+            Status?.Invoke($"Waiting for \"{pinned.RoomName}\" to come back…");
+            return ConnectOutcome.NoServer;
+        }
         PendingTrust = null;
         CurrentFingerprint = presented;
 
@@ -269,7 +282,7 @@ public sealed class TeacherClient : IAsyncDisposable
         {
             DeviceName = deviceName,
             Platform = platform,
-            AppVersion = "0.2.0",
+            AppVersion = global::PROCTOR.Shared.ProductVersion.Text,
             JoinCode = joinCode,
         };
 
@@ -278,7 +291,9 @@ public sealed class TeacherClient : IAsyncDisposable
             await hub.StartAsync(ct);
             await hub.InvokeAsync(Protocol.ServerMethods.RegisterTeacher, info, ct);
             _registration = info;    // remember what worked, to replay on reconnect
-            _pinnedServer = server;  // and only reconnect to this same endpoint from now on
+            _pinnedServer = server;  // and only reconnect to this same endpoint from now on…
+            _pinnedFingerprint = presented;   // …or to this same key at a new address
+            KnownServers.Remember(server.Host, server.Port, presented, server.RoomName);   // reachable later from other networks
             await LoadIceServersAsync(hub, ct);
         }
         catch (HubException ex) when (ex.Message.Contains("Protocol version", StringComparison.OrdinalIgnoreCase))
@@ -337,6 +352,18 @@ public sealed class TeacherClient : IAsyncDisposable
             var same = rooms.FirstOrDefault(r => SameEndpoint(pin, r));
             if (same is not null) return same;
 
+            // The server PC may have moved to a new address (DHCP, another Wi-Fi). Its advertised
+            // key is only a hint here: ConnectCoreAsync checks the real TLS key before anything is sent.
+            var moved = rooms.FirstOrDefault(r =>
+                _pinnedFingerprint is not null
+                && string.Equals(r.Fingerprint, _pinnedFingerprint, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(r.RoomName, pin.RoomName, StringComparison.Ordinal));
+            if (moved is not null)
+            {
+                Status?.Invoke($"\"{pin.RoomName}\" moved to {moved.Host}; reconnecting…");
+                return moved;
+            }
+
             // Broadcast may be blocked (the pin may have come from a manual address): ask it directly.
             var direct = await ManualServer.ResolveAsync($"{pin.Host}:{pin.Port}", TimeSpan.FromSeconds(3), ct);
             return direct is not null && SameEndpoint(pin, direct) ? direct : null;
@@ -344,9 +371,13 @@ public sealed class TeacherClient : IAsyncDisposable
 
         if (rooms.Count == 0)
         {
-            if (string.IsNullOrWhiteSpace(manualAddress)) return null;
-            Status?.Invoke($"No broadcast reply; trying {manualAddress}…");
-            return await ManualServer.ResolveAsync(manualAddress, TimeSpan.FromSeconds(4), ct);
+            if (!string.IsNullOrWhiteSpace(manualAddress))
+            {
+                Status?.Invoke($"No broadcast reply; trying {manualAddress}…");
+                var typed = await ManualServer.ResolveAsync(manualAddress, TimeSpan.FromSeconds(4), ct);
+                if (typed is not null) return typed;
+            }
+            return await FindKnownServerAsync(ct);
         }
 
         if (rooms.Count == 1) return rooms[0];
@@ -515,6 +546,7 @@ public sealed class TeacherClient : IAsyncDisposable
     public async Task DisconnectAsync()
     {
         _pinnedServer = null;   // a user-initiated disconnect clears the pin; next connect is fresh
+        _pinnedFingerprint = null;
         await DisposeHubAsync();
         Status?.Invoke("Disconnected.");
     }
@@ -523,6 +555,7 @@ public sealed class TeacherClient : IAsyncDisposable
     public async Task ForgetServerAsync()
     {
         _pinnedServer = null;
+        _pinnedFingerprint = null;
         _registration = null;
         CurrentServer = null;
         await DisposeHubAsync();
@@ -530,6 +563,28 @@ public sealed class TeacherClient : IAsyncDisposable
 
     // Same server endpoint across a restart: host + port + room (ServerId is a fresh GUID each
     // server start, so it can't be used to recognise a restarted server).
+    /// <summary>
+    /// No broadcast reply: dial the servers this device connected to before (see <see cref="KnownServers"/>),
+    /// all at once, and take the most recent one that still presents the key it had.
+    /// </summary>
+    private async Task<DiscoveryResponse?> FindKnownServerAsync(CancellationToken ct)
+    {
+        var known = KnownServers.Recent();
+        if (known.Count == 0) return null;
+        Status?.Invoke(known.Count == 1
+            ? $"No broadcast reply on this network; trying \"{known[0].RoomName}\" at {known[0].Host}…"
+            : $"No broadcast reply on this network; trying {known.Count} classroom servers used before…");
+
+        var attempts = known.Select(k => ManualServer.ResolveAsync($"{k.Host}:{k.Port}", TimeSpan.FromSeconds(3), ct)).ToArray();
+        var results = await Task.WhenAll(attempts);
+        for (var i = 0; i < known.Count; i++)
+        {
+            if (results[i] is { } r && string.Equals(r.Fingerprint, known[i].Fingerprint, StringComparison.OrdinalIgnoreCase))
+                return r;
+        }
+        return null;
+    }
+
     private static bool SameEndpoint(DiscoveryResponse a, DiscoveryResponse b) =>
         string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase)
         && a.Port == b.Port

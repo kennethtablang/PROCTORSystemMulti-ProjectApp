@@ -1,0 +1,27 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <!--
+    PROCTOR-Teacher-Setup.exe: the installer for the teacher's PC (WiX "Burn" bundle around
+    PROCTOR.Teacher.msi). Its first screen has a "More information" link to the project page;
+    the last one launches the app.
+
+    Build:   ..\..\Build-TeacherSetup.ps1   (or: dotnet build -c Release, from this folder)
+    Output:  ..\..\..\dist\PROCTOR-Teacher-Setup.exe (+ .sha256 for the GitHub release)
+    Install: double-click it (asks for admin once). Updates: the app's update pop-up runs
+             a newer one with /passive.
+  -->
+  <PropertyGroup>
+    <OutputType>Bundle</OutputType>
+    <OutputName>PROCTOR-Teacher-Setup</OutputName>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <DefineConstants>$(DefineConstants);ProctorVersion=$(ProctorVersion)</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Bal.wixext" Version="5.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PROCTOR.Teacher.Installer.wixproj" />
+  </ItemGroup>
+</Project>

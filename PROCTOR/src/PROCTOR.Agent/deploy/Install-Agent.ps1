@@ -223,26 +223,36 @@ $stateSd.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAcces
 # the folder and planted an agent-key whose private half they kept, then impersonated this PC.
 # If the folder or anything in it isn't owned by (and writable only by) trusted principals, wipe
 # it and start clean; the agent re-enrols with a fresh key. Files the agent itself created pass.
+#
+# The classroom server keeps its own TLS identity in the Server\ subfolder when it runs on this PC
+# too. That is never the agent's to judge, wipe or re-permission: deleting it would change the
+# server's fingerprint that every agent pins, and resetting its ACL would let Users read the
+# server's private key. It protects itself (its own protected ACL; the server checks it at start).
+$serverSub = 'Server'
 if (Test-Path -LiteralPath $stateDir) {
+    $agentItems = @(Get-ChildItem -LiteralPath $stateDir -Force -ErrorAction Stop | Where-Object Name -ne $serverSub)
     $stateProblem = Get-ItemSecurityProblem -Path $stateDir
     if (-not $stateProblem) {
-        foreach ($item in @(Get-ChildItem -LiteralPath $stateDir -Recurse -Force -ErrorAction Stop)) {
+        foreach ($item in @($agentItems | ForEach-Object { $_; if ($_.PSIsContainer) { Get-ChildItem -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop } })) {
             $p = Get-ItemSecurityProblem -Path $item.FullName
             if ($p) { $stateProblem = "$($item.FullName): $p"; break }
         }
     }
     if ($stateProblem) {
-        Write-Host "Discarding untrusted $stateDir ($stateProblem)."
-        Remove-Item -LiteralPath $stateDir -Recurse -Force
-        if (Test-Path -LiteralPath $stateDir) {
-            throw "Could not remove untrusted $stateDir (files in use?). Resolve and re-run."
+        Write-Host "Discarding untrusted agent state in $stateDir ($stateProblem)."
+        foreach ($item in $agentItems) { Remove-Item -LiteralPath $item.FullName -Recurse -Force }
+        if (@(Get-ChildItem -LiteralPath $stateDir -Force | Where-Object Name -ne $serverSub).Count -gt 0) {
+            throw "Could not remove untrusted agent state in $stateDir (files in use?). Resolve and re-run."
         }
     }
-}
-if (Test-Path -LiteralPath $stateDir) {
+    # The folder itself (not recursive), then only the agent's own items. Take ownership first:
+    # a folder a student created only lets its owner change the ACL.
+    & icacls $stateDir /setowner "*S-1-5-32-544" /C /Q | Out-Null
     Set-Acl -LiteralPath $stateDir -AclObject $stateSd
-    & icacls $stateDir /reset /T /C /Q | Out-Null
-    & icacls $stateDir /setowner "*S-1-5-32-544" /T /C /Q | Out-Null
+    foreach ($item in @(Get-ChildItem -LiteralPath $stateDir -Force | Where-Object Name -ne $serverSub)) {
+        & icacls $item.FullName /reset /T /C /Q | Out-Null
+        & icacls $item.FullName /setowner "*S-1-5-32-544" /T /C /Q | Out-Null
+    }
 } else {
     [System.IO.Directory]::CreateDirectory($stateDir, $stateSd) | Out-Null
 }

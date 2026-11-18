@@ -29,7 +29,8 @@ namespace PROCTOR.Agent;
 [SupportedOSPlatform("windows")]
 public sealed class AgentWorker : BackgroundService
 {
-    public const string AgentVersion = "0.2.0";
+    /// <summary>The PROCTOR system version (Directory.Build.props), also what agent auto-update compares.</summary>
+    public static readonly string AgentVersion = ProductVersion.Text;
     private static readonly TimeSpan TelemetryInterval = TimeSpan.FromSeconds(1);   // ≥ 1 Hz (NFR-PERF-03)
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(3);
 
@@ -65,6 +66,7 @@ public sealed class AgentWorker : BackgroundService
 
     // Which server's TLS key this agent trusts, and this PC's own key (NFR-SEC-06).
     private readonly ServerPin _pin;
+    private readonly AgentUpdater _updater;
     private readonly AgentIdentity _identity;
 
     // Remote control (FR-CTRL-05): null unless IT opted in (see the constructor).
@@ -83,6 +85,7 @@ public sealed class AgentWorker : BackgroundService
         ScreenCapture.DisableDxgi = string.Equals(section["CaptureBackend"], "GDI", StringComparison.OrdinalIgnoreCase);
         _serverAddress = NullIfBlank(section["ServerAddress"]);
         _pin = new ServerPin(section["ServerFingerprint"], logger);
+        _updater = new AgentUpdater(logger);
         _identity = new AgentIdentity(section["EnrollmentKey"], logger);
 
         if (section.GetValue<bool?>("ReportBrowserActivity") ?? true)
@@ -226,6 +229,9 @@ public sealed class AgentWorker : BackgroundService
             _logger.LogDebug(ex, "Server offered no ICE servers.");
         }
 
+        // Follow the teacher's PC: install the agent version it carries, if newer (in the background).
+        _ = _updater.CheckAsync(hub, server, presented, ct);
+
         await TelemetryLoopAsync(hub, closed.Task, ct);
     }
 
@@ -233,6 +239,26 @@ public sealed class AgentWorker : BackgroundService
     private readonly HashSet<string> _refusedServers = new(StringComparer.Ordinal);
 
     private const int MaxProbedHosts = 64;
+
+    private static readonly TimeSpan NotFoundFirstWarning = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan NotFoundRepeatWarning = TimeSpan.FromMinutes(10);
+
+    /// <summary>Say, in the Event Log, why this PC still has no server, and what to check.</summary>
+    private void WarnStillSearching(TimeSpan elapsed, int probeTargets, int answered, int unreachable, int wrongKey)
+    {
+        var me = LanAddresses.Best();
+        var tried = _serverAddress is not null
+            ? $"the configured server address {_serverAddress}"
+            : $"a discovery broadcast on UDP {Protocol.DiscoveryPort} to {probeTargets} address(es) ({string.Join(", ", LanAddresses.BroadcastAddresses())})";
+        _logger.LogWarning(
+            "No classroom server found for {Minutes:0} min. This PC: {Address}. Tried {Tried}: {Answered} server(s) answered, " +
+            "{Unreachable} of them couldn't be reached over HTTPS, {WrongKey} presented a different key than this PC trusts. " +
+            "Check that the server is running, that it is on the same network as this PC (a Wi-Fi access point in router mode " +
+            "puts the server on a different network), and that the server PC's firewall allows TCP {Port} and UDP {DiscoveryPort}. " +
+            "From this PC: Test-NetConnection <server address> -Port {Port}",
+            elapsed.TotalMinutes, me?.Address.ToString() ?? "no network", tried, answered, unreachable, wrongKey,
+            Protocol.DefaultServerPort, Protocol.DiscoveryPort, Protocol.DefaultServerPort);
+    }
 
     /// <summary>
     /// Find a server and authenticate it (NFR-SEC-06): probe each candidate's TLS key and take the
@@ -244,6 +270,9 @@ public sealed class AgentWorker : BackgroundService
     private async Task<(DiscoveryResponse Server, string Fingerprint)?> FindTrustedServerAsync(CancellationToken ct)
     {
         var discovery = new LanDiscoveryClient("student");
+        var searching = System.Diagnostics.Stopwatch.StartNew();
+        var nextWarning = NotFoundFirstWarning;
+        var warned = false;
         while (!ct.IsCancellationRequested)
         {
             IReadOnlyList<DiscoveryResponse> candidates;
@@ -316,12 +345,25 @@ public sealed class AgentWorker : BackgroundService
                             server.RoomName, server.Host, ServerTrust.Format(presented), ServerTrust.Format(pin));
                     continue;
                 }
-                _logger.LogInformation("Found \"{Room}\" at {Url}.", server.RoomName, server.HubUrl);
+                if (warned)
+                    _logger.LogWarning("Found \"{Room}\" at {Url} after {Minutes:0} min of searching.", server.RoomName, server.HubUrl, searching.Elapsed.TotalMinutes);
+                else
+                    _logger.LogInformation("Found \"{Room}\" at {Url}.", server.RoomName, server.HubUrl);
                 _pin.LastServerEndpoint = $"{server.Host}:{server.Port}";
                 return (server, presented);
             }
 
             if (candidates.Count == 0) _logger.LogDebug("No server yet; still searching…");
+            if (searching.Elapsed >= nextWarning)
+            {
+                // The Event Log only records warnings and above: without this a PC that can't reach
+                // the server looks perfectly healthy to the lab admin.
+                nextWarning = searching.Elapsed + NotFoundRepeatWarning;
+                warned = true;
+                WarnStillSearching(searching.Elapsed, discovery.LastProbeTargets, candidates.Count,
+                    unreachable: results.Count(r => r is null),
+                    wrongKey: results.Count(r => r is not null && _pin.Current is { } p && p != r));
+            }
             await SafeDelay(TimeSpan.FromSeconds(3), ct);
         }
         return null;

@@ -1,0 +1,31 @@
+<!--
+  Setup .exe for the teacher's PC: installs PROCTOR Teacher (teacher app + classroom service).
+  First screen: what it installs, a "More information" link (project page) and the version.
+  Last screen: Launch opens the teacher app.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle Name="PROCTOR Teacher"
+          Manufacturer="PROCTOR"
+          Version="$(var.ProctorVersion)"
+          UpgradeCode="3E8B6D27-1C4F-4A95-B0D2-9F61C8E47A05"
+          AboutUrl="https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp"
+          HelpUrl="https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp/issues"
+          UpdateUrl="https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp/releases">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication Theme="none"
+                                              ThemeFile="PROCTORTheme.xml"
+                                              LocalizationFile="PROCTORTheme.wxl"
+                                              ShowVersion="yes" />
+      <Payload SourceFile="logo.png" />
+    </BootstrapperApplication>
+
+    <!-- The finish page's Launch button (run unelevated, as the signed-in teacher). -->
+    <Variable Name="LaunchTarget" Value="[ProgramFiles64Folder]PROCTOR Teacher\App\PROCTORSystemMulti-ProjectApp.WinUI.exe" />
+
+    <Chain>
+      <MsiPackage SourceFile="$(var.PROCTOR.Teacher.Installer.TargetPath)" Vital="yes" Visible="no" />
+    </Chain>
+  </Bundle>
+</Wix>

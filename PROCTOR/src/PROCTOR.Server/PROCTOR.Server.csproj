@@ -10,6 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Runs as the "PROCTORServer" Windows service (deploy\Install-Server.ps1); no-op in a console. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\PROCTOR.Shared\PROCTOR.Shared.csproj" />
   </ItemGroup>
 

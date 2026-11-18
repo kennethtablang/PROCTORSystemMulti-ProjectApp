@@ -60,3 +60,54 @@ public static class TrustedServers
         catch { return []; }
     }
 }
+
+/// <summary>Where a classroom server was last reached, and the TLS key it proved there.</summary>
+public sealed record KnownServer
+{
+    public string Host { get; init; } = "";
+    public int Port { get; init; }
+    public string Fingerprint { get; init; } = "";
+    public string RoomName { get; init; } = "";
+    public DateTimeOffset LastConnected { get; init; }
+}
+
+/// <summary>
+/// Servers this teacher device has connected to, most recent first. Broadcast discovery only
+/// works inside one network: a teacher on a Wi-Fi access point in router mode (its own subnet),
+/// on another VLAN, or on an iPhone (iOS blocks broadcast without a special entitlement) never
+/// hears the server. These endpoints are then dialled directly, so after one successful
+/// connection the app reconnects from any network that can route to the server, with no typing.
+/// A remembered endpoint is used only if it still presents the same TLS key.
+/// </summary>
+public static class KnownServers
+{
+    private const string Key = "proctor.known-servers";
+    private const int Max = 8;
+    private static readonly object Gate = new();
+
+    public static void Remember(string host, int port, string fingerprint, string roomName)
+    {
+        if (string.IsNullOrWhiteSpace(host) || port <= 0) return;
+        lock (Gate)
+        {
+            var list = Load().Where(k => !(string.Equals(k.Host, host, StringComparison.OrdinalIgnoreCase) && k.Port == port)).ToList();
+            list.Insert(0, new KnownServer { Host = host, Port = port, Fingerprint = fingerprint, RoomName = roomName, LastConnected = DateTimeOffset.UtcNow });
+            try { Preferences.Default.Set(Key, JsonSerializer.Serialize(list.Take(Max).ToList())); } catch { }
+        }
+    }
+
+    public static IReadOnlyList<KnownServer> Recent()
+    {
+        lock (Gate) return Load();
+    }
+
+    private static List<KnownServer> Load()
+    {
+        try
+        {
+            var json = Preferences.Default.Get(Key, "");
+            return string.IsNullOrEmpty(json) ? [] : JsonSerializer.Deserialize<List<KnownServer>>(json) ?? [];
+        }
+        catch { return []; }
+    }
+}

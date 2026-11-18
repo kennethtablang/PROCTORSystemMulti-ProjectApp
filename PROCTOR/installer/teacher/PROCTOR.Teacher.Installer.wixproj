@@ -1,0 +1,50 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <!--
+    MSI for the teacher's PC (the PC the class connects to). One product, PROCTOR Teacher:
+      * the teacher app (Start menu + desktop shortcut),
+      * the classroom service student PCs and teacher apps connect to ("PROCTORServer", auto-start),
+      * the student-agent MSI that service hands to older student PCs (agent auto-update).
+    The setup .exe in setup\ wraps it; build that with ..\Build-TeacherSetup.ps1.
+
+    Everything is published self-contained (no .NET install needed) into obj\ before linking.
+  -->
+  <PropertyGroup>
+    <OutputName>PROCTOR.Teacher</OutputName>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..'))</RepoRoot>
+    <TeacherProject>$(RepoRoot)\PROCTORSystemMulti-ProjectApp\PROCTORSystemMulti-ProjectApp.WinUI\PROCTORSystemMulti-ProjectApp.WinUI.csproj</TeacherProject>
+    <ServerProject>$(RepoRoot)\PROCTOR\src\PROCTOR.Server\PROCTOR.Server.csproj</ServerProject>
+    <AgentInstallerProject>$(RepoRoot)\PROCTOR\installer\PROCTOR.Agent.Installer.wixproj</AgentInstallerProject>
+    <AgentMsi>$(RepoRoot)\PROCTOR\installer\bin\x64\Release\PROCTOR.Agent.msi</AgentMsi>
+    <!-- No trailing slashes: inside a quoted command-line argument they would escape the quote. -->
+    <TeacherPublishDir>$(MSBuildThisFileDirectory)obj\teacher-publish</TeacherPublishDir>
+    <ServerPublishDir>$(MSBuildThisFileDirectory)obj\server-publish</ServerPublishDir>
+    <AgentVersionFile>$(MSBuildThisFileDirectory)obj\agent-version.txt</AgentVersionFile>
+    <DefineConstants>TeacherDir=$(TeacherPublishDir)\;ServerDir=$(ServerPublishDir)\;AgentMsi=$(AgentMsi);AgentVersionFile=$(AgentVersionFile);ServerDeployDir=$(RepoRoot)\PROCTOR\src\PROCTOR.Server\deploy\;ProctorVersion=$(ProctorVersion)</DefineConstants>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <!-- ICE03: some Windows App SDK / .NET DLLs carry language ids ICE03 doesn't know (harmless).
+         ICE43/ICE57: they assume a package that might install per-user; this one is always
+         per-machine (Scope="perMachine"), so its shortcuts are all-users shortcuts keyed by the exe. -->
+    <SuppressIces>ICE03;ICE43;ICE57</SuppressIces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" />
+    <PackageReference Include="WixToolset.Firewall.wixext" Version="5.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Package.wxs" />
+  </ItemGroup>
+
+  <Target Name="PublishTeacherPc" BeforeTargets="BeforeBuild">
+    <RemoveDir Directories="$(TeacherPublishDir);$(ServerPublishDir)" />
+    <Exec Command="dotnet publish &quot;$(TeacherProject)&quot; -c Release -p:Platform=x64 -p:PublishProfile=win-x64 -o &quot;$(TeacherPublishDir)&quot; -nologo -v q" />
+    <Exec Command="dotnet publish &quot;$(ServerProject)&quot; -c Release -r win-x64 --self-contained true -o &quot;$(ServerPublishDir)&quot; -nologo -v q" />
+    <!-- The generic student-agent MSI (no lab settings: upgrades keep each PC's saved ones). -->
+    <Exec Command="dotnet build &quot;$(AgentInstallerProject)&quot; -c Release -nologo -v q" />
+    <WriteLinesToFile File="$(AgentVersionFile)" Lines="$(ProctorVersion)" Overwrite="true" />
+  </Target>
+</Project>

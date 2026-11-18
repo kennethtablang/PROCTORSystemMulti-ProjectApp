@@ -73,6 +73,9 @@ public sealed class LanDiscoveryClient
     /// <summary>Most replies kept that the caller marked as preferred (their own quota).</summary>
     public const int MaxPreferred = 64;
 
+    /// <summary>How many broadcast addresses the last probe actually went out to (0 = no usable network).</summary>
+    public int LastProbeTargets { get; private set; }
+
     public static bool MatchesRoom(DiscoveryResponse response, string? roomName) =>
         string.IsNullOrWhiteSpace(roomName)
         || string.Equals(response.RoomName, roomName.Trim(), StringComparison.OrdinalIgnoreCase);
@@ -85,37 +88,84 @@ public sealed class LanDiscoveryClient
         udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
 
         var probe = DiscoveryCodec.Encode(new DiscoveryProbe { Kind = "probe", Role = _role });
-        try
-        {
-            await udp.SendAsync(probe, probe.Length, new IPEndPoint(IPAddress.Broadcast, Protocol.DiscoveryPort));
-        }
-        catch (SocketException)
-        {
-            // Broadcast may be refused on some interfaces; still listen in case a beacon arrives.
-        }
+        LastProbeTargets = await SendProbeAsync(udp, probe);
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(window);
 
-        while (!timeoutCts.IsCancellationRequested)
+        // Wi-Fi drops broadcasts far more often than wired links, and this socket hears only direct
+        // replies to its own probe (beacons go to the discovery port), so one lost datagram would
+        // waste the whole window. Re-probe a couple of times within it.
+        var resend = ResendAsync(udp, probe, timeoutCts.Token);
+        try
         {
-            UdpReceiveResult result;
+            while (!timeoutCts.IsCancellationRequested)
+            {
+                UdpReceiveResult result;
+                try
+                {
+                    result = await udp.ReceiveAsync(timeoutCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch (SocketException)
+                {
+                    continue;
+                }
+
+                var response = DiscoveryCodec.TryDecodeResponse(result.Buffer, result.RemoteEndPoint.Address);
+                if (response is null) continue;
+                if (!onResponse(response)) return;
+            }
+        }
+        finally
+        {
+            // Stop re-probing before the socket is disposed.
+            timeoutCts.Cancel();
+            try { await resend; } catch { }
+        }
+    }
+
+    /// <summary>Gap between probe repeats within one discovery window, and how many repeats.</summary>
+    public static readonly TimeSpan ProbeRepeatInterval = TimeSpan.FromMilliseconds(700);
+    public const int ProbeRepeats = 2;
+
+    private async Task ResendAsync(UdpClient udp, byte[] probe, CancellationToken ct)
+    {
+        for (var i = 0; i < ProbeRepeats && !ct.IsCancellationRequested; i++)
+        {
+            try { await Task.Delay(ProbeRepeatInterval, ct); }
+            catch (OperationCanceledException) { return; }
+            await SendProbeAsync(udp, probe);
+        }
+    }
+
+    /// <summary>
+    /// Send the probe to the limited broadcast plus each subnet's directed broadcast: with a VPN or
+    /// virtual adapter present, Windows sends 255.255.255.255 out of only one adapter, maybe not
+    /// the lab's. Returns how many addresses it went out to.
+    /// </summary>
+    private static async Task<int> SendProbeAsync(UdpClient udp, byte[] probe)
+    {
+        var sent = 0;
+        foreach (var target in LanAddresses.BroadcastAddresses())
+        {
             try
             {
-                result = await udp.ReceiveAsync(timeoutCts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
+                await udp.SendAsync(probe, probe.Length, new IPEndPoint(target, Protocol.DiscoveryPort));
+                sent++;
             }
             catch (SocketException)
             {
-                continue;
+                // Broadcast may be refused on some interfaces; the others still count.
             }
-
-            var response = DiscoveryCodec.TryDecodeResponse(result.Buffer, result.RemoteEndPoint.Address);
-            if (response is null) continue;
-            if (!onResponse(response)) return;
+            catch (ObjectDisposedException)
+            {
+                break;
+            }
         }
+        return sent;
     }
 }

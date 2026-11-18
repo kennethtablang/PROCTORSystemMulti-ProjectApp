@@ -160,41 +160,8 @@ public sealed class ServerIdentity
     }
 
     /// <summary>
-    /// Pick the best LAN IPv4 to advertise: a private, operational, non-loopback address
-    /// on a real adapter (Ethernet/Wi-Fi preferred). Falls back to any up IPv4.
+    /// The LAN IPv4 to advertise: the adapter on the network actually in use (default gateway),
+    /// not a VPN tap or virtual switch. Same choice the teacher app shows (<see cref="LanAddresses"/>).
     /// </summary>
-    private static string ResolveLanAddress()
-    {
-        var candidates = new List<(IPAddress Addr, int Score)>();
-
-        foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
-        {
-            if (nic.OperationalStatus != OperationalStatus.Up) continue;
-            if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel)
-                continue;
-
-            foreach (var ua in nic.GetIPProperties().UnicastAddresses)
-            {
-                if (ua.Address.AddressFamily != AddressFamily.InterNetwork) continue;
-                if (IPAddress.IsLoopback(ua.Address)) continue;
-
-                var bytes = ua.Address.GetAddressBytes();
-                // Skip APIPA 169.254.x.x unless nothing else exists.
-                var isApipa = bytes[0] == 169 && bytes[1] == 254;
-
-                var score = nic.NetworkInterfaceType switch
-                {
-                    NetworkInterfaceType.Ethernet => 3,
-                    NetworkInterfaceType.Wireless80211 => 2,
-                    _ => 1,
-                };
-                if (isApipa) score = 0;
-
-                candidates.Add((ua.Address, score));
-            }
-        }
-
-        var best = candidates.OrderByDescending(c => c.Score).FirstOrDefault();
-        return best.Addr?.ToString() ?? "127.0.0.1";
-    }
+    private static string ResolveLanAddress() => LanAddresses.Best()?.Address.ToString() ?? "127.0.0.1";
 }

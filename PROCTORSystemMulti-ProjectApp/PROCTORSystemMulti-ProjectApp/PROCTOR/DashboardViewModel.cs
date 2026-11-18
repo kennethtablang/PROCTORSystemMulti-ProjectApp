@@ -96,6 +96,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         SwitchRoomCommand = new Command(async () => await SwitchRoomAsync(), () => IsConnected);
         MoreColumnsCommand = new Command(() => Columns++);
         FewerColumnsCommand = new Command(() => Columns--);
+        InitConnectGuide();
 
         _manualAddress = LoadPref(PrefServer);
 
@@ -126,6 +127,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
             Raise(); Raise(nameof(NotConnected)); Raise(nameof(RoomTitle));
             if (value) { NeedsRoomChoice = false; ShowManualEntry = false; }
             RefreshCommands();
+            RaiseConnectGuide();
         }
     }
     public bool NotConnected => !_isConnected;
@@ -458,7 +460,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         var address = ManualAddress?.Trim() ?? "";
         if (!global::PROCTOR.Shared.Discovery.ManualServer.TryParse(address, out _, out _))
         {
-            Status = "Enter the server address as host or host:port (e.g. 192.168.1.20:5080).";
+            Status = $"Enter the server address as host or host:port, e.g. {StudentServerAddress}.";
             return;
         }
 
@@ -679,6 +681,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         RaiseHands();
         Raise(nameof(StudentCount));
         Raise(nameof(HasStudents));
+        Raise(nameof(ShowConnectGuide));
         RefreshVisible();
         Streams.RosterChanged();
     }

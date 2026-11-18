@@ -39,7 +39,7 @@ public sealed class WakeSender
     /// <summary>Send a magic packet for each MAC (already validated). Returns how many were sent.</summary>
     public async Task<int> SendAsync(IReadOnlyList<byte[]> macs, ILogger logger)
     {
-        var targets = BroadcastAddresses();
+        var targets = PROCTOR.Shared.LanAddresses.BroadcastAddresses();
         using var udp = new UdpClient(AddressFamily.InterNetwork) { EnableBroadcast = true };
         var sent = 0;
         foreach (var mac in macs)
@@ -55,30 +55,5 @@ public sealed class WakeSender
             if (ok) sent++;
         }
         return sent;
-    }
-
-    private static List<IPAddress> BroadcastAddresses()
-    {
-        var list = new List<IPAddress> { IPAddress.Broadcast };
-        try
-        {
-            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
-            {
-                if (nic.OperationalStatus != OperationalStatus.Up || nic.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
-                foreach (var ua in nic.GetIPProperties().UnicastAddresses)
-                {
-                    if (ua.Address.AddressFamily != AddressFamily.InterNetwork || ua.IPv4Mask is null) continue;
-                    var ip = ua.Address.GetAddressBytes();
-                    var mask = ua.IPv4Mask.GetAddressBytes();
-                    if (mask.All(b => b == 0)) continue;
-                    var bc = new byte[4];
-                    for (var i = 0; i < 4; i++) bc[i] = (byte)(ip[i] | ~mask[i]);
-                    var address = new IPAddress(bc);
-                    if (!list.Contains(address)) list.Add(address);
-                }
-            }
-        }
-        catch (NetworkInformationException) { }
-        return list;
     }
 }

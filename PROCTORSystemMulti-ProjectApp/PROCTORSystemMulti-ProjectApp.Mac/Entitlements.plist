@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
     <dict>
-        <!-- App Sandbox (required for the Mac App Store). ClassInsight needs outbound connections
+        <!-- App Sandbox (required for the Mac App Store). PROCTOR needs outbound connections
              (SignalR hub, WebRTC) and to receive UDP discovery replies/beacons and WebRTC media,
              which the sandbox treats as "server" (incoming) networking. -->
         <key>com.apple.security.app-sandbox</key>

@@ -112,12 +112,17 @@ public sealed class ServerCertificate
 
     /// <summary>SYSTEM, Administrators and the account running the server.</summary>
     [SupportedOSPlatform("windows")]
-    private static SecurityIdentifier[] TrustedSids() =>
-    [
-        new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-        new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-        WindowsIdentity.GetCurrent().User!,
-    ];
+    private static SecurityIdentifier[] TrustedSids(bool adminOnly = false) => adminOnly
+        ? [
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+            new SecurityIdentifier("S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464"),   // TrustedInstaller
+        ]
+        : [
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+            WindowsIdentity.GetCurrent().User!,
+        ];
 
     // Rights that would let an account replace or re-permission the file / folder contents.
     private const FileSystemRights Dangerous = FileSystemRights.WriteData | FileSystemRights.AppendData
@@ -130,13 +135,16 @@ public sealed class ServerCertificate
         IsTrusted(new FileInfo(path)) && IsTrustedDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
 
     [SupportedOSPlatform("windows")]
-    internal static bool IsTrustedDirectory(string dir) => IsTrusted(new DirectoryInfo(dir));
+    internal static bool IsTrustedDirectory(string dir, bool adminOnly = false) => IsTrusted(new DirectoryInfo(dir), adminOnly);
 
-    /// <summary>Owned by a trusted account and not writable by anyone else.</summary>
+    /// <summary>
+    /// Owned by a trusted account and not writable by anyone else. <paramref name="adminOnly"/> drops
+    /// "the account running the server" from the trusted set (for files other PCs will run as SYSTEM).
+    /// </summary>
     [SupportedOSPlatform("windows")]
-    internal static bool IsTrusted(FileSystemInfo item)
+    internal static bool IsTrusted(FileSystemInfo item, bool adminOnly = false)
     {
-        var trusted = TrustedSids();
+        var trusted = TrustedSids(adminOnly);
         FileSystemSecurity security = item is DirectoryInfo d ? d.GetAccessControl() : ((FileInfo)item).GetAccessControl();
         if (security.GetOwner(typeof(SecurityIdentifier)) is not SecurityIdentifier owner || !trusted.Contains(owner)) return false;
         foreach (FileSystemAccessRule rule in security.GetAccessRules(true, true, typeof(SecurityIdentifier)))

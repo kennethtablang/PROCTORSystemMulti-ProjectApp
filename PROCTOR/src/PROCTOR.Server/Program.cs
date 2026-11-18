@@ -3,7 +3,16 @@ using PROCTOR.Server.Services;
 using PROCTOR.Shared;
 using PROCTOR.Shared.Contracts;
 
-var builder = WebApplication.CreateBuilder(args);
+// Runs as a console app (F5, dotnet run) or as the "PROCTORServer" Windows service installed by
+// deploy\Install-Server.ps1, which starts at boot on the lab's server PC so no one has to keep a
+// window open. A service starts in System32, so its content root (appsettings.json) is the exe's folder.
+var asService = Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService();
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = asService ? AppContext.BaseDirectory : null,
+});
+builder.Host.UseWindowsService(o => o.ServiceName = "PROCTORServer");
 
 // Bind Kestrel to the configured PROCTOR port on all interfaces so lab machines on
 // the LAN can reach the hub. (Discovery hands clients the resolved LAN address.)
@@ -34,6 +43,7 @@ builder.Services.AddSingleton<ChatThrottle>();
 builder.Services.AddSingleton<FileTransfers>();
 builder.Services.AddSingleton<RemoteControlState>();
 builder.Services.AddSingleton<AgentStore>();
+builder.Services.AddSingleton<AgentUpdatePackage>();
 builder.Services.AddHostedService<DiscoveryBeaconService>();
 
 var app = builder.Build();
@@ -56,6 +66,13 @@ app.MapGet(Protocol.StatusPath, (ServerIdentity identity, RoomRegistry room) => 
     Students = room.StudentCount,
     Teachers = room.TeacherCount,
 }));
+
+// Agent auto-update: the student-agent MSI installed with the teacher setup. Public (it's the same
+// file as the GitHub release); agents fetch it over TLS pinned to this server and check its SHA-256.
+app.MapGet(Protocol.AgentUpdatePath, (AgentUpdatePackage package) =>
+    package.FilePath is { } path
+        ? Results.File(path, "application/x-msi", "PROCTOR.Agent.msi")
+        : Results.NotFound());
 
 app.Run();
 

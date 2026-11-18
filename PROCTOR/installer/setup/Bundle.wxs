@@ -11,7 +11,7 @@
      xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
   <Bundle Name="PROCTOR Agent"
           Manufacturer="PROCTOR"
-          Version="0.3.1"
+          Version="$(var.ProctorVersion)"
           UpgradeCode="EA5BE157-0D61-474D-B200-D1AFB3963F61"
           AboutUrl="https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp">
 

@@ -15,7 +15,7 @@
      xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall">
   <Package Name="PROCTOR Agent"
            Manufacturer="PROCTOR"
-           Version="0.3.1"
+           Version="$(var.ProctorVersion)"
            UpgradeCode="C383DD5C-4F49-4E09-B309-137E8FD973E7"
            Scope="perMachine"
            Compressed="yes">

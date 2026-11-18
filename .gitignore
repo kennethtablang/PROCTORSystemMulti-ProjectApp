@@ -364,3 +364,7 @@ FodyWeavers.xsd
 # PROCTOR agent setups built by installer/Build-AgentSetup.ps1 (may hold a lab enrolment key)
 PROCTOR/dist/
 PROCTOR/src/PROCTOR.Agent/deploy/*.exe
+
+# Built installers copied for hand-out (too big for git; published as GitHub release assets)
+Installers/*.exe
+Installers/*.sha256

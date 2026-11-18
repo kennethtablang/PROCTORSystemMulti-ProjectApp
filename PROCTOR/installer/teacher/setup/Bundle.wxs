@@ -14,11 +14,15 @@
           UpdateUrl="https://github.com/kennethtablang/PROCTORSystemMulti-ProjectApp/releases">
 
     <BootstrapperApplication>
-      <bal:WixStandardBootstrapperApplication Theme="none"
+      <!-- Theme names the standard theme our ThemeFile is derived from. It must not be "none":
+           WiX 5 then leaves out the setup screen's settings and the setup exits at once
+           (0x80070490 "manifest is missing wixstdba information"). -->
+      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense"
+                                              LicenseUrl=""
                                               ThemeFile="PROCTORTheme.xml"
                                               LocalizationFile="PROCTORTheme.wxl"
                                               ShowVersion="yes" />
-      <Payload SourceFile="logo.png" />
+      <Payload SourceFile="proctor-logo.png" />
     </BootstrapperApplication>
 
     <!-- The finish page's Launch button (run unelevated, as the signed-in teacher). -->

@@ -4,7 +4,7 @@ using PROCTOR.Shared;
 using PROCTOR.Shared.Contracts;
 
 // Runs as a console app (F5, dotnet run) or as the "PROCTORServer" Windows service installed by
-// deploy\Install-Server.ps1, which starts at boot on the lab's server PC so no one has to keep a
+// the PROCTOR Teacher setup, which starts at boot on the lab's teacher PC so no one has to keep a
 // window open. A service starts in System32, so its content root (appsettings.json) is the exe's folder.
 var asService = Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService();
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -13,6 +13,25 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     ContentRootPath = asService ? AppContext.BaseDirectory : null,
 });
 builder.Host.UseWindowsService(o => o.ServiceName = "PROCTORServer");
+
+// The appsettings.json next to the exe holds the shipped defaults and is replaced by every update.
+// An administrator's own settings (teacher code, room name...) go in %ProgramData%\PROCTOR\Server\
+// appsettings.json, which no setup touches, read on top. Only when no other account can write it
+// (same rule as the server key beside it): such a file could otherwise open the room to anyone.
+var localSettings = Path.Combine(Path.GetDirectoryName(ServerCertificate.DefaultPath)!, "appsettings.json");
+string? localSettingsNote = null;
+if (File.Exists(localSettings))
+{
+    if (!OperatingSystem.IsWindows() || ServerCertificate.IsTrustedPath(localSettings))
+    {
+        builder.Configuration.AddJsonFile(localSettings, optional: true, reloadOnChange: false);
+        localSettingsNote = $"Using this PC's settings from {localSettings}.";
+    }
+    else
+    {
+        localSettingsNote = $"Ignoring {localSettings}: it is writable by an account other than SYSTEM or Administrators.";
+    }
+}
 
 // Bind Kestrel to the configured PROCTOR port on all interfaces so lab machines on
 // the LAN can reach the hub. (Discovery hands clients the resolved LAN address.)
@@ -47,6 +66,11 @@ builder.Services.AddSingleton<AgentUpdatePackage>();
 builder.Services.AddHostedService<DiscoveryBeaconService>();
 
 var app = builder.Build();
+if (localSettingsNote is not null)
+{
+    if (localSettingsNote.StartsWith("Ignoring", StringComparison.Ordinal)) app.Logger.LogWarning("{Note}", localSettingsNote);
+    else app.Logger.LogInformation("{Note}", localSettingsNote);
+}
 
 // Force ServerIdentity to resolve now so its startup banner (and any generated join code)
 // prints before the first client connects.

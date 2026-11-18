@@ -110,8 +110,11 @@
         </ServiceInstall>
         <ServiceControl Id="ServerServiceControl" Name="PROCTORServer" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
       </Component>
-      <Component Id="ServerSettings" NeverOverwrite="yes">
-        <!-- Room name, teacher code, ports...: an administrator's edits survive upgrades. -->
+      <Component Id="ServerSettings">
+        <!-- The shipped defaults, replaced by every update (not NeverOverwrite: with the upgrade
+             removing the old version first, that left the file deleted, and the service fell back
+             to requiring a join code nobody could see). An administrator's own settings go in
+             %ProgramData%\PROCTOR\Server\appsettings.json, read on top; no setup touches it. -->
         <File Id="ServerAppSettings" Source="$(var.ServerDir)appsettings.json" KeyPath="yes" />
       </Component>
       <Component Id="ServerIdentityScript">

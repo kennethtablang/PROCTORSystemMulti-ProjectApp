@@ -38,7 +38,10 @@ public sealed class AboutPage : ContentPage
         }
         Row(0, "Version", ProductVersion.Text);
         Row(1, "Student PCs connect to", vm?.StudentServerAddress ?? "—");
-        Row(2, "This device", $"{DeviceInfo.Name} · {DeviceInfo.Platform} {DeviceInfo.VersionString}");
+        // Always here, not only in the dashboard's connect panel (which hides once students join):
+        // student setups for this server must carry this key (SERVERFINGERPRINT).
+        Row(2, "Server key", vm is { HasServerKey: true } ? vm.ServerKey : "— (shown when connected to a server)");
+        Row(3, "This device", $"{DeviceInfo.Name} · {DeviceInfo.Platform} {DeviceInfo.VersionString}");
 
         var links = new FlexLayout
         {

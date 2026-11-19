@@ -59,8 +59,11 @@ public sealed class ScreenBroadcaster : IAsyncDisposable
     /// <summary>Start showing this screen. Returns an error to show, or null.</summary>
     public async Task<string?> StartAsync(BroadcastMode mode, IReadOnlyList<string>? targets = null, StudentTile? student = null)
     {
-        if (student is null && !_ownScreen.IsSupported) return "Showing your screen isn't available on this device yet (Windows only).";
+        if (student is null && !_ownScreen.IsSupported) return "Showing your screen isn't available on this device yet.";
         if (IsActive) await StopAsync();
+
+        // Own screen: get the device ready first (Android asks the teacher to allow screen recording).
+        if (student is null && await _ownScreen.PrepareAsync() is { } notReady) return notReady;
 
         IReadOnlyList<string> students;
         try
@@ -74,6 +77,7 @@ public sealed class ScreenBroadcaster : IAsyncDisposable
         }
         catch (Exception ex)
         {
+            if (student is null) _ownScreen.Release();
             return ex.Message;
         }
 
@@ -105,6 +109,7 @@ public sealed class ScreenBroadcaster : IAsyncDisposable
         foreach (var id in _peers.Keys.ToArray())
             if (_peers.TryRemove(id, out var pc)) { try { pc.close(); } catch { } }
         lock (_encodeGate) { _encoder?.Dispose(); _encoder = null; _encW = _encH = 0; }
+        if (ReferenceEquals(_source, _ownScreen)) _ownScreen.Release();
         ShowingStudent = null;
         _source = _ownScreen;
         Changed?.Invoke();

@@ -251,6 +251,32 @@ public static class TeacherFiles
         File.WriteAllBytes(path, bytes);
         return path;
     }
+
+    /// <summary>
+    /// Tell the teacher where saved files are. On Windows that's the path (Documents\PROCTOR). On
+    /// phones and tablets the files sit inside the app, where the teacher can't browse, so offer
+    /// Share instead: Drive, Files, Gallery, email…
+    /// </summary>
+    public static async Task ShowSavedAsync(Page page, string title, string message, IReadOnlyList<string> files)
+    {
+        if (OperatingSystem.IsWindows() || files.Count == 0)
+        {
+            await page.DisplayAlertAsync(title, message, "OK");
+            return;
+        }
+        if (!await page.DisplayAlertAsync(title, message + "\n\nShare to keep a copy (Drive, Files, email…).", "Share", "Close")) return;
+        try
+        {
+            if (files.Count == 1)
+                await Share.Default.RequestAsync(new ShareFileRequest(title, new ShareFile(files[0])));
+            else
+                await Share.Default.RequestAsync(new ShareMultipleFilesRequest(title, files.Select(f => new ShareFile(f)).ToList()));
+        }
+        catch (Exception ex)
+        {
+            await page.DisplayAlertAsync(title, "Couldn't share: " + ex.Message, "OK");
+        }
+    }
 }
 
 /// <summary>One line in a teacher ↔ student chat, shaped for the chat page.</summary>

@@ -370,8 +370,11 @@ version is carried in every message so mismatched clients can be rejected cleanl
   runs and is GUI-verified. The Android, iOS and Mac Catalyst heads **compile** with 0 warnings
   and carry their networking config (Android: cleartext LAN + Wi-Fi multicast lock for
   discovery; Apple: local-network usage text, `NSAllowsLocalNetworking`, the multicast
-  entitlement — which Apple must grant — and Mac sandbox client/server). Not yet run on a
-  device; iOS/Mac packaging needs a Mac.)*
+  entitlement — which Apple must grant — and Mac sandbox client/server). **Android packaging
+  done:** `Build-AndroidApp.ps1` makes a signed `PROCTOR-Teacher-Android.apk` (id
+  `com.proctor.teacher`, version from `ProctorVersion`), attached to each GitHub release. **iOS
+  packaging scripted:** `Build-iOSApp.sh` makes the `.ipa` on a Mac for TestFlight / Ad Hoc / MDM
+  (see `PROCTOR\installer\README-mobile.md`). Not yet run on a device.)*
 - ✅ **FR-TEACH-06 [P3]** The app **should** let the teacher sort/filter students and
   adjust grid density. *(**GUI-verified**: search across name/user/foreground app/site ("0 of 1
   shown"), sort by Name/CPU/Memory/Bandwidth (live sorts re-order every 3 s so tiles don't
@@ -812,6 +815,25 @@ this document and `README.md` in sync with reality.
 
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
+
+- **0.26 — 2026-11-18**
+  - **Phone/tablet installers for the teacher app (FR-TEACH-05 🟡).** Android: `Build-AndroidApp.ps1`
+    publishes a Release `.apk`, signs it with a project key kept outside the repo
+    (`%LOCALAPPDATA%\PROCTOR\android-signing`, must be backed up: updates need the same key) and
+    refuses an unsigned result; `Publish-Release.ps1` attaches it to the release (`-SkipAndroid`).
+    iOS: `Build-iOSApp.sh` archives and signs the `.ipa` on a Mac; the multicast entitlement is
+    opt-in (`-m` / `ProctorMulticast=true`) so any developer account can sign it. Both heads now
+    take name, bundle id and version from the project (`ProctorBuildNumber` = versionCode /
+    CFBundleVersion). Built and signature-verified; on-device runs still pending.
+  - **Android teacher app brought level with Windows.** PROCTOR logo as launcher icon and splash;
+    toolbar icons use bundled Material Icons off Windows (Segoe MDL2 Assets exists only on Windows,
+    so Android buttons were blank) and are finger-sized on phones/tablets. **Show my screen**
+    (FR-CTRL-02) via MediaProjection in a `mediaProjection` foreground service, ≤ 1280 px long side.
+    **Remote control** (FR-CTRL-05) by touch (tap/hold/drag/two-finger scroll), mouse, on-screen and
+    hardware keyboards (US-layout virtual keys). **Auto-update**: the update pop-up downloads the
+    release's `.apk`, verifies size + SHA-256 and opens Android's installer (same signing key only).
+    Screenshots, attendance and handed-in work can be **shared** (they live in app storage).
+  - The student "being viewed by your teacher" notice was removed in system 0.4.4.
 
 - **0.25 — 2026-11-17**
   - **Viewing notice is installable** (FR-SEC-05): the student "being viewed by your teacher" notice

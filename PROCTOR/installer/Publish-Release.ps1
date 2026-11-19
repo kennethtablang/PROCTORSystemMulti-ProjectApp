@@ -6,8 +6,10 @@
 .DESCRIPTION
   1. Reads the version from Directory.Build.props (ProctorVersion). Bump it first: the apps only
      offer a release whose version is higher than their own.
-  2. Builds PROCTOR-Teacher-Setup.exe (+ .sha256) and a generic PROCTOR-Agent-Setup.exe (no lab
-     settings built in, for new student PCs; existing ones update from the teacher's PC).
+  2. Builds PROCTOR-Teacher-Setup.exe (+ .sha256), a generic PROCTOR-Agent-Setup.exe (no lab
+     settings built in, for new student PCs; existing ones update from the teacher's PC) and the
+     Android teacher app PROCTOR-Teacher-Android.apk (+ .sha256; skip with -SkipAndroid). The iOS
+     app is built on a Mac and distributed through Apple (Build-iOSApp.sh, README-mobile.md).
   3. Creates GitHub release v<version> on the current commit with those files, after you confirm.
 
   Needs the GitHub CLI signed in (gh auth login) with push rights to the repository, and the
@@ -19,6 +21,9 @@
 .PARAMETER Draft
   Create the release as a draft (apps ignore drafts until you publish it on GitHub).
 
+.PARAMETER SkipAndroid
+  Leave the Android app out of this release (e.g. on a PC without the Android signing key).
+
 .EXAMPLE
   .\Publish-Release.ps1 -Notes "Faster screen sharing; fixes for discovery on Wi-Fi."
 #>
@@ -27,6 +32,7 @@ param(
     [string]$Notes,
     [string]$NotesFile,
     [switch]$Draft,
+    [switch]$SkipAndroid,
     [switch]$Yes
 )
 
@@ -76,6 +82,12 @@ $assets = @(
     (Join-Path $stage 'PROCTOR-Teacher-Setup.exe.sha256'),
     (Join-Path $stage 'PROCTOR-Agent-Setup.exe')
 )
+if (-not $SkipAndroid) {
+    # Teachers on Android open the release page from the app's "Get the update" button and
+    # install this over their current app (same signing key, higher version).
+    & (Join-Path $PSScriptRoot 'Build-AndroidApp.ps1') -OutputDir $stage
+    $assets += (Join-Path $stage 'PROCTOR-Teacher-Android.apk'), (Join-Path $stage 'PROCTOR-Teacher-Android.apk.sha256')
+}
 foreach ($a in $assets) { if (-not (Test-Path $a)) { throw "Missing $a after the build." } }
 
 # --- publish -------------------------------------------------------------------------------

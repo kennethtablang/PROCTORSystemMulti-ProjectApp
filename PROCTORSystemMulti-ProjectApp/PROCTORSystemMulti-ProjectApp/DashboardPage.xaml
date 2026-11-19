@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:ci="clr-namespace:PROCTORSystemMulti_ProjectApp.PROCTOR"
@@ -165,12 +165,12 @@
                     <Picker ItemsSource="{Binding ThumbnailChoices}" SelectedIndex="{Binding ThumbnailSizeIndex}" WidthRequest="112"
                             ToolTipProperties.Text="Stream quality" />
                     <!-- Screen size: drag to make the student screens bigger or smaller (columns follow). -->
-                    <Label Text="{x:Static ci:Icons.ZoomOut}" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                    <Label Text="{x:Static ci:Icons.ZoomOut}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="12"
                            VerticalOptions="Center" TextColor="#9AA0A6" />
                     <Slider Minimum="180" Maximum="960" Value="{Binding TileSize}" WidthRequest="90"
                             VerticalOptions="Center" ToolTipProperties.Text="Screen size"
                             SemanticProperties.Description="Student screen size" />
-                    <Label Text="{x:Static ci:Icons.ZoomIn}" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                    <Label Text="{x:Static ci:Icons.ZoomIn}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="12"
                            VerticalOptions="Center" TextColor="#9AA0A6" Margin="0,0,4,0" />
                 </HorizontalStackLayout>
                 <Label Text="{Binding VisibleCountText}" FontAttributes="Bold" FontSize="12" VerticalOptions="Center" />
@@ -254,16 +254,16 @@
                                 <Label Grid.Column="0" Text="{Binding Header}" FontAttributes="Bold" FontSize="12"
                                        LineBreakMode="TailTruncation" />
                                 <!-- Badges: raised hand (needs help), locked, unread chat. -->
-                                <Label Grid.Column="1" Text="{x:Static ci:Icons.Help}" FontFamily="Segoe MDL2 Assets"
+                                <Label Grid.Column="1" Text="{x:Static ci:Icons.Help}" FontFamily="{x:Static ci:Icons.FontFamily}"
                                        FontSize="12" TextColor="#F9A825" VerticalOptions="Center" IsVisible="{Binding HandRaised}"
                                        ToolTipProperties.Text="Needs help" />
-                                <Label Grid.Column="2" Text="{x:Static ci:Icons.Lock}" FontFamily="Segoe MDL2 Assets"
+                                <Label Grid.Column="2" Text="{x:Static ci:Icons.Lock}" FontFamily="{x:Static ci:Icons.FontFamily}"
                                        FontSize="12" TextColor="#C62828" VerticalOptions="Center" IsVisible="{Binding IsLocked}"
                                        ToolTipProperties.Text="Locked" />
-                                <Label Grid.Column="6" Text="{x:Static ci:Icons.Websites}" FontFamily="Segoe MDL2 Assets"
+                                <Label Grid.Column="6" Text="{x:Static ci:Icons.Websites}" FontFamily="{x:Static ci:Icons.FontFamily}"
                                        FontSize="11" TextColor="#4FC3F7" VerticalOptions="Center" IsVisible="{Binding HasOwnWebLimits}"
                                        ToolTipProperties.Text="{Binding OwnWebLimitsText}" />
-                                <Label Grid.Column="3" Text="{x:Static ci:Icons.Chat}" FontFamily="Segoe MDL2 Assets"
+                                <Label Grid.Column="3" Text="{x:Static ci:Icons.Chat}" FontFamily="{x:Static ci:Icons.FontFamily}"
                                        FontSize="12" TextColor="#7E57C2" VerticalOptions="Center" IsVisible="{Binding HasUnreadChat}"
                                        ToolTipProperties.Text="Unread messages" />
                                 <Label Grid.Column="4" Text="{Binding ChatBadge}" FontSize="10" TextColor="#7E57C2"
@@ -287,7 +287,7 @@
                             <Label Text="{Binding ForegroundText}" FontSize="10" TextColor="#888888"
                                    LineBreakMode="TailTruncation" />
                             <HorizontalStackLayout Spacing="4" IsVisible="{Binding HasActiveHost}">
-                                <Label Text="{x:Static ci:Icons.Globe}" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                <Label Text="{x:Static ci:Icons.Globe}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="10"
                                        TextColor="#7E57C2" VerticalOptions="Center" />
                                 <Label Text="{Binding ActiveHostText}" FontSize="10" TextColor="#7E57C2"
                                        LineBreakMode="TailTruncation" />

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#512BD4</color>
-    <color name="colorPrimaryDark">#2B0B98</color>
-    <color name="colorAccent">#2B0B98</color>
+    <!-- PROCTOR logo purples (branding/proctor-logo.svg). -->
+    <color name="colorPrimary">#3A16A8</color>
+    <color name="colorPrimaryDark">#2B1680</color>
+    <color name="colorAccent">#7B4DF2</color>
 </resources>

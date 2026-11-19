@@ -16,6 +16,20 @@
 		       <MauiXaml Update="MyPage.xaml" Inflator="Default" /> (reverts to defaults: Runtime for Debug, XamlC for Release)
 		       <MauiXaml Update="MyPage.xaml" Inflator="Runtime" /> (force runtime inflation) -->
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
+
+		<!-- The installed app. ApplicationId must match the App ID registered in the Apple developer
+		     account (Build-iOSApp.sh -b overrides it if that one is taken). The version follows
+		     ProctorVersion (Directory.Build.props); the build number must grow every release. -->
+		<ApplicationId>com.proctor.teacher</ApplicationId>
+		<ApplicationTitle>PROCTOR</ApplicationTitle>
+		<ApplicationDisplayVersion>$(ProctorVersion)</ApplicationDisplayVersion>
+		<ApplicationVersion>$(ProctorBuildNumber)</ApplicationVersion>
+
+		<!-- Room discovery by UDP broadcast needs Apple's multicast entitlement, granted on request.
+		     Off by default so the app signs with any account; -p:ProctorMulticast=true once granted. -->
+		<CodesignEntitlements Condition="'$(ProctorMulticast)' == 'true'">Entitlements.Multicast.plist</CodesignEntitlements>
+		<CodesignEntitlements Condition="'$(ProctorMulticast)' != 'true'">Entitlements.plist</CodesignEntitlements>
+		<!-- The signed .ipa for iPhones/iPads is built on a Mac: PROCTOR\installer\Build-iOSApp.sh. -->
 	</PropertyGroup>
 
 	<ItemGroup>

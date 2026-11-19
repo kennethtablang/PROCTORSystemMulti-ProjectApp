@@ -16,7 +16,29 @@
 		       <MauiXaml Update="MyPage.xaml" Inflator="Default" /> (reverts to defaults: Runtime for Debug, XamlC for Release)
 		       <MauiXaml Update="MyPage.xaml" Inflator="Runtime" /> (force runtime inflation) -->
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
+
+		<!-- The installed app. Keep ApplicationId fixed once tablets have it: Android installs an
+		     update over the old app only when the id AND the signing key are the same. The version
+		     follows ProctorVersion (Directory.Build.props); versionCode must grow every release. -->
+		<ApplicationId>com.proctor.teacher</ApplicationId>
+		<ApplicationTitle>PROCTOR Teacher</ApplicationTitle>
+		<ApplicationDisplayVersion>$(ProctorVersion)</ApplicationDisplayVersion>
+		<ApplicationVersion>$(ProctorBuildNumber)</ApplicationVersion>
 	</PropertyGroup>
+
+	<!-- Release: an .apk to install directly on teachers' phones/tablets (no Play Store needed).
+	     PROCTOR\installer\Build-AndroidApp.ps1 signs it with the project's own key. -->
+	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+		<AndroidPackageFormat>apk</AndroidPackageFormat>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- PROCTOR logo (branding\proctor-logo.svg): launcher icon (@mipmap/appicon, adaptive:
+		     gradient background + "P" foreground kept inside the circle/squircle safe zone) and the
+		     start-up screen. -->
+		<MauiIcon Include="Branding\appicon.svg" ForegroundFile="Branding\appicon_fg.svg" ForegroundScale="0.65" Color="#3A16A8" />
+		<MauiSplashScreen Include="Branding\splash.svg" Color="#2B1680" BaseSize="128,128" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />

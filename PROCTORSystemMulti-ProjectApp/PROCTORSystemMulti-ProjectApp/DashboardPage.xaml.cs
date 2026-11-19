@@ -69,7 +69,7 @@ public partial class DashboardPage : ContentPage
     {
         if (!_vm.Broadcaster.IsSupported)
         {
-            await DisplayAlertAsync("Not available here", "Showing your screen is available on the Windows teacher app.", "OK");
+            await DisplayAlertAsync("Not available here", "Showing your screen isn't available on this device.", "OK");
             return;
         }
         const string full = "Full screen (students can't close it)", window = "In a window";
@@ -122,7 +122,11 @@ public partial class DashboardPage : ContentPage
         if (OperatingSystem.IsWindows())
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = false })?.Dispose();
         else
-            await DisplayAlertAsync("Handed-in work", folder, "OK");
+        {
+            var files = Directory.GetFiles(folder, "*", SearchOption.AllDirectories);
+            await TeacherFiles.ShowSavedAsync(this, "Handed-in work",
+                files.Length == 0 ? "Nothing has been handed in yet." : $"{files.Length} file(s) handed in.", files);
+        }
     }
 
     private async Task StartTimer()
@@ -151,7 +155,10 @@ public partial class DashboardPage : ContentPage
     private async Task SnapshotAll()
     {
         var (folder, count) = _vm.SaveAllThumbnails();
-        await DisplayAlertAsync("Snapshot", count == 0 ? "No screens to save yet." : $"Saved {count} screen(s) to:{Environment.NewLine}{folder}", "OK");
+        if (count == 0 || folder is null) { await DisplayAlertAsync("Snapshot", "No screens to save yet.", "OK"); return; }
+        await TeacherFiles.ShowSavedAsync(this, "Snapshot",
+            OperatingSystem.IsWindows() ? $"Saved {count} screen(s) to:{Environment.NewLine}{folder}" : $"Saved {count} screen(s).",
+            Directory.GetFiles(folder));
     }
 
     private async Task ExportAttendance()
@@ -162,7 +169,8 @@ public partial class DashboardPage : ContentPage
             return;
         }
         var path = _vm.ExportAttendanceCsv();
-        await DisplayAlertAsync("Attendance exported", path, "OK");
+        await TeacherFiles.ShowSavedAsync(this, "Attendance exported",
+            OperatingSystem.IsWindows() ? path : "Saved the attendance list (CSV, opens in Excel or Sheets).", [path]);
     }
 
     private Task ManagePin() => TeacherPinFlow.ManageAsync(this);

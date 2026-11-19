@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.companyname.proctorsystemmultiprojectapp" android:versionCode="1" android:versionName="1.0">
+<!-- Package name and version come from the .csproj (ApplicationId / ProctorVersion). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 	<!-- usesCleartextTraffic: the classroom hub is plain ws:// on the lab LAN (trusted-VLAN model,
 	     plan §8; TLS pinning is NFR-SEC-06 [P4]). -->
 	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:label="@string/app_name" android:supportsRtl="true" android:usesCleartextTraffic="true"></application>
@@ -9,4 +10,14 @@
 	     holds a multicast lock, which needs these two (see MainApplication). -->
 	<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 	<uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+	<!-- "Show my screen" (FR-CTRL-02): screen recording runs in a foreground service that shows a
+	     notification (ScreenCaptureService). -->
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+	<!-- Auto-update: hand a downloaded, verified PROCTOR .apk to Android's installer (UpdateInstaller). -->
+	<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+	<!-- Android 14+: lets PROCTOR update itself without a confirmation tap (Android 12+ rule:
+	     only when it installed its current version itself). -->
+	<uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 </manifest>

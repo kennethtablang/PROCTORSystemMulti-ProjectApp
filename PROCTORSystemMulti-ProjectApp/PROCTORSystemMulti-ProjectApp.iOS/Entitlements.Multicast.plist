@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Sending UDP broadcast (discovery probe) on iOS 14+ requires the multicast networking
+         entitlement, which Apple grants on request for the app's bundle id:
+         https://developer.apple.com/contact/request/networking-multicast
+         Used only when building with -p:ProctorMulticast=true (Build-iOSApp.sh -m); without the
+         grant, signing fails. The default Entitlements.plist leaves it out, and the teacher still
+         connects by typing the server address (manual fallback, NFR-COMPAT-02). -->
+    <key>com.apple.developer.networking.multicast</key>
+    <true/>
+</dict>
+</plist>

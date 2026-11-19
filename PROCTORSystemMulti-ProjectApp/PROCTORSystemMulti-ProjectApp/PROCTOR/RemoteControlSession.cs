@@ -6,8 +6,8 @@ namespace PROCTORSystemMulti_ProjectApp.PROCTOR;
 /// <summary>
 /// Captures the teacher's mouse and keyboard over a view. Positions are handed to the mapper in
 /// the view's own coordinates; it returns the normalised (0–1) point on the student's screen, or
-/// null when the pointer is outside the picture. Implemented by the Windows head; other heads use
-/// <see cref="UnsupportedRemoteInput"/>.
+/// null when the pointer is outside the picture. Implemented by the Windows head (mouse/keyboard)
+/// and the Android head (touch, mouse, keyboards); other heads use <see cref="UnsupportedRemoteInput"/>.
 /// </summary>
 public interface IRemoteInputCapture
 {
@@ -15,19 +15,37 @@ public interface IRemoteInputCapture
 
     /// <summary>Start capturing; dispose the result to stop.</summary>
     IDisposable Attach(View surface, Func<Point, Point?> toFrame, Action<RemoteInputEvent> onEvent);
+
+    /// <summary>Touch devices: an on-screen keyboard can type on the student's PC (see <see cref="ShowKeyboard"/>).</summary>
+    bool HasOnScreenKeyboard => false;
+
+    /// <summary>While attached: open the on-screen keyboard; what's typed goes to the student's PC.</summary>
+    void ShowKeyboard() { }
 }
 
 public sealed class UnsupportedRemoteInput : IRemoteInputCapture
 {
     public bool IsSupported => false;
     public IDisposable Attach(View surface, Func<Point, Point?> toFrame, Action<RemoteInputEvent> onEvent) =>
-        throw new PlatformNotSupportedException("Remote control is available on the Windows teacher app.");
+        throw new PlatformNotSupportedException("Remote control isn't available on this device.");
 }
 
 /// <summary>Platform hooks the app heads fill in at start-up (the shared project targets plain net10.0).</summary>
 public static class PlatformServices
 {
     public static IRemoteInputCapture RemoteInput { get; set; } = new UnsupportedRemoteInput();
+
+    /// <summary>
+    /// Android: hand a downloaded, verified update package to the system installer. Returns a message
+    /// for the teacher when something must happen first (e.g. allow installing updates), else null.
+    /// </summary>
+    public static Func<string, Task<string?>>? InstallPackage { get; set; }
+
+    /// <summary>
+    /// Android 12+: true when <see cref="InstallPackage"/> will update the app with no one tapping
+    /// anything (PROCTOR installed its current version itself). Null elsewhere.
+    /// </summary>
+    public static Func<bool>? CanUpdateSilently { get; set; }
 }
 
 /// <summary>
@@ -63,8 +81,14 @@ public sealed class RemoteControlSession : IAsyncDisposable
         await client.StartRemoteControlAsync(student);
         var session = new RemoteControlSession(client, student, display);
         session._loop = Task.Run(() => session.LoopAsync(session._cts.Token));
+        Interlocked.Increment(ref _active);
         return session;
     }
+
+    private static int _active;
+
+    /// <summary>Whether this teacher is controlling a PC right now (automatic updates wait).</summary>
+    public static bool AnyActive => Volatile.Read(ref _active) > 0;
 
     public void Post(RemoteInputEvent e)
     {
@@ -108,6 +132,7 @@ public sealed class RemoteControlSession : IAsyncDisposable
     {
         if (_cts.IsCancellationRequested) return;
         _cts.Cancel();
+        Interlocked.Decrement(ref _active);
         if (_loop is not null) { try { await _loop; } catch { } }
         try { await _client.StopRemoteControlAsync(Student); } catch { }
     }

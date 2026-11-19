@@ -4,41 +4,49 @@ using Microsoft.Maui.Graphics;
 namespace PROCTORSystemMulti_ProjectApp.PROCTOR;
 
 /// <summary>
-/// Icon glyphs from Segoe MDL2 Assets, the icon font built into Windows 10 and 11 (no emoji: they
-/// render differently per PC and look out of place in a work app).
+/// Icon glyphs (no emoji: they render differently per device and look out of place in a work app).
+/// Windows uses Segoe MDL2 Assets, the icon font built into Windows 10 and 11. Other devices don't
+/// have it (the buttons would be blank), so they use Google's Material Icons, bundled with the app
+/// (Resources\Fonts, Apache 2.0, licence in Resources\Raw\licenses).
 /// </summary>
 public static class Icons
 {
-    public const string FontFamily = "Segoe MDL2 Assets";
+    private static readonly bool Segoe = OperatingSystem.IsWindows();
 
-    public const string Lock = "";
-    public const string Unlock = "";
-    public const string Message = "";
-    public const string Chat = "";
-    public const string Globe = "";
-    public const string Screen = "";
-    public const string Poll = "";
-    public const string Limits = "";
-    public const string Power = "";
-    public const string More = "";
-    public const string Help = "";
-    public const string Send = "";
-    public const string Control = "";
-    public const string Stop = "";
-    public const string Camera = "";
-    public const string Info = "";
-    public const string ZoomOut = "";
-    public const string ZoomIn = "";
-    public const string Back = "";
-    public const string Websites = "";
-    public const string Timer = "";
-    public const string Collect = "";
-    public const string Shuffle = "";
-    public const string Attendance = "";
-    public const string Key = "";
-    public const string SignOut = "";
-    public const string Pane = "";
-    public const string Settings = "";
+    /// <summary>The icon font for this device, for labels that show a glyph.</summary>
+    public static readonly string FontFamily = Segoe ? "Segoe MDL2 Assets" : "MaterialIcons";
+
+    private static string G(char segoe, char material) => (Segoe ? segoe : material).ToString();
+
+    public static readonly string Lock = G('', '');        // lock
+    public static readonly string Unlock = G('', '');      // lock_open
+    public static readonly string Message = G('', '');     // message
+    public static readonly string Chat = G('', '');        // chat
+    public static readonly string Globe = G('', '');       // language
+    public static readonly string Screen = G('', '');      // screen_share
+    public static readonly string Poll = G('', '');        // poll
+    public static readonly string Limits = G('', '');      // shield
+    public static readonly string Power = G('', '');       // power_settings_new
+    public static readonly string More = G('', '');        // more_horiz
+    public static readonly string Help = G('', '');        // help_outline
+    public static readonly string Send = G('', '');        // send
+    public static readonly string Control = G('', '');     // mouse
+    public static readonly string Stop = G('', '');        // stop
+    public static readonly string Camera = G('', '');      // photo_camera
+    public static readonly string Info = G('', '');        // info_outline
+    public static readonly string ZoomOut = G('', '');     // zoom_out
+    public static readonly string ZoomIn = G('', '');      // zoom_in
+    public static readonly string Back = G('', '');        // arrow_back
+    public static readonly string Websites = G('', '');    // filter_list
+    public static readonly string Timer = G('', '');       // timer
+    public static readonly string Collect = G('', '');     // download
+    public static readonly string Shuffle = G('', '');     // shuffle
+    public static readonly string Attendance = G('', '');  // how_to_reg
+    public static readonly string Key = G('', '');         // vpn_key
+    public static readonly string SignOut = G('', '');     // logout
+    public static readonly string Pane = G('', '');        // view_sidebar
+    public static readonly string Settings = G('', '');    // settings
+    public static readonly string Keyboard = G('', '');    // keyboard
 }
 
 /// <summary>
@@ -71,8 +79,10 @@ public class IconButton : Button
     public IconButton()
     {
         Padding = new Thickness(0);
-        WidthRequest = 30;
-        HeightRequest = 26;
+        // Mouse-sized on desktop; finger-sized on phones and tablets.
+        var touch = DeviceInfo.Idiom == DeviceIdiom.Phone || DeviceInfo.Idiom == DeviceIdiom.Tablet;
+        WidthRequest = touch ? 40 : 30;
+        HeightRequest = touch ? 36 : 26;
         MinimumWidthRequest = 26;
         MinimumHeightRequest = 24;
         UpdateIcon();
@@ -84,7 +94,7 @@ public class IconButton : Button
     private void UpdateIcon()
     {
         FontFamily = Icons.FontFamily;
-        FontSize = 14;
+        FontSize = OperatingSystem.IsWindows() ? 14 : 18;   // Material Icons are drawn for larger sizes
         Text = Glyph ?? string.Empty;
         TextColor = IconColor ?? DefaultColor;
     }

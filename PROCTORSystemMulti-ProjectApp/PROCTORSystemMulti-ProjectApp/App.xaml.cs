@@ -48,6 +48,9 @@ namespace PROCTORSystemMulti_ProjectApp
 
             // Offer GitHub updates while the app is open (first check shortly after start).
             PROCTOR.UpdateNotifier.Start();
+            // Android installs a downloaded update by itself once the app is left in the background.
+            window.Stopped += (_, _) => PROCTOR.UpdateNotifier.OnAppStopped();
+            window.Resumed += (_, _) => PROCTOR.UpdateNotifier.OnAppResumed();
 
             return window;
         }

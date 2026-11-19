@@ -8,9 +8,12 @@
     Teacher apps then offer the update; student PCs follow from the teacher's PC automatically.
   -->
   <PropertyGroup>
-    <ProctorVersion>0.4.5</ProctorVersion>
+    <ProctorVersion>0.4.6</ProctorVersion>
     <Version>$(ProctorVersion)</Version>
     <InformationalVersion>$(ProctorVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <!-- Whole-number form of the version for the phone/tablet apps (Android versionCode, iOS
+         CFBundleVersion), which must grow with every release: 0.4.5 -> 405, 1.2.3 -> 10203. -->
+    <ProctorBuildNumber>$([MSBuild]::Add($([MSBuild]::Add($([MSBuild]::Multiply($(ProctorVersion.Split('.')[0]), 10000)), $([MSBuild]::Multiply($(ProctorVersion.Split('.')[1]), 100)))), $(ProctorVersion.Split('.')[2])))</ProctorBuildNumber>
   </PropertyGroup>
 </Project>

@@ -15,6 +15,7 @@ public sealed class UpdatePage : ContentPage
     private readonly ProgressBar _progress;
     private readonly Label _status;
     private CancellationTokenSource? _cts;
+    private string? _downloaded;   // verified package, kept for "Install" after a permission prompt
 
     public UpdatePage(AppRelease release)
     {
@@ -71,8 +72,11 @@ public sealed class UpdatePage : ContentPage
                     },
                     new Label
                     {
-                        Text = "Updating also updates the classroom service on this PC; student PCs update themselves afterwards. " +
-                               "The app closes for about a minute and reopens.",
+                        Text = OperatingSystem.IsWindows()
+                            ? "Updating also updates the classroom service on this PC; student PCs update themselves afterwards. " +
+                              "The app closes for about a minute and reopens."
+                            : "The new version installs over this app and keeps your saved classrooms and settings. " +
+                              "Android asks you to confirm the update.",
                         FontSize = 12, TextColor = Color.FromArgb("#9AA0A6"), LineBreakMode = LineBreakMode.WordWrap,
                     },
                     new Label { Text = release.Title, FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#B794F6"), Margin = new Thickness(0, 6, 0, 0) },
@@ -113,19 +117,41 @@ public sealed class UpdatePage : ContentPage
         _later.Text = "Cancel";
         _progress.IsVisible = true;
         _status.IsVisible = true;
-        _status.Text = "Downloading the update…";
+        _status.TextColor = Color.FromArgb("#9AA0A6");
         _cts = new CancellationTokenSource();
         try
         {
-            var progress = new Progress<double>(p =>
+            if (_downloaded is null || !File.Exists(_downloaded))
             {
-                _progress.Progress = p;
-                _status.Text = $"Downloading the update… {p:P0}";
-            });
-            var setup = await Task.Run(() => AppUpdater.DownloadSetupAsync(_release, progress, _cts.Token));
-            _status.Text = "Installing. Windows will ask for administrator approval, then PROCTOR reopens by itself.";
-            await Task.Delay(1200);
-            AppUpdater.InstallAndExit(setup);
+                _status.Text = "Downloading the update…";
+                var progress = new Progress<double>(p =>
+                {
+                    _progress.Progress = p;
+                    _status.Text = $"Downloading the update… {p:P0}";
+                });
+                _downloaded = await Task.Run(() => AppUpdater.DownloadSetupAsync(_release, progress, _cts.Token));
+            }
+
+            if (OperatingSystem.IsWindows())
+            {
+                _status.Text = "Installing. Windows will ask for administrator approval, then PROCTOR reopens by itself.";
+                await Task.Delay(1200);
+            }
+            else
+            {
+                _status.Text = "Android will ask you to confirm: tap Update.";
+            }
+
+            // Android may first need permission to install updates: show what to do, then retry.
+            if (await AppUpdater.InstallAsync(_downloaded) is { } todo)
+            {
+                _status.Text = todo;
+                _status.TextColor = Color.FromArgb("#FFD54F");
+                _update.Text = "Install";
+                _update.IsEnabled = true;
+                _later.Text = "Later";
+                _progress.IsVisible = false;
+            }
         }
         catch (OperationCanceledException)
         {

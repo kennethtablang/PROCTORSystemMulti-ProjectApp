@@ -37,7 +37,11 @@ public static class AppUpdater
     public const string ProjectUrl = "https://github.com/" + Repository;
     public const string ReleasesUrl = ProjectUrl + "/releases";
     public const string IssuesUrl = ProjectUrl + "/issues";
-    public const string SetupAssetName = "PROCTOR-Teacher-Setup.exe";
+    public const string WindowsSetupName = "PROCTOR-Teacher-Setup.exe";
+    public const string AndroidPackageName = "PROCTOR-Teacher-Android.apk";
+
+    /// <summary>The release file this device installs: the Windows setup, or the Android app.</summary>
+    public static string SetupAssetName => OperatingSystem.IsAndroid() ? AndroidPackageName : WindowsSetupName;
 
     private const long MaxSetupSize = 2L * 1024 * 1024 * 1024;
 
@@ -52,8 +56,8 @@ public static class AppUpdater
         return http;
     }
 
-    /// <summary>Installing an update in place is possible only for the Windows teacher app.</summary>
-    public static bool CanInstall => OperatingSystem.IsWindows();
+    /// <summary>Whether this app can install its own update (Windows setup; Android installer).</summary>
+    public static bool CanInstall => OperatingSystem.IsWindows() || PlatformServices.InstallPackage is not null;
 
     /// <summary>The latest published release, or null when it can't be read (offline, no releases).</summary>
     public static async Task<AppRelease?> GetLatestAsync(CancellationToken ct)
@@ -133,7 +137,11 @@ public static class AppUpdater
             if (expectedHash is not { Length: 64 }) throw new InvalidOperationException("The release's checksum file is malformed.");
         }
 
-        var dir = Path.Combine(Path.GetTempPath(), "PROCTOR-Update", Guid.NewGuid().ToString("N"));
+        // Android: the app's own cache folder (older downloads are removed first).
+        var updates = Path.Combine(OperatingSystem.IsWindows() ? Path.GetTempPath() : FileSystem.CacheDirectory, "PROCTOR-Update");
+        if (!OperatingSystem.IsWindows())
+            try { if (Directory.Exists(updates)) Directory.Delete(updates, recursive: true); } catch { }
+        var dir = Path.Combine(updates, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, SetupAssetName);
 
@@ -172,13 +180,26 @@ public static class AppUpdater
     }
 
     /// <summary>
+    /// Install a downloaded, verified update. Windows: runs the setup and closes the app (see
+    /// <see cref="InstallAndExit"/>). Android: opens the system installer ("Do you want to update this
+    /// app?"); the new version replaces this one and keeps its settings. Returns a message for the
+    /// teacher when they must do something first, else null.
+    /// </summary>
+    public static async Task<string?> InstallAsync(string path)
+    {
+        if (OperatingSystem.IsWindows()) { InstallAndExit(path); return null; }
+        if (PlatformServices.InstallPackage is { } install) return await install(path);
+        throw new PlatformNotSupportedException();
+    }
+
+    /// <summary>
     /// Run the downloaded setup and close this app. A small hidden helper waits for the app to exit,
     /// runs the setup with its progress window (Windows asks for administrator approval once), then
     /// reopens the app, not elevated.
     /// </summary>
     public static void InstallAndExit(string setupPath)
     {
-        if (!CanInstall) throw new PlatformNotSupportedException();
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         var app = Environment.ProcessPath ?? throw new InvalidOperationException("Can't tell where this app is installed.");
         // ping = a wait that works without a console (timeout.exe needs one).
         var script = $"ping -n 4 127.0.0.1 >nul & start \"\" /wait \"{setupPath}\" /passive /norestart & start \"\" \"{app}\"";

@@ -104,7 +104,7 @@ public partial class FocusPage : ContentPage
         var input = PlatformServices.RemoteInput;
         if (!input.IsSupported)
         {
-            await DisplayAlertAsync("Not available here", "Remote control is available on the Windows teacher app.", "OK");
+            await DisplayAlertAsync("Not available here", "Remote control isn't available on this device.", "OK");
             return;
         }
         try
@@ -118,6 +118,10 @@ public partial class FocusPage : ContentPage
             ControlButton.ToolTip = "Stop control";
             ControlButton.BackgroundColor = Color.FromArgb("#C62828");
             ControlButton.IconColor = Colors.White;
+            KeyboardButton.IsVisible = input.HasOnScreenKeyboard;
+            if (input.HasOnScreenKeyboard)
+                await DisplayAlertAsync("You're in control",
+                    "Tap = click · hold = right-click · drag = drag · two fingers = scroll.\nThe keyboard button types on the student's PC.", "OK");
         }
         catch (Exception ex)
         {
@@ -137,7 +141,13 @@ public partial class FocusPage : ContentPage
         ControlButton.ToolTip = "Take control (mouse and keyboard)";
         ControlButton.ClearValue(Button.BackgroundColorProperty);
         ControlButton.ClearValue(IconButton.IconColorProperty);
+        KeyboardButton.IsVisible = false;
         if (message is not null) await DisplayAlertAsync("Remote control", message, "OK");
+    }
+
+    private void OnKeyboard(object? sender, EventArgs e)
+    {
+        if (_control is not null) PlatformServices.RemoteInput.ShowKeyboard();
     }
 
     private void OnRemoteControlEnded(string student)
@@ -183,7 +193,9 @@ public partial class FocusPage : ContentPage
     private async void OnScreenshot(object? sender, EventArgs e)
     {
         var path = DashboardViewModel.SaveScreenshot(_tile);
-        await DisplayAlertAsync("Screenshot", path is null ? "There's no picture yet." : $"Saved to:\n{path}", "OK");
+        if (path is null) { await DisplayAlertAsync("Screenshot", "There's no picture yet.", "OK"); return; }
+        await TeacherFiles.ShowSavedAsync(this, "Screenshot",
+            OperatingSystem.IsWindows() ? $"Saved to:\n{path}" : $"Saved {_tile.MachineName}'s screen.", [path]);
     }
 
     private async void OnWebsites(object? sender, EventArgs e) => await Navigation.PushModalAsync(new WebsitesPage(_vm, _tile));

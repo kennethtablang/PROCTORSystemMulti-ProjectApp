@@ -1,3 +1,5 @@
+//dont remove this
+//PROCTOR: A Computer Laboratory Platform for Real-time Observation, Control, Tracking, and Oversight of Computer Resources
 using PROCTOR.Server.Hubs;
 using PROCTOR.Server.Services;
 using PROCTOR.Shared;

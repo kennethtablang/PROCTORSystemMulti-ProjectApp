@@ -43,12 +43,15 @@
             <ci:IconButton Glyph="{x:Static ci:Icons.Send}" ToolTip="Send a file" Clicked="OnSendFile" Margin="0,0,4,4" />
             <ci:IconButton x:Name="ControlButton" Glyph="{x:Static ci:Icons.Control}" ToolTip="Take control (mouse and keyboard)"
                            Clicked="OnControl" Margin="0,0,4,4" />
+            <!-- Phones/tablets: the on-screen keyboard types on the student's PC while in control. -->
+            <ci:IconButton x:Name="KeyboardButton" Glyph="{x:Static ci:Icons.Keyboard}" ToolTip="Type on the student's PC"
+                           Clicked="OnKeyboard" IsVisible="False" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Globe}" ToolTip="Open a website" Clicked="OnOpenSite" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Websites}" ToolTip="This student's websites: own allow / block list" Clicked="OnWebsites" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Power}" ToolTip="Log off, restart or shut down" Clicked="OnPower" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Camera}" ToolTip="Save a screenshot" Clicked="OnScreenshot" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Screen}" ToolTip="Show this screen to the class" Clicked="OnShowToClass" Margin="0,0,12,4" />
-            <Label Text="{x:Static ci:Icons.Lock}" FontFamily="Segoe MDL2 Assets" TextColor="#EF9A9A" FontSize="12"
+            <Label Text="{x:Static ci:Icons.Lock}" FontFamily="{x:Static ci:Icons.FontFamily}" TextColor="#EF9A9A" FontSize="12"
                    VerticalOptions="Center" IsVisible="{Binding IsLocked}" Margin="0,0,4,4" />
             <Label Text="{Binding LockText}" TextColor="#EF9A9A" FontAttributes="Bold" FontSize="12" VerticalOptions="Center"
                    IsVisible="{Binding IsLocked}" Margin="0,0,10,4" />

@@ -368,3 +368,9 @@ PROCTOR/src/PROCTOR.Agent/deploy/*.exe
 # Built installers copied for hand-out (too big for git; published as GitHub release assets)
 Installers/*.exe
 Installers/*.sha256
+Installers/*.apk
+Installers/*.ipa
+# App signing keys must never be committed (Build-AndroidApp.ps1 keeps its key in %LOCALAPPDATA%).
+*.keystore
+*.keystore.password
+*.jks

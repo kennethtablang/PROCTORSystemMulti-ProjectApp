@@ -15,6 +15,8 @@ namespace PROCTORSystemMulti_ProjectApp
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+                    // Toolbar icons on Android/iOS/Mac (Windows uses its built-in Segoe MDL2 Assets).
+                    fonts.AddFont("MaterialIcons-Regular.ttf", "MaterialIcons");
                 });
 
             // One shared view model (FR-TEACH-03): a single server connection and a single live

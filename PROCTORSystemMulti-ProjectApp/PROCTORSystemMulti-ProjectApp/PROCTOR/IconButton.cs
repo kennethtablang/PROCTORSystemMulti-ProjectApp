@@ -53,6 +53,10 @@ public static class Icons
     public static readonly string ClearSelection = G('', ''); // deselect
     public static readonly string LightMode = G('', '');   // light_mode (sun)
     public static readonly string DarkMode = G('', '');    // dark_mode (moon)
+    public static readonly string Usb = G('', '');         // usb (flash drive plugged in)
+    public static readonly string Exam = G('', '');        // quiz (exam mode)
+    public static readonly string Activity = G('', '');    // history (activity log)
+    public static readonly string Programs = G('', '');    // launch (open / close programs)
 }
 
 /// <summary>

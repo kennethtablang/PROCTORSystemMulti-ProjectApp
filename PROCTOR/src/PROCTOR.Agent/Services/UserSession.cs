@@ -85,7 +85,27 @@ internal static class UserSession
     }
 
     /// <summary>Start a process with the signed-in user's token in their session (agent running as SYSTEM).</summary>
-    private static void StartAsUser(string exe, string commandLine, ILogger logger)
+    /// <summary>
+    /// Start a program for the student, as the student: <paramref name="program"/> is what
+    /// <see cref="Shared.Contracts.ClassroomLimits.CleanProgram"/> allowed (a program name Windows can
+    /// find, or a full .exe path), handed to "start" so registered apps like winword.exe are found.
+    /// </summary>
+    public static bool LaunchProgram(string program, ILogger logger)
+    {
+        if (Shared.Contracts.ClassroomLimits.CleanProgram(program) is not { } clean) return false;   // defence in depth
+        var cmd = Path.Combine(Environment.SystemDirectory, "cmd.exe");
+        var commandLine = $"\"{cmd}\" /d /c start \"\" \"{clean}\"";
+        if (!RunningAsSystem)
+        {
+            Process.Start(new ProcessStartInfo(cmd, $"/d /c start \"\" \"{clean}\"") { UseShellExecute = false, CreateNoWindow = true })?.Dispose();
+            return true;
+        }
+        return StartAsUser(cmd, commandLine, logger, CREATE_NO_WINDOW);
+    }
+
+    private const uint CREATE_NO_WINDOW = 0x08000000;
+
+    private static bool StartAsUser(string exe, string commandLine, ILogger logger, uint extraFlags = 0)
     {
         IntPtr userToken = IntPtr.Zero, primary = IntPtr.Zero, env = IntPtr.Zero;
         PROCESS_INFORMATION pi = default;
@@ -99,12 +119,14 @@ internal static class UserSession
 
             var si = new STARTUPINFO { cb = Marshal.SizeOf<STARTUPINFO>(), lpDesktop = @"winsta0\default" };
             if (!CreateProcessAsUser(primary, exe, new StringBuilder(commandLine), IntPtr.Zero, IntPtr.Zero, false,
-                    CREATE_UNICODE_ENVIRONMENT, env, null, ref si, out pi))
+                    CREATE_UNICODE_ENVIRONMENT | extraFlags, env, null, ref si, out pi))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateProcessAsUser");
+            return true;
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Could not open the page for the signed-in student.");
+            logger.LogWarning(ex, "Could not start {Exe} for the signed-in student.", Path.GetFileName(exe));
+            return false;
         }
         finally
         {

@@ -17,6 +17,10 @@ public enum CommandKind
     Restart = 5,
     /// <summary>Shut the PC down (with a short on-screen countdown).</summary>
     ShutDown = 6,
+    /// <summary>Start a program for the student (Text = program name or full .exe path, no arguments).</summary>
+    LaunchProgram = 7,
+    /// <summary>Ask every open program in the student's session to close (they can still save).</summary>
+    CloseAllPrograms = 8,
 }
 
 /// <summary>
@@ -32,6 +36,12 @@ public sealed record ClassroomCommand
 
     /// <summary>Message text (Message), or an optional caption shown on the lock screen (Lock).</summary>
     public string? Text { get; init; }
+
+    /// <summary>Lock: the lock screen's heading (default "Eyes on your teacher").</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Lock: the lock screen's background as "#RRGGBB" (default a dark purple).</summary>
+    public string? Color { get; init; }
 
     /// <summary>Absolute http(s) URL (OpenUrl).</summary>
     public string? Url { get; init; }
@@ -71,8 +81,20 @@ public sealed record ClassPolicy
     /// <summary>Mute the student PCs' sound output.</summary>
     public bool MuteSound { get; init; }
 
+    /// <summary>Block USB flash drives and memory cards: no new ones work, plugged-in ones are refused.</summary>
+    public bool BlockUsbStorage { get; init; }
+
+    /// <summary>An exam is running: students see an "Exam in progress" bar (with <see cref="ExamTitle"/>).</summary>
+    public bool ExamMode { get; init; }
+
+    /// <summary>The exam's name shown to students, e.g. "Quiz 3 — Networking".</summary>
+    public string? ExamTitle { get; init; }
+
     /// <summary>True when the policy restricts nothing.</summary>
-    public bool IsEmpty => !HasWebLimits && BlockedApps.Count == 0 && !BlockInternet && !MuteSound;
+    public bool IsEmpty => !HasWebLimits && BlockedApps.Count == 0 && !BlockInternet && !MuteSound && !BlockUsbStorage && !ExamMode;
+
+    /// <summary>The parts that end with the lesson (cleared when the last teacher leaves).</summary>
+    public bool HasLessonLimits => BlockedApps.Count > 0 || BlockInternet || MuteSound || BlockUsbStorage || ExamMode;
 
     /// <summary>True when the website part restricts something.</summary>
     public bool HasWebLimits => !(WebMode == WebLimitMode.Off || (WebMode == WebLimitMode.BlockListed && WebHosts.Count == 0));
@@ -139,6 +161,42 @@ public static class ClassroomLimits
         var clean = new string(chars).Trim();
         if (clean.Length == 0) return null;
         return clean.Length > MaxTextLength ? clean[..MaxTextLength] : clean;
+    }
+
+    public const int MaxLockTitleLength = 80;
+    public const string DefaultLockTitle = "Eyes on your teacher";
+    public const string DefaultLockMessage = "Your screen has been locked by your teacher.";
+    public const string DefaultLockColor = "#14121E";
+
+    /// <summary>A lock-screen heading: one line, at most <see cref="MaxLockTitleLength"/> characters, or null.</summary>
+    public static string? CleanLockTitle(string? title)
+    {
+        var clean = CleanText(title?.Replace('\n', ' '));
+        return clean is null ? null : clean.Length > MaxLockTitleLength ? clean[..MaxLockTitleLength] : clean;
+    }
+
+    /// <summary>A background colour as upper-case "#RRGGBB" ("#abc" and "RRGGBB" accepted), or null.</summary>
+    public static string? CleanColor(string? color)
+    {
+        if (string.IsNullOrWhiteSpace(color)) return null;
+        var hex = color.Trim().TrimStart('#');
+        if (hex.Length == 3) hex = string.Concat(hex.Select(c => new string(c, 2)));
+        if (hex.Length != 6 || !hex.All(Uri.IsHexDigit)) return null;
+        return "#" + hex.ToUpperInvariant();
+    }
+
+    /// <summary>Whether white text reads better than dark text on this "#RRGGBB" background.</summary>
+    public static bool PrefersLightText(string color)
+    {
+        var hex = CleanColor(color) ?? DefaultLockColor;
+        static double Channel(string h, int i)
+        {
+            var c = Convert.ToInt32(h.Substring(1 + i * 2, 2), 16) / 255.0;
+            return c <= 0.03928 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
+        }
+        var luminance = 0.2126 * Channel(hex, 0) + 0.7152 * Channel(hex, 1) + 0.0722 * Channel(hex, 2);
+        // Contrast against white vs against near-black (#111): pick the larger.
+        return (1.05) / (luminance + 0.05) >= (luminance + 0.05) / (0.0056 + 0.05);
     }
 
     /// <summary>
@@ -239,6 +297,66 @@ public static class ClassroomLimits
             BlockedApps = apps,
             BlockInternet = policy.BlockInternet,
             MuteSound = policy.MuteSound,
+            BlockUsbStorage = policy.BlockUsbStorage,
+            ExamMode = policy.ExamMode,
+            ExamTitle = policy.ExamMode ? CleanLockTitle(policy.ExamTitle) : null,
         };
+    }
+
+    // ---- programs (LaunchProgram) -----------------------------------------------------------
+
+    public const int MaxProgramLength = 260;
+
+    /// <summary>Friendly names a teacher can type, mapped to the program Windows starts.</summary>
+    public static readonly IReadOnlyDictionary<string, string> ProgramAliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["word"] = "winword.exe",
+        ["excel"] = "excel.exe",
+        ["powerpoint"] = "powerpnt.exe",
+        ["access"] = "msaccess.exe",
+        ["publisher"] = "mspub.exe",
+        ["outlook"] = "outlook.exe",
+        ["edge"] = "msedge.exe",
+        ["chrome"] = "chrome.exe",
+        ["firefox"] = "firefox.exe",
+        ["notepad"] = "notepad.exe",
+        ["paint"] = "mspaint.exe",
+        ["calculator"] = "calc.exe",
+        ["file explorer"] = "explorer.exe",
+        ["explorer"] = "explorer.exe",
+        ["command prompt"] = "cmd.exe",
+        ["vs code"] = "code",
+        ["visual studio code"] = "code",
+    };
+
+    /// <summary>
+    /// A program to start: a friendly name ("Word"), a program name ("winword.exe", "code") or a
+    /// full path to an .exe — never arguments or shell syntax, so nothing else can be smuggled in.
+    /// Returns what the agent passes to Windows' "start", or null.
+    /// </summary>
+    public static string? CleanProgram(string? program)
+    {
+        if (string.IsNullOrWhiteSpace(program)) return null;
+        var p = program.Trim().Trim('"').Trim();
+        if (ProgramAliases.TryGetValue(p, out var alias)) return alias;
+        if (p.Length is 0 or > MaxProgramLength) return null;
+        // Nothing a shell would interpret, and no arguments.
+        if (p.IndexOfAny(['"', '&', '|', '<', '>', '^', '%', '!', ';', '`', '\n', '\r', '\t', '*', '?']) >= 0) return null;
+        if (p.Contains(@"\\") || p.StartsWith('-') || p.StartsWith('/')) return null;   // no network shares or switches
+
+        var isPath = p.Contains('\\') || p.Contains(':');
+        if (isPath)
+        {
+            // C:\...\app.exe only: a rooted local path to an executable.
+            if (p.Length < 7 || !char.IsLetter(p[0]) || p[1] != ':' || p[2] != '\\') return null;
+            if (!p.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return null;
+            if (p.Contains("..")) return null;
+            return p;
+        }
+
+        // A bare program name: letters, digits, space, dot, dash, underscore, plus.
+        if (!p.All(c => char.IsLetterOrDigit(c) || c is ' ' or '.' or '-' or '_' or '+')) return null;
+        if (p.Contains(' ') && !p.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return null;   // "foo bar" would be "foo" + an argument
+        return p;
     }
 }

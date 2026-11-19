@@ -638,6 +638,8 @@ public sealed class ClassroomHub : Hub
         // has explicitly opted in.
         if (command.Kind is CommandKind.LogOff or CommandKind.Restart or CommandKind.ShutDown && StrongControlsBlocked)
             throw new HubException("Log off / restart / shut down need a teacher join code on this server (it runs in open mode).");
+        if (command.Kind is CommandKind.LaunchProgram or CommandKind.CloseAllPrograms && StrongControlsBlocked)
+            throw new HubException("Opening and closing programs need a teacher join code on this server (it runs in open mode).");
 
         var text = ClassroomLimits.CleanText(command.Text);
         string? url = null;
@@ -645,6 +647,10 @@ public sealed class ClassroomHub : Hub
         {
             case CommandKind.Message when text is null:
                 throw new HubException("A message needs some text.");
+            case CommandKind.LaunchProgram:
+                text = ClassroomLimits.CleanProgram(command.Text)
+                    ?? throw new HubException("Give a program name (e.g. Word, chrome.exe) or the full path of an .exe, without options.");
+                break;
             case CommandKind.OpenUrl:
                 if (!ClassroomLimits.TryCleanUrl(command.Url, out var clean))
                     throw new HubException("Only http:// or https:// web addresses can be opened.");
@@ -653,7 +659,15 @@ public sealed class ClassroomHub : Hub
         }
 
         var targets = ResolveTargets(command.Targets);
-        var relayed = new ClassroomCommand { Kind = command.Kind, Text = text, Url = url };
+        var relayed = new ClassroomCommand
+        {
+            Kind = command.Kind,
+            Text = text,
+            Url = url,
+            // The lock screen's look (heading and background), validated like everything else.
+            Title = command.Kind == CommandKind.Lock ? ClassroomLimits.CleanLockTitle(command.Title) : null,
+            Color = command.Kind == CommandKind.Lock ? ClassroomLimits.CleanColor(command.Color) : null,
+        };
 
         foreach (var student in targets)
         {
@@ -675,17 +689,17 @@ public sealed class ClassroomHub : Hub
     {
         if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can set limits.");
         var clean = ClassroomLimits.Clean(policy);
-        if (StrongControlsBlocked && (clean.BlockInternet || clean.BlockedApps.Count > 0))
-            throw new HubException("Turning off the internet and blocking programs need a teacher join code on this server (it runs in open mode).");
+        if (StrongControlsBlocked && (clean.BlockInternet || clean.BlockedApps.Count > 0 || clean.BlockUsbStorage))
+            throw new HubException("Turning off the internet, blocking programs and blocking flash drives need a teacher join code on this server (it runs in open mode).");
         _room.Policy = clean;
         // Website limits outlast the lesson (saved to disk) - but not when the strong controls are
         // reserved for teachers with a code: then anyone opening a teacher app could leave the lab
         // stuck on a whitelist, so they end with the lesson as before.
         if (!StrongControlsBlocked) _webLimits.SetClass(clean.Web);
         await PushPolicyAsync();
-        _logger.LogInformation("Teacher {Teacher} set limits: web {Mode} ({Hosts} sites), {Apps} blocked apps, internet {Net}, mute {Mute}.",
+        _logger.LogInformation("Teacher {Teacher} set limits: web {Mode} ({Hosts} sites), {Apps} blocked apps, internet {Net}, mute {Mute}, flash drives {Usb}, exam {Exam}.",
             Context.ConnectionId, clean.WebMode, clean.WebHosts.Count, clean.BlockedApps.Count,
-            clean.BlockInternet ? "off" : "on", clean.MuteSound);
+            clean.BlockInternet ? "off" : "on", clean.MuteSound, clean.BlockUsbStorage ? "blocked" : "allowed", clean.ExamMode);
         return clean;
     }
 
@@ -941,7 +955,7 @@ public sealed class ClassroomHub : Hub
             // (With the strong controls reserved for code holders, website limits end too.)
             var policy = _room.Policy;
             var keepWeb = !StrongControlsBlocked;
-            if (_room.TeacherCount == 0 && (policy.BlockedApps.Count > 0 || policy.BlockInternet || policy.MuteSound || (!keepWeb && policy.HasWebLimits)))
+            if (_room.TeacherCount == 0 && (policy.HasLessonLimits || (!keepWeb && policy.HasWebLimits)))
             {
                 _room.Policy = keepWeb ? new ClassPolicy().WithWeb(policy.Web) : new ClassPolicy();
                 await PushPolicyAsync();

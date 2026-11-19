@@ -17,7 +17,7 @@
                     <RoundRectangle CornerRadius="8" />
                 </Border.StrokeShape>
                 <VerticalStackLayout Spacing="4">
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="5" HeightRequest="28">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="5" HeightRequest="28">
                         <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Color="#B794F6" VerticalOptions="Center"
                                   WidthRequest="32" HeightRequest="28" Margin="-6,0,-4,0"
                                   ToolTipProperties.Text="Select (the toolbar then acts on the selected students)" />
@@ -42,7 +42,11 @@
                         <Label Grid.Column="6" Text="{x:Static ci:Icons.Websites}" FontFamily="{x:Static ci:Icons.FontFamily}"
                                FontSize="11" TextColor="#4FC3F7" VerticalOptions="Center" IsVisible="{Binding HasOwnWebLimits}"
                                ToolTipProperties.Text="{Binding OwnWebLimitsText}" />
-                        <Label Grid.Column="7" Text="{Binding StateText}" TextColor="{Binding StateColor}"
+                        <!-- A flash drive / memory card is plugged into this PC (hover: which). -->
+                        <Label Grid.Column="7" Text="{x:Static ci:Icons.Usb}" FontFamily="{x:Static ci:Icons.FontFamily}"
+                               FontSize="13" TextColor="#FF8A65" VerticalOptions="Center" IsVisible="{Binding HasUsbDrive}"
+                               ToolTipProperties.Text="{Binding UsbText}" SemanticProperties.Description="{Binding UsbText}" />
+                        <Label Grid.Column="8" Text="{Binding StateText}" TextColor="{Binding StateColor}"
                                FontSize="10" FontAttributes="Bold" VerticalOptions="Center" />
                     </Grid>
 
@@ -230,11 +234,13 @@
                 <ci:IconButton Glyph="{x:Static ci:Icons.Unlock}" ToolTip="Unlock screens" Clicked="OnUnlockAll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Message}" ToolTip="Send a message" Clicked="OnMessageAll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Globe}" ToolTip="Open a website" Clicked="OnOpenSiteAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Programs}" ToolTip="Open a program, or close all programs" Clicked="OnPrograms" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Screen}" ToolTip="Show my screen" Clicked="OnShowScreen" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Poll}" ToolTip="Poll" Clicked="OnPoll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Websites}" ToolTip="Websites: allow list (whitelist) or block list (blacklist)" Clicked="OnWebsites" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Limits}" ToolTip="Limits: programs, internet, sound" Clicked="OnLimits" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Power}" ToolTip="Log off, restart or shut down" Clicked="OnPowerAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Exam}" ToolTip="Exam mode: start or end an exam" Clicked="OnExam" Margin="0,0,4,4" />
                 <BoxView WidthRequest="1" HeightRequest="20" Color="#3A3E47" Margin="4,0,8,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Send}" ToolTip="Send files" Clicked="OnSendFiles" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Collect}" ToolTip="Collect work (click again to stop collecting)" Clicked="OnCollectToggle" Margin="0,0,4,4" />
@@ -242,6 +248,7 @@
                 <ci:IconButton Glyph="{x:Static ci:Icons.Shuffle}" ToolTip="Pick a random student" Clicked="OnPick" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Camera}" ToolTip="Save snapshots of all screens" Clicked="OnSnapshot" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Attendance}" ToolTip="Export attendance (CSV)" Clicked="OnAttendance" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Activity}" ToolTip="Activity log: programs, websites, blocked sites, flash drives" Clicked="OnActivity" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Key}" ToolTip="Teacher PIN" Clicked="OnPin" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.SignOut}" ToolTip="Lock this app now (needs a teacher PIN)" Clicked="OnLockApp" Margin="0,0,8,4" />
                 <Label Text="{Binding PolicySummary}" FontSize="11" TextColor="#7E57C2" VerticalOptions="Center"
@@ -250,16 +257,19 @@
                        VerticalOptions="Center" Margin="0,0,0,4" />
             </FlexLayout>
 
-            <!-- View controls: each item wraps on its own, so nothing is pushed off a narrow screen. -->
-            <FlexLayout x:Name="ViewControls" Grid.Column="1" Wrap="Wrap" AlignItems="Center" AlignContent="Start">
-                <SearchBar Placeholder="Search" Text="{Binding SearchText}" WidthRequest="140" Margin="0,0,6,4"
+            <!-- View controls. Wide screens: one row beside the class actions (WideControls). Narrow
+                 screens: the same controls move to a full-width wrapping row underneath
+                 (NarrowControls; ApplyToolbarLayout in code-behind). A wrapping FlexLayout must never
+                 sit in an Auto-sized column: it is measured with unlimited width and lays out wrongly. -->
+            <HorizontalStackLayout x:Name="WideControls" Grid.Column="1" VerticalOptions="Start">
+                <SearchBar VerticalOptions="Center" Placeholder="Search" Text="{Binding SearchText}" WidthRequest="140" Margin="0,0,6,4"
                            ToolTipProperties.Text="Search name, user, app or site" IsVisible="{Binding ShowSearchSort}" />
-                <Picker ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex}" WidthRequest="96" Margin="0,0,6,4"
+                <Picker VerticalOptions="Center" ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex}" WidthRequest="96" Margin="0,0,6,4"
                         ToolTipProperties.Text="Sort by" IsVisible="{Binding ShowSearchSort}" />
-                <Picker ItemsSource="{Binding ThumbnailChoices}" SelectedIndex="{Binding ThumbnailSizeIndex}" WidthRequest="112" Margin="0,0,6,4"
+                <Picker VerticalOptions="Center" ItemsSource="{Binding ThumbnailChoices}" SelectedIndex="{Binding ThumbnailSizeIndex}" WidthRequest="112" Margin="0,0,6,4"
                         ToolTipProperties.Text="Stream quality" IsVisible="{Binding HasStudents}" />
                 <!-- Screen size: drag to make the student screens bigger or smaller (columns follow). -->
-                <HorizontalStackLayout Spacing="6" IsVisible="{Binding ShowSearchSort}" Margin="0,0,6,4">
+                <HorizontalStackLayout VerticalOptions="Center" Spacing="6" IsVisible="{Binding ShowSearchSort}" Margin="0,0,6,4">
                     <Label Text="{x:Static ci:Icons.ZoomOut}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="12"
                            VerticalOptions="Center" TextColor="#9AA0A6" />
                     <Slider Minimum="180" Maximum="960" Value="{Binding TileSize}" WidthRequest="90"
@@ -269,19 +279,34 @@
                            VerticalOptions="Center" TextColor="#9AA0A6" />
                 </HorizontalStackLayout>
                 <!-- Reload: restart the screens (selected ones, or all) when one is black or frozen. -->
-                <ci:IconButton Glyph="{x:Static ci:Icons.Reload}" ToolTip="Reload screens (the selected ones, or all)"
+                <ci:IconButton VerticalOptions="Center" Glyph="{x:Static ci:Icons.Reload}" ToolTip="Reload screens (the selected ones, or all)"
                                Clicked="OnReload" IsVisible="{Binding HasStudents}" Margin="0,0,6,4" />
                 <!-- Lab layout: student screens arranged like the computers in the room. -->
-                <ci:IconButton Glyph="{x:Static ci:Icons.Layout}" ToolTip="Lab layout: arrange screens like the computers in the room"
+                <ci:IconButton VerticalOptions="Center" Glyph="{x:Static ci:Icons.Layout}" ToolTip="Lab layout: arrange screens like the computers in the room"
                                Clicked="OnLayout" Margin="0,0,6,4" />
                 <Label Text="{Binding VisibleCountText}" FontAttributes="Bold" FontSize="12" VerticalOptions="Center" Margin="0,0,6,4" />
-                <Button Text="Switch room" Command="{Binding SwitchRoomCommand}" FontSize="11" Margin="0,0,6,4"
+                <Button VerticalOptions="Center" Text="Switch room" Command="{Binding SwitchRoomCommand}" FontSize="11" Margin="0,0,6,4"
                         BackgroundColor="Transparent" TextColor="#7E57C2" BorderColor="#B794F6" BorderWidth="1" />
                 <!-- Light / dark mode (the icon shows the mode a tap switches to; set in code-behind). -->
-                <ci:IconButton x:Name="ThemeButton" Clicked="OnToggleTheme" Margin="0,0,6,4" />
-                <ci:IconButton Glyph="{x:Static ci:Icons.Settings}" ToolTip="Settings" Clicked="OnSettings" Margin="0,0,0,4" />
-            </FlexLayout>
+                <ci:IconButton VerticalOptions="Center" x:Name="ThemeButton" Clicked="OnToggleTheme" Margin="0,0,6,4" />
+                <ci:IconButton VerticalOptions="Center" Glyph="{x:Static ci:Icons.Settings}" ToolTip="Settings" Clicked="OnSettings" Margin="0,0,0,4" />
+            </HorizontalStackLayout>
+            <FlexLayout x:Name="NarrowControls" Grid.Row="1" Grid.ColumnSpan="2" Wrap="Wrap" AlignItems="Center"
+                        AlignContent="Start" IsVisible="False" />
         </Grid>
+
+        <!-- Exam in progress. -->
+        <Border IsVisible="{Binding IsExamRunning}" BackgroundColor="#3A3000" Stroke="#F2C230" Padding="12,4">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="8" />
+            </Border.StrokeShape>
+            <FlexLayout Wrap="Wrap" AlignItems="Center">
+                <Label Text="{Binding ExamText}" TextColor="#FFE082" FontAttributes="Bold" FontSize="13"
+                       VerticalOptions="Center" LineBreakMode="WordWrap" FlexLayout.Grow="1" FlexLayout.Shrink="1" Margin="0,2,8,2" />
+                <Button Text="End exam" Clicked="OnEndExam" Padding="16,2" FontSize="12" Margin="0,2,0,2"
+                        BackgroundColor="#F2C230" TextColor="#1F1A00" />
+            </FlexLayout>
+        </Border>
 
         <!-- Some students selected: the toolbar acts on them only. -->
         <Border IsVisible="{Binding HasSelection}" BackgroundColor="#2A2340" Stroke="#B794F6" Padding="12,4">

@@ -27,6 +27,71 @@ public class ClassroomLimitsTests
         Assert.False(ClassroomLimits.TryCleanUrl(input, out _));
 
     [Theory]
+    [InlineData("Word", "winword.exe")]
+    [InlineData("  chrome  ", "chrome.exe")]
+    [InlineData("notepad.exe", "notepad.exe")]
+    [InlineData("code", "code")]
+    [InlineData(@"C:\Program Files\App\app.exe", @"C:\Program Files\App\app.exe")]
+    [InlineData("\"C:\\Tools\\x.exe\"", @"C:\Tools\x.exe")]
+    public void Programs_are_names_or_exe_paths(string input, string expected) =>
+        Assert.Equal(expected, ClassroomLimits.CleanProgram(input));
+
+    [Theory]
+    [InlineData("notepad.exe & calc.exe")]
+    [InlineData("cmd /c del *")]
+    [InlineData("calc.exe | evil")]
+    [InlineData(@"\\server\share\x.exe")]
+    [InlineData(@"C:\Windows\..\x.exe")]
+    [InlineData(@"C:\scripts\run.bat")]
+    [InlineData("powershell -enc AAAA")]
+    [InlineData("%COMSPEC%")]
+    [InlineData("")]
+    public void Programs_with_arguments_or_shell_syntax_are_refused(string input) =>
+        Assert.Null(ClassroomLimits.CleanProgram(input));
+
+    [Fact]
+    public void Policy_cleaning_keeps_flash_drive_block_and_exam()
+    {
+        var clean = ClassroomLimits.Clean(new ClassPolicy { BlockUsbStorage = true, ExamMode = true, ExamTitle = "Quiz\n3" });
+        Assert.True(clean.BlockUsbStorage);
+        Assert.True(clean.ExamMode);
+        Assert.Equal("Quiz 3", clean.ExamTitle);
+        Assert.False(clean.IsEmpty);
+        Assert.True(clean.HasLessonLimits);
+        Assert.Null(ClassroomLimits.Clean(new ClassPolicy { ExamTitle = "ignored without exam" }).ExamTitle);
+    }
+
+    [Theory]
+    [InlineData("#1e4fbf", "#1E4FBF")]
+    [InlineData("1E4FBF", "#1E4FBF")]
+    [InlineData("#abc", "#AABBCC")]
+    [InlineData(" #000000 ", "#000000")]
+    [InlineData("red", null)]
+    [InlineData("#12345", null)]
+    [InlineData("#GGGGGG", null)]
+    [InlineData("url(javascript:x)", null)]
+    [InlineData("", null)]
+    public void Lock_colours_are_hex_only(string input, string? expected) =>
+        Assert.Equal(expected, ClassroomLimits.CleanColor(input));
+
+    [Theory]
+    [InlineData("#000000", true)]
+    [InlineData("#14121E", true)]
+    [InlineData("#1E4FBF", true)]
+    [InlineData("#FFFFFF", false)]
+    [InlineData("#F2C230", false)]
+    public void Lock_text_stays_readable_on_its_background(string background, bool lightText) =>
+        Assert.Equal(lightText, ClassroomLimits.PrefersLightText(background));
+
+    [Fact]
+    public void Lock_titles_are_one_short_line()
+    {
+        Assert.Equal("Look up", ClassroomLimits.CleanLockTitle("Look\nup"));
+        Assert.Equal(ClassroomLimits.MaxLockTitleLength, ClassroomLimits.CleanLockTitle(new string('x', 300))!.Length);
+        Assert.Null(ClassroomLimits.CleanLockTitle("   "));
+    }
+
+    [Theory]
     [InlineData("YouTube.com", "youtube.com")]
     [InlineData("https://www.tiktok.com/@x", "tiktok.com")]
     [InlineData("*.example.org", "example.org")]

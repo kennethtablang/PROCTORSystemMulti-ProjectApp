@@ -147,6 +147,9 @@ public partial class FocusPage : ContentPage
 
     private async void OnReload(object? sender, EventArgs e) => await _vm.Streams.ReloadAsync([_tile.ConnectionId]);
 
+    private async void OnPrograms(object? sender, EventArgs e) =>
+        await ClassActions.ProgramsAsync(this, _vm, [_tile.ConnectionId], _tile.MachineName);
+
     private void OnKeyboard(object? sender, EventArgs e)
     {
         if (_control is not null) PlatformServices.RemoteInput.ShowKeyboard();
@@ -229,7 +232,9 @@ public partial class FocusPage : ContentPage
         Grid.SetRow(Pickers, narrow ? 1 : 0);
         Grid.SetColumn(Pickers, narrow ? 0 : 1);
         Grid.SetColumnSpan(Pickers, narrow ? 4 : 1);
-        DisplayPicker.WidthRequest = narrow ? Math.Max(160, Math.Min(300, Width - 210)) : 300;
+        // Two pickers side by side must fit the phone's width (no wrapping row in the header).
+        ResolutionPicker.WidthRequest = narrow ? Math.Max(120, Math.Min(170, (Width - 40) / 2)) : 170;
+        DisplayPicker.WidthRequest = narrow ? Math.Max(120, Math.Min(300, Width - 40 - ResolutionPicker.WidthRequest - 8)) : 300;
 
         if (narrow)
         {

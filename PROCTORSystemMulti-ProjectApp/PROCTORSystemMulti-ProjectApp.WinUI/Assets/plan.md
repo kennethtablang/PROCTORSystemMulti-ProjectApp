@@ -816,6 +816,33 @@ this document and `README.md` in sync with reality.
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
 
+- **0.30 — 2026-11-19**
+  - **Toolbar layout fix (Windows).** The view controls were a wrapping FlexLayout in an Auto-width
+    grid column, which MAUI measures with unlimited width and mis-arranges. Wide screens are back to
+    one plain row; narrow screens move the same controls into a full-width wrapping row.
+  - **Block flash drives** (class limit, Limits page): Windows' removable-storage `Deny_All` policy,
+    USBSTOR disabled for new drives, letters removed from plugged-in drives; originals saved and
+    restored; a block left by a crash is lifted at agent start. Strong control.
+  - **Exam mode**: one window (name, websites: keep / whitelist / no internet, flash drives, mute,
+    extra blocked programs); students get an "Exam in progress" bar; the pre-exam limits are saved on
+    the teacher device and restored by "End exam". Cleared like other lesson limits.
+  - **Activity log**: per-student programs (window titles), websites, blocked sites (new telemetry
+    `RecentBlockedSites`), flash drives, joins/leaves, exam start/end; filter, CSV export.
+  - **Open / close programs**: `LaunchProgram` (friendly names, program names or a full .exe path —
+    no arguments or shell syntax; started as the student) and `CloseAllPrograms` (asks each window
+    to close, so unsaved work prompts). Strong controls.
+
+- **0.29 — 2026-11-19**
+  - **Custom lock screen (FR-CTRL-01).** Settings → Lock screen: heading, message and background
+    colour (swatches or #RRGGBB) with a live preview, saved on the teacher device and sent with every
+    lock (`ClassroomCommand.Title` / `Color`, validated by server and agent: one-line heading ≤ 80
+    chars, hex colours only). The agent picks white or dark text by contrast. Older agents show the
+    custom message with the default heading and colour.
+  - **Flash drive indicator.** Agents report removable drives with media (letter, label, size) in
+    telemetry every ~2 s; tiles show a USB icon (hover: which drive), the student view names it, and
+    the dashboard shows "PC05: flash drive plugged in". External hard disks report as fixed drives
+    and aren't included.
+
 - **0.28 — 2026-11-19**
   - **Phone/tablet layout (NFR-USE-03).** Dashboard toolbar: the view controls wrap item by item and
     move to their own row below 1000 px (they were one fixed ~800 px row that pushed the class actions

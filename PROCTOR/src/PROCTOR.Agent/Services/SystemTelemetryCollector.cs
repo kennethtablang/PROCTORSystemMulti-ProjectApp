@@ -43,7 +43,48 @@ public sealed class SystemTelemetryCollector
             TopProcesses = SampleTopProcesses(),
             ForegroundWindowTitle = SafeForegroundTitle(),
             ActiveUrl = _browser?.CurrentHost,
+            RemovableDrives = SampleRemovableDrives(),
+            RecentBlockedSites = BlockedSiteLog.Recent(),
         };
+    }
+
+    // Flash drives / memory cards: re-read every few seconds (enough to notice one being plugged in).
+    private static readonly TimeSpan DriveInterval = TimeSpan.FromSeconds(2);
+    private IReadOnlyList<RemovableDrive> _drives = Array.Empty<RemovableDrive>();
+    private DateTime _drivesAt = DateTime.MinValue;
+
+    private IReadOnlyList<RemovableDrive> SampleRemovableDrives()
+    {
+        if (DateTime.UtcNow - _drivesAt < DriveInterval) return _drives;
+        _drivesAt = DateTime.UtcNow;
+        try
+        {
+            _drives = System.IO.DriveInfo.GetDrives()
+                .Where(d => d.DriveType == System.IO.DriveType.Removable)
+                .Select(d =>
+                {
+                    try
+                    {
+                        // An empty card reader slot is "removable" too, but not ready: not a drive in use.
+                        if (!d.IsReady) return null;
+                        return new RemovableDrive
+                        {
+                            Letter = d.Name.TrimEnd('\\'),
+                            Label = string.IsNullOrWhiteSpace(d.VolumeLabel) ? null : d.VolumeLabel.Trim(),
+                            SizeBytes = d.TotalSize,
+                        };
+                    }
+                    catch { return null; }   // pulled out while being read
+                })
+                .OfType<RemovableDrive>()
+                .Take(RemovableDrive.MaxReported)
+                .ToArray();
+        }
+        catch
+        {
+            _drives = Array.Empty<RemovableDrive>();
+        }
+        return _drives;
     }
 
     private CpuMemorySample SampleCpuMemory()

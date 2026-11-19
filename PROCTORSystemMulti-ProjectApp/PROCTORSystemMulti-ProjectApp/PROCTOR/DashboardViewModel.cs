@@ -259,7 +259,12 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     public ClassPolicy Policy
     {
         get => _policy;
-        private set { _policy = value; Raise(); Raise(nameof(PolicySummary)); Raise(nameof(HasPolicy)); }
+        private set
+        {
+            _policy = value;
+            Raise(); Raise(nameof(PolicySummary)); Raise(nameof(HasPolicy));
+            Raise(nameof(IsExamRunning)); Raise(nameof(ExamText));
+        }
     }
 
     public bool HasPolicy => !_policy.IsEmpty;
@@ -275,6 +280,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
             if (_policy.BlockedApps.Count > 0) parts.Add($"{_policy.BlockedApps.Count} app(s) blocked");
             if (_policy.BlockInternet) parts.Add("internet off");
             if (_policy.MuteSound) parts.Add("sound muted");
+            if (_policy.BlockUsbStorage) parts.Add("flash drives blocked");
+            if (_policy.ExamMode) parts.Add("exam");
             return "Limits: " + string.Join(" · ", parts);
         }
     }
@@ -333,7 +340,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Send a command to the given students (null/empty = whole class). Returns an error to show, or null.</summary>
-    public async Task<string?> SendCommandAsync(CommandKind kind, IReadOnlyList<string>? targets = null, string? text = null, string? url = null)
+    public async Task<string?> SendCommandAsync(CommandKind kind, IReadOnlyList<string>? targets = null, string? text = null, string? url = null,
+        string? title = null, string? color = null)
     {
         try
         {
@@ -343,6 +351,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
                 Targets = targets ?? [],
                 Text = text,
                 Url = url,
+                Title = title,
+                Color = color,
             });
             Status = n == 0 ? "No students to send to." : $"{Describe(kind)} sent to {n} student{(n == 1 ? "" : "s")}.";
             return null;
@@ -394,6 +404,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         CommandKind.LogOff => "Log off",
         CommandKind.Restart => "Restart",
         CommandKind.ShutDown => "Shut down",
+        CommandKind.LaunchProgram => "Open program",
+        CommandKind.CloseAllPrograms => "Close programs",
         _ => kind.ToString(),
     };
 
@@ -776,8 +788,10 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         }
         var tile = new StudentTile(snap);
         tile.PropertyChanged += OnTileChanged;   // selection count for the toolbar
+        tile.UsbInserted += t => Status = $"{t.MachineName}: flash drive plugged in ({t.UsbText.Replace("Flash drive: ", "")})";
         _byConnection[snap.ConnectionId] = tile;
         Students.Add(tile);
+        if (refresh) AddActivity(tile, "Joined", "Connected" + (tile.UserName is { Length: > 0 } u ? $" (signed in as {u})" : ""));
         if (refresh) RosterChanged();
     }
 
@@ -788,6 +802,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
             _ = Broadcaster.StopAsync();   // the shown student left
         if (_byConnection.Remove(connectionId, out var tile))
         {
+            AddActivity(tile, "Left", "Disconnected");
             Students.Remove(tile);
             RosterChanged();
         }
@@ -800,7 +815,10 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
 
     private void ApplyTelemetry(string connectionId, TelemetrySnapshot telemetry)
     {
-        if (_byConnection.TryGetValue(connectionId, out var tile)) tile.Apply(telemetry);
+        if (!_byConnection.TryGetValue(connectionId, out var tile)) return;
+        var (window, host, usb, usbText) = (tile.ForegroundText, tile.ActiveHostText, tile.HasUsbDrive, tile.UsbText);
+        tile.Apply(telemetry);
+        TrackActivity(tile, window, host, usb, usbText, telemetry);
     }
 
     private void RosterChanged()

@@ -19,13 +19,13 @@
             </VerticalStackLayout>
             <!-- Stream resolution and (multi-monitor students) display. Beside the name on wide
                  screens; on a second line, wrapping, on phones (ApplyLayout in code-behind). -->
-            <FlexLayout x:Name="Pickers" Grid.Column="1" Wrap="Wrap" AlignItems="Center">
-                <Picker x:Name="ResolutionPicker" WidthRequest="170" TextColor="White" Margin="0,0,8,0"
+            <HorizontalStackLayout x:Name="Pickers" Grid.Column="1" Spacing="8" VerticalOptions="Center">
+                <Picker x:Name="ResolutionPicker" WidthRequest="170" TextColor="White" VerticalOptions="Center"
                         SelectedIndexChanged="OnResolutionChanged" />
-                <Picker x:Name="DisplayPicker" ItemsSource="{Binding DisplayLabels}"
+                <Picker x:Name="DisplayPicker" ItemsSource="{Binding DisplayLabels}" VerticalOptions="Center"
                         IsVisible="{Binding HasMultipleDisplays}" WidthRequest="300" TextColor="White"
                         SelectedIndexChanged="OnDisplayChanged" />
-            </FlexLayout>
+            </HorizontalStackLayout>
             <!-- Show / hide the Live metrics panel (remembered). -->
             <ci:IconButton x:Name="MetricsButton" Grid.Column="2" Glyph="{x:Static ci:Icons.Pane}" ToolTip="Hide live metrics"
                            Clicked="OnToggleMetrics" BackgroundColor="#2A2D34" IconColor="White" />
@@ -49,6 +49,7 @@
             <ci:IconButton x:Name="KeyboardButton" Glyph="{x:Static ci:Icons.Keyboard}" ToolTip="Type on the student's PC"
                            Clicked="OnKeyboard" IsVisible="False" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Globe}" ToolTip="Open a website" Clicked="OnOpenSite" Margin="0,0,4,4" />
+            <ci:IconButton Glyph="{x:Static ci:Icons.Programs}" ToolTip="Open a program, or close all programs" Clicked="OnPrograms" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Websites}" ToolTip="This student's websites: own allow / block list" Clicked="OnWebsites" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Power}" ToolTip="Log off, restart or shut down" Clicked="OnPower" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Camera}" ToolTip="Save a screenshot" Clicked="OnScreenshot" Margin="0,0,4,4" />
@@ -59,7 +60,12 @@
             <Label Text="{Binding LockText}" TextColor="#EF9A9A" FontAttributes="Bold" FontSize="12" VerticalOptions="Center"
                    IsVisible="{Binding IsLocked}" Margin="0,0,10,4" />
             <Label Text="{Binding OwnWebLimitsText}" TextColor="#4FC3F7" FontSize="12" VerticalOptions="Center"
-                   IsVisible="{Binding HasOwnWebLimits}" Margin="0,0,0,4" />
+                   IsVisible="{Binding HasOwnWebLimits}" Margin="0,0,10,4" />
+            <!-- Flash drive plugged in: icon + which drive. -->
+            <Label Text="{x:Static ci:Icons.Usb}" FontFamily="{x:Static ci:Icons.FontFamily}" TextColor="#FF8A65" FontSize="13"
+                   VerticalOptions="Center" IsVisible="{Binding HasUsbDrive}" Margin="0,0,4,4" />
+            <Label Text="{Binding UsbText}" TextColor="#FF8A65" FontAttributes="Bold" FontSize="12" VerticalOptions="Center"
+                   IsVisible="{Binding HasUsbDrive}" Margin="0,0,0,4" />
         </FlexLayout>
 
         <!-- Live video surface (focus-quality stream, FR-TEACH-02) -->

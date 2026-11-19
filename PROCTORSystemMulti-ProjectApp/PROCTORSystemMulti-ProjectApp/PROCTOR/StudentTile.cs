@@ -210,6 +210,42 @@ public sealed class StudentTile : INotifyPropertyChanged
     public string TotalsText => $"Session ↓ {Human(_totalDown)}  ↑ {Human(_totalUp)}";
     private long _totalDown, _totalUp;
 
+    // ---- flash drives -----------------------------------------------------------------------
+
+    private IReadOnlyList<RemovableDrive> _drives = [];
+
+    /// <summary>A USB flash drive or memory card is plugged into this PC.</summary>
+    public bool HasUsbDrive => _drives.Count > 0;
+
+    /// <summary>"Flash drive: E: KINGSTON (29.8 GB)" — shown on hover / in the student view.</summary>
+    public string UsbText => _drives.Count switch
+    {
+        0 => "",
+        1 => "Flash drive: " + Describe(_drives[0]),
+        _ => $"{_drives.Count} flash drives: " + string.Join(", ", _drives.Select(Describe)),
+    };
+
+    /// <summary>Raised (UI thread) when a flash drive is plugged in where there was none.</summary>
+    public event Action<StudentTile>? UsbInserted;
+
+    private void SetDrives(IReadOnlyList<RemovableDrive> drives)
+    {
+        var before = string.Join("|", _drives.Select(d => d.Letter + d.Label + d.SizeBytes));
+        var after = string.Join("|", drives.Select(d => d.Letter + d.Label + d.SizeBytes));
+        if (before == after) return;
+        var wasEmpty = _drives.Count == 0;
+        _drives = drives.Take(RemovableDrive.MaxReported).ToArray();
+        Raise(nameof(HasUsbDrive));
+        Raise(nameof(UsbText));
+        if (wasEmpty && _drives.Count > 0) UsbInserted?.Invoke(this);
+    }
+
+    private static string Describe(RemovableDrive d)
+    {
+        var label = d.Label is { Length: > 0 } l ? " " + (l.Length > 32 ? l[..32] : l) : "";
+        return $"{d.Letter}{label} ({Human(d.SizeBytes)})";
+    }
+
     /// <summary>Top processes by resource use, refreshed live for the detail panel (FR-TEL-03).</summary>
     public IReadOnlyList<ProcessRow> Processes { get; private set; } = [];
 
@@ -223,6 +259,7 @@ public sealed class StudentTile : INotifyPropertyChanged
         _totalUp = t.Bandwidth.TotalUploadBytes;
         _foreground = t.ForegroundWindowTitle;
         _activeHost = t.ActiveUrl;
+        SetDrives(t.RemovableDrives ?? []);
 
         Processes = t.TopProcesses
             .Select(p => new ProcessRow(p.Name, $"PID {p.Pid}", $"{p.CpuPercent:0.#}%", Human(p.MemoryBytes)))

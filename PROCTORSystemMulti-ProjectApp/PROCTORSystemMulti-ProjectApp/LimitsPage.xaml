@@ -7,7 +7,7 @@
     <ScrollView>
         <VerticalStackLayout Padding="24,20" Spacing="14" MaximumWidthRequest="760">
 
-            <Label Text="Programs, internet and sound for the whole class" FontSize="18" FontAttributes="Bold" />
+            <Label Text="Programs, internet, sound and flash drives for the whole class" FontSize="18" FontAttributes="Bold" />
             <Label Text="Applied to every student PC in this room, including students who join later. They are lifted automatically when the last teacher disconnects. Website lists (the Websites button) stay."
                    FontSize="12" TextColor="Gray" />
 
@@ -29,6 +29,14 @@
             <Grid ColumnDefinitions="*,Auto">
                 <Label Grid.Column="0" Text="Mute student sound" FontAttributes="Bold" FontSize="15" VerticalOptions="Center" />
                 <Switch x:Name="Mute" Grid.Column="1" VerticalOptions="Center" />
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto">
+                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                    <Label Text="Block flash drives" FontAttributes="Bold" FontSize="15" />
+                    <Label Text="USB flash drives and memory cards stop working; ones already plugged in disappear. They work again when you turn this off."
+                           FontSize="11" TextColor="Gray" LineBreakMode="WordWrap" />
+                </VerticalStackLayout>
+                <Switch x:Name="BlockUsb" Grid.Column="1" VerticalOptions="Center" />
             </Grid>
 
             <Label x:Name="Error" TextColor="#C62828" IsVisible="False" />

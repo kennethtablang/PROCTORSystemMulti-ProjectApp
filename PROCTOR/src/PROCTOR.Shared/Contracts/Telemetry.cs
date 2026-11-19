@@ -23,6 +23,40 @@ public sealed record TelemetrySnapshot
 
     /// <summary>Active browser tab URL/host if the agent surfaces it (optional).</summary>
     public string? ActiveUrl { get; init; }
+
+    /// <summary>
+    /// USB flash drives and memory cards plugged into the PC (Windows "removable" drives with media
+    /// in them), at most <see cref="RemovableDrive.MaxReported"/>. Empty on older agents.
+    /// </summary>
+    public IReadOnlyList<RemovableDrive> RemovableDrives { get; init; } = Array.Empty<RemovableDrive>();
+
+    /// <summary>
+    /// Blocked sites the agent closed in the last two minutes (host + time), for the teacher's
+    /// activity log; the teacher app keeps each event once. Empty on older agents.
+    /// </summary>
+    public IReadOnlyList<BlockedSiteEvent> RecentBlockedSites { get; init; } = Array.Empty<BlockedSiteEvent>();
+}
+
+/// <summary>A blocked site whose tab the agent closed.</summary>
+public sealed record BlockedSiteEvent
+{
+    public const int MaxReported = 10;
+    public string Host { get; init; } = string.Empty;
+    public DateTimeOffset At { get; init; }
+}
+
+/// <summary>A flash drive or memory card on a student PC.</summary>
+public sealed record RemovableDrive
+{
+    public const int MaxReported = 8;
+
+    /// <summary>Drive letter, e.g. "E:".</summary>
+    public string Letter { get; init; } = string.Empty;
+
+    /// <summary>The volume's name, e.g. "KINGSTON", if it has one.</summary>
+    public string? Label { get; init; }
+
+    public long SizeBytes { get; init; }
 }
 
 public sealed record CpuMemorySample

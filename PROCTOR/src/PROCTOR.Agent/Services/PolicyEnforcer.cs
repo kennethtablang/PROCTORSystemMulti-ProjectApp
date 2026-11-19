@@ -54,8 +54,10 @@ internal sealed class PolicyEnforcer : IDisposable
         _logger = logger;
         _browser = browser;
         _ui = ui;
-        // A previous agent that crashed while the internet was off must not leave it off.
+        // A previous agent that crashed while the internet was off must not leave it off — and the
+        // same for flash drives.
         RemoveFirewallRule(quiet: true);
+        UsbStorageBlock.Unblock(_logger, quiet: true);
         _timer = new Timer(_ => Tick(), null, TimeSpan.FromSeconds(1.5), TimeSpan.FromSeconds(1.5));
     }
 
@@ -87,7 +89,20 @@ internal sealed class PolicyEnforcer : IDisposable
                 AudioMute.TrySet(before, _logger);
                 _mutedBefore = null;
             }
+
+            if (policy.BlockUsbStorage && !was.BlockUsbStorage)
+            {
+                if (UsbStorageBlock.Block(_logger)) _ui?.ShowNotice("Your teacher has blocked flash drives.");
+            }
+            else if (!policy.BlockUsbStorage && was.BlockUsbStorage)
+            {
+                UsbStorageBlock.Unblock(_logger, quiet: false);
+                _ui?.ShowNotice("Flash drives work again. Plug yours in again if it doesn't appear.");
+            }
         }
+
+        if (policy.ExamMode != was.ExamMode || policy.ExamTitle != was.ExamTitle)
+            _ui?.ShowExam(policy.ExamMode, policy.ExamTitle);
 
         if (!policy.IsEmpty)
             _logger.LogInformation("Limits applied: web {Mode} ({Hosts}), {Apps} blocked app(s), internet {Net}, mute {Mute}.",
@@ -105,7 +120,20 @@ internal sealed class PolicyEnforcer : IDisposable
         try { EnforceWeb(policy); } catch (Exception ex) { _logger.LogDebug(ex, "Web limit check failed."); }
         try { EnforceApps(policy); } catch (Exception ex) { _logger.LogDebug(ex, "App limit check failed."); }
         if (policy.MuteSound) AudioMute.TrySet(true, _logger);   // keep it muted
+        // A memory card (its reader doesn't use the USB storage driver) or a drive that slipped
+        // through: take its letter away too. Checked every few seconds.
+        if (policy.BlockUsbStorage && ++_usbCheck % 4 == 0)
+        {
+            try
+            {
+                if (DriveInfo.GetDrives().Any(d => d.DriveType == DriveType.Removable && d.IsReady))
+                    UsbStorageBlock.Block(_logger);
+            }
+            catch { }
+        }
     }
+
+    private int _usbCheck;
 
     private void EnforceWeb(ClassPolicy policy)
     {
@@ -121,6 +149,7 @@ internal sealed class PolicyEnforcer : IDisposable
         SendCtrlW();
         _lastTabClose = DateTime.UtcNow;
         _browser.Invalidate();
+        BlockedSiteLog.Record(host);   // for the teacher's activity log
         Notice(host, policy.WebMode == WebLimitMode.AllowOnlyListed
             ? $"{host} isn't on your teacher's list of allowed sites."
             : $"{host} is blocked by your teacher.");

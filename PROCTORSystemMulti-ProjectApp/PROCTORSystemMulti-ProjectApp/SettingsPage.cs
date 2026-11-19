@@ -31,6 +31,10 @@ public sealed class SettingsPage : ContentPage
         var share = new Picker { ItemsSource = vm.BroadcastChoices.ToList(), SelectedIndex = vm.BroadcastResolutionIndex, WidthRequest = 220 };
         share.SelectedIndexChanged += (_, _) => vm.BroadcastResolutionIndex = share.SelectedIndex;
 
+        // ---- lock screen
+        var lockLook = Secondary("Change the lock screen");
+        lockLook.Clicked += async (_, _) => await Navigation.PushModalAsync(new LockScreenPage());
+
         // ---- appearance
         var theme = new Picker { ItemsSource = Appearance.Choices.ToList(), SelectedIndex = Appearance.SavedIndex, WidthRequest = 220 };
         theme.SelectedIndexChanged += (_, _) => Appearance.SetIndex(theme.SelectedIndex);
@@ -78,6 +82,14 @@ public sealed class SettingsPage : ContentPage
                     Text = "Up to this screen's own resolution. Full HD runs smoothly; QHD and 4K are sharper but send fewer frames per second.",
                     FontSize = 11, TextColor = Muted, LineBreakMode = LineBreakMode.WordWrap,
                 },
+
+                Section("Lock screen"),
+                new Label
+                {
+                    Text = "The heading, message and background colour students see when you lock their screens.",
+                    FontSize = 11, TextColor = Muted, LineBreakMode = LineBreakMode.WordWrap,
+                },
+                new HorizontalStackLayout { Spacing = 8, Children = { lockLook } },
 
                 Section("Appearance"),
                 Row("Light or dark mode", theme),

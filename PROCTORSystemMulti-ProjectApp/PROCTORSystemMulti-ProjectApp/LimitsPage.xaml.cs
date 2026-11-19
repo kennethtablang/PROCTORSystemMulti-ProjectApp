@@ -17,16 +17,20 @@ public partial class LimitsPage : ContentPage
         Apps.Text = string.Join(Environment.NewLine, p.BlockedApps);
         BlockInternet.IsToggled = p.BlockInternet;
         Mute.IsToggled = p.MuteSound;
+        BlockUsb.IsToggled = p.BlockUsbStorage;
     }
 
     private async void OnApply(object? sender, EventArgs e)
     {
-        // The website part is left as it is (the Websites window sets it).
+        // The website part and a running exam are left as they are (their own windows set them).
         var policy = new ClassPolicy
         {
             BlockedApps = Lines(Apps.Text),
             BlockInternet = BlockInternet.IsToggled,
             MuteSound = Mute.IsToggled,
+            BlockUsbStorage = BlockUsb.IsToggled,
+            ExamMode = _vm.Policy.ExamMode,
+            ExamTitle = _vm.Policy.ExamTitle,
         }.WithWeb(_vm.Policy.Web);
 
         // Catch typos before sending: anything the server would drop is reported here.
@@ -40,7 +44,8 @@ public partial class LimitsPage : ContentPage
         await Save(policy);
     }
 
-    private async void OnClear(object? sender, EventArgs e) => await Save(new ClassPolicy().WithWeb(_vm.Policy.Web));
+    private async void OnClear(object? sender, EventArgs e) =>
+        await Save(new ClassPolicy { ExamMode = _vm.Policy.ExamMode, ExamTitle = _vm.Policy.ExamTitle }.WithWeb(_vm.Policy.Web));
 
     private async void OnCancel(object? sender, EventArgs e) => await Navigation.PopModalAsync();
 

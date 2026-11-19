@@ -8,7 +8,7 @@
     Teacher apps then offer the update; student PCs follow from the teacher's PC automatically.
   -->
   <PropertyGroup>
-    <ProctorVersion>0.4.8</ProctorVersion>
+    <ProctorVersion>0.4.9</ProctorVersion>
     <Version>$(ProctorVersion)</Version>
     <InformationalVersion>$(ProctorVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>

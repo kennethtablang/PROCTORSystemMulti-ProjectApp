@@ -450,19 +450,24 @@ internal sealed partial class ClassroomUi : IDisposable
 
     // ---- lock screen -------------------------------------------------------
 
-    public void Lock(string? caption) => Post(() =>
+    /// <summary>
+    /// Cover every display. The teacher chooses the heading, the message and the background colour
+    /// (null = the defaults); locking again while locked just updates them.
+    /// </summary>
+    public void Lock(string? title, string? caption, string? color) => Post(() =>
     {
         _lockExpires = DateTime.UtcNow + Shared.Contracts.ClassroomLimits.MaxLockDuration;
         if (IsLocked)
         {
-            foreach (var w in _lockWindows) SetCaption(w, caption);
+            foreach (var w in _lockWindows) ApplyLockLook(w, title, caption, color);
             return;
         }
 
         IsLocked = true;
         foreach (var display in DisplayEnumerator.GetDisplays())
         {
-            var w = BuildLockWindow(display, caption);
+            var w = BuildLockWindow(display);
+            ApplyLockLook(w, title, caption, color);
             _lockWindows.Add(w);
             w.Show();
         }
@@ -499,22 +504,21 @@ internal sealed partial class ClassroomUi : IDisposable
         _logger.LogInformation("Screen unlocked.");
     }
 
-    private Window BuildLockWindow(CaptureDisplay display, string? caption)
+    private Window BuildLockWindow(CaptureDisplay display)
     {
         var title = new TextBlock
         {
-            Text = "Eyes on your teacher",
             FontSize = 40,
             FontWeight = FontWeights.SemiBold,
-            Foreground = Brushes.White,
             HorizontalAlignment = HorizontalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            TextAlignment = TextAlignment.Center,
+            MaxWidth = 1100,
         };
         var sub = new TextBlock
         {
             Name = "Caption",
-            Text = caption ?? "Your screen has been locked by your teacher.",
             FontSize = 18,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xC7, 0xCC, 0xD1)),
             HorizontalAlignment = HorizontalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
             TextAlignment = TextAlignment.Center,
@@ -531,7 +535,6 @@ internal sealed partial class ClassroomUi : IDisposable
             ResizeMode = ResizeMode.NoResize,
             Topmost = true,
             ShowInTaskbar = false,
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x12, 0x1E)),
             Content = stack,
             Title = "PROCTOR",
             Cursor = Cursors.None,
@@ -546,10 +549,28 @@ internal sealed partial class ClassroomUi : IDisposable
         return w;
     }
 
-    private static void SetCaption(Window w, string? caption)
+    /// <summary>Heading, message and background; text turns white or dark to stay readable on the colour.</summary>
+    private static void ApplyLockLook(Window w, string? title, string? caption, string? color)
     {
-        if (w.Content is StackPanel s && s.Children.Count > 1 && s.Children[1] is TextBlock t)
-            t.Text = caption ?? "Your screen has been locked by your teacher.";
+        var hex = Shared.Contracts.ClassroomLimits.CleanColor(color) ?? Shared.Contracts.ClassroomLimits.DefaultLockColor;
+        var bg = (Color)ColorConverter.ConvertFromString(hex);
+        w.Background = new SolidColorBrush(bg);
+
+        var light = Shared.Contracts.ClassroomLimits.PrefersLightText(hex);
+        var main = light ? Colors.White : Color.FromRgb(0x11, 0x11, 0x11);
+        var soft = light ? Color.FromArgb(0xD9, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0xCC, 0x11, 0x11, 0x11);
+
+        if (w.Content is not StackPanel s || s.Children.Count < 2) return;
+        if (s.Children[0] is TextBlock heading)
+        {
+            heading.Text = title ?? Shared.Contracts.ClassroomLimits.DefaultLockTitle;
+            heading.Foreground = new SolidColorBrush(main);
+        }
+        if (s.Children[1] is TextBlock message)
+        {
+            message.Text = caption ?? Shared.Contracts.ClassroomLimits.DefaultLockMessage;
+            message.Foreground = new SolidColorBrush(soft);
+        }
     }
 
     // Low-level keyboard hook: while locked, every key is swallowed (Ctrl+Alt+Del is handled by

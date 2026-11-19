@@ -9,8 +9,9 @@ namespace PROCTORSystemMulti_ProjectApp.PROCTOR;
 /// </summary>
 public static class ClassActions
 {
+    /// <summary>Lock with the teacher's lock-screen look (Settings → Lock screen).</summary>
     public static Task LockAsync(Page page, DashboardViewModel vm, IReadOnlyList<string>? targets) =>
-        Send(page, vm, CommandKind.Lock, targets);
+        Send(page, vm, CommandKind.Lock, targets, text: LockLook.Message, title: LockLook.Title, color: LockLook.Color);
 
     public static Task UnlockAsync(Page page, DashboardViewModel vm, IReadOnlyList<string>? targets) =>
         Send(page, vm, CommandKind.Unlock, targets);
@@ -65,6 +66,41 @@ public static class ClassActions
         await Send(page, vm, kind.Value, targets);
     }
 
+    /// <summary>Open a program on the students' PCs, or close all their programs (null targets = whole class).</summary>
+    public static async Task ProgramsAsync(Page page, DashboardViewModel vm, IReadOnlyList<string>? targets, string who)
+    {
+        const string word = "Open Word", excel = "Open Excel", powerpoint = "Open PowerPoint", chrome = "Open Chrome",
+            edge = "Open Edge", notepad = "Open Notepad", other = "Open another program…", closeAll = "Close all programs";
+        var choice = await page.DisplayActionSheetAsync($"Programs — {who}", "Cancel", null,
+            word, excel, powerpoint, chrome, edge, notepad, other, closeAll);
+        string? program = choice switch
+        {
+            word => "Word", excel => "Excel", powerpoint => "PowerPoint", chrome => "Chrome", edge => "Edge", notepad => "Notepad",
+            _ => null,
+        };
+        if (choice == other)
+        {
+            program = await page.DisplayPromptAsync($"Open a program for {who}",
+                "Program name (e.g. Word, chrome.exe, code) or the full path of an .exe:", "Open", "Cancel",
+                @"e.g. C:\Program Files\App\app.exe", ClassroomLimits.MaxProgramLength);
+            if (string.IsNullOrWhiteSpace(program)) return;
+            if (ClassroomLimits.CleanProgram(program) is null)
+            {
+                await page.DisplayAlertAsync("Can't open that", "Give just a program name or the full path of an .exe, without options or symbols.", "OK");
+                return;
+            }
+        }
+        if (program is not null)
+        {
+            await Send(page, vm, CommandKind.LaunchProgram, targets, text: program);
+            return;
+        }
+        if (choice == closeAll && await page.DisplayAlertAsync($"Close all programs on {who}?",
+                "Every open program is asked to close, like clicking its X. Programs with unsaved work ask the student whether to save.",
+                "Close programs", "Cancel"))
+            await Send(page, vm, CommandKind.CloseAllPrograms, targets);
+    }
+
     /// <summary>Pick files and send them to the students (null targets = whole class).</summary>
     public static async Task SendFilesAsync(Page page, DashboardViewModel vm, IReadOnlyList<string>? targets, string who)
     {
@@ -104,14 +140,14 @@ public static class ClassActions
     }
 
     private static async Task Send(Page page, DashboardViewModel vm, CommandKind kind, IReadOnlyList<string>? targets,
-        string? text = null, string? url = null)
+        string? text = null, string? url = null, string? title = null, string? color = null)
     {
         if (!vm.IsConnected)
         {
             await page.DisplayAlertAsync("Not connected", "Connect to the classroom server first.", "OK");
             return;
         }
-        var error = await vm.SendCommandAsync(kind, targets, text, url);
+        var error = await vm.SendCommandAsync(kind, targets, text, url, title, color);
         if (error is not null) await page.DisplayAlertAsync("Couldn't send", error, "OK");
     }
 }

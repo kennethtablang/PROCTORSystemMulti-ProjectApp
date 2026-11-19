@@ -42,9 +42,15 @@ public partial class DashboardPage : ContentPage
         var narrow = Width < NarrowToolbar;
         if (narrow == _narrowToolbar) return;
         _narrowToolbar = narrow;
-        Grid.SetRow(ViewControls, narrow ? 1 : 0);
-        Grid.SetColumn(ViewControls, narrow ? 0 : 1);
-        Grid.SetColumnSpan(ViewControls, narrow ? 2 : 1);
+
+        // Move the same controls (bindings and handlers intact) between the one-row container beside
+        // the class actions and the full-width wrapping row underneath.
+        Layout from = narrow ? WideControls : NarrowControls, to = narrow ? NarrowControls : WideControls;
+        var items = from.Children.OfType<View>().ToList();
+        from.Children.Clear();
+        foreach (var item in items) to.Children.Add(item);
+        WideControls.IsVisible = !narrow;
+        NarrowControls.IsVisible = narrow;
     }
 
     // ---- light / dark mode ----
@@ -144,6 +150,25 @@ public partial class DashboardPage : ContentPage
     private async void OnAttendance(object? sender, EventArgs e) => await ExportAttendance();
     private async void OnPin(object? sender, EventArgs e) => await ManagePin();
     private async void OnSendFiles(object? sender, EventArgs e) => await ClassActions.SendFilesAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);
+    private async void OnPrograms(object? sender, EventArgs e) => await ClassActions.ProgramsAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);
+    private async void OnActivity(object? sender, EventArgs e) => await Navigation.PushModalAsync(new ActivityPage(_vm));
+
+    // ---- exam mode ----
+    private async void OnExam(object? sender, EventArgs e)
+    {
+        if (_vm.IsExamRunning) { await EndExamAsync(); return; }
+        if (!_vm.IsConnected) { await DisplayAlertAsync("Not connected", "Connect to the classroom server first.", "OK"); return; }
+        await Navigation.PushModalAsync(new ExamPage(_vm));
+    }
+
+    private async void OnEndExam(object? sender, EventArgs e) => await EndExamAsync();
+
+    private async Task EndExamAsync()
+    {
+        if (!await DisplayAlertAsync("End the exam?", "The exam bar disappears from the students' screens and the limits from before the exam come back.", "End exam", "Keep going"))
+            return;
+        if (await _vm.EndExamAsync() is { } error) await DisplayAlertAsync("Couldn't end the exam", error, "OK");
+    }
 
     // ---- reload, selection, lab layout ----
     private async void OnReload(object? sender, EventArgs e)

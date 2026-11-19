@@ -529,10 +529,18 @@ public sealed class AgentWorker : BackgroundService
                 _ui?.ShowMessage(text);
                 break;
             case CommandKind.Lock:
-                _ui?.Lock(text);
+                _ui?.Lock(ClassroomLimits.CleanLockTitle(command.Title), text, ClassroomLimits.CleanColor(command.Color));
                 break;
             case CommandKind.Unlock:
                 _ui?.Unlock();
+                break;
+            case CommandKind.LaunchProgram when ClassroomLimits.CleanProgram(command.Text) is { } program:
+                if (!UserSession.LaunchProgram(program, _logger))
+                    _logger.LogWarning("Couldn't start {Program} for the student.", program);
+                break;
+            case CommandKind.CloseAllPrograms:
+                _ui?.ShowNotice("Your teacher is closing your programs. Save your work if asked.", TimeSpan.FromSeconds(6));
+                ProgramCloser.CloseAll(_logger);
                 break;
             case CommandKind.OpenUrl when ClassroomLimits.TryCleanUrl(command.Url, out var url):
                 UserSession.OpenUrl(url, _logger);

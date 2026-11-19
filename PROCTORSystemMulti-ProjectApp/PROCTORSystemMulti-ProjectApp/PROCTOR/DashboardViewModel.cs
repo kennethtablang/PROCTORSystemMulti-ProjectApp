@@ -816,6 +816,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     private void ApplyTelemetry(string connectionId, TelemetrySnapshot telemetry)
     {
         if (!_byConnection.TryGetValue(connectionId, out var tile)) return;
+        // Same bounds as the server applies (an older server forwards reports unchecked).
+        telemetry = TelemetryLimits.Clean(telemetry);
         var (window, host, usb, usbText) = (tile.ForegroundText, tile.ActiveHostText, tile.HasUsbDrive, tile.UsbText);
         tile.Apply(telemetry);
         TrackActivity(tile, window, host, usb, usbText, telemetry);

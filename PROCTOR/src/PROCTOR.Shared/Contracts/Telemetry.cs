@@ -37,6 +37,62 @@ public sealed record TelemetrySnapshot
     public IReadOnlyList<BlockedSiteEvent> RecentBlockedSites { get; init; } = Array.Empty<BlockedSiteEvent>();
 }
 
+/// <summary>
+/// Bounds on what a student PC may report. The server applies them before forwarding telemetry and
+/// the teacher app again before using it, so a misbehaving or tampered agent can't flood the
+/// teacher's screen and activity log or put arbitrary text in them.
+/// </summary>
+public static class TelemetryLimits
+{
+    public const int MaxProcesses = 30;
+    public const int MaxNameLength = 100;
+    public const int MaxTitleLength = 300;
+    public const int MaxLabelLength = 64;
+
+    /// <summary>Blocked-site events older than this (or from the future) are dropped.</summary>
+    public static readonly TimeSpan BlockedSiteWindow = TimeSpan.FromMinutes(5);
+
+    public static TelemetrySnapshot Clean(TelemetrySnapshot t, DateTimeOffset? now = null)
+    {
+        var at = now ?? DateTimeOffset.UtcNow;
+        return t with
+        {
+            MachineId = Cap(t.MachineId, MaxNameLength) ?? string.Empty,
+            System = t.System ?? new CpuMemorySample(),
+            Bandwidth = t.Bandwidth ?? new BandwidthSample(),
+            TopProcesses = (t.TopProcesses ?? [])
+                .Where(p => p is not null)
+                .Take(MaxProcesses)
+                .Select(p => p with { Name = Cap(p.Name, MaxNameLength) ?? string.Empty })
+                .ToArray(),
+            ForegroundWindowTitle = Cap(t.ForegroundWindowTitle, MaxTitleLength),
+            ActiveUrl = ClassroomLimits.CleanHost(t.ActiveUrl),
+            RemovableDrives = (t.RemovableDrives ?? [])
+                .Where(d => d is not null && IsDriveLetter(d.Letter))
+                .Take(RemovableDrive.MaxReported)
+                .Select(d => d with { Label = Cap(d.Label, MaxLabelLength), SizeBytes = Math.Max(0, d.SizeBytes) })
+                .ToArray(),
+            RecentBlockedSites = (t.RecentBlockedSites ?? [])
+                .Where(b => b is not null && b.At >= at - BlockedSiteWindow && b.At <= at + TimeSpan.FromMinutes(1))
+                .Select(b => (Event: b, Host: ClassroomLimits.CleanHost(b.Host)))
+                .Where(x => x.Host is not null)
+                .Take(BlockedSiteEvent.MaxReported)
+                .Select(x => x.Event with { Host = x.Host! })
+                .ToArray(),
+        };
+    }
+
+    private static bool IsDriveLetter(string? letter) =>
+        letter is { Length: 2 } && char.IsAsciiLetter(letter[0]) && letter[1] == ':';
+
+    private static string? Cap(string? text, int max)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var clean = new string(text.Where(c => !char.IsControl(c)).ToArray()).Trim();
+        return clean.Length == 0 ? null : clean.Length > max ? clean[..max] : clean;
+    }
+}
+
 /// <summary>A blocked site whose tab the agent closed.</summary>
 public sealed record BlockedSiteEvent
 {

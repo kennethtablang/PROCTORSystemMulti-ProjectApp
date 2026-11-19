@@ -896,6 +896,8 @@ public sealed class ClassroomHub : Hub
     public async Task PushTelemetry(TelemetrySnapshot telemetry)
     {
         if (telemetry is null) return;
+        // Bound what a student PC can report before it reaches any teacher (sizes, lengths, hosts).
+        telemetry = TelemetryLimits.Clean(telemetry);
         var entry = _room.ApplyTelemetry(Context.ConnectionId, telemetry);
         if (entry is null) return;   // not a registered student
 

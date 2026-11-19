@@ -50,6 +50,33 @@ public class ClassroomLimitsTests
         Assert.Null(ClassroomLimits.CleanProgram(input));
 
     [Fact]
+    public void Telemetry_from_a_student_is_bounded()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var flood = new TelemetrySnapshot
+        {
+            ForegroundWindowTitle = new string('x', 10_000),
+            TopProcesses = Enumerable.Range(0, 1000).Select(i => new ProcessSample { Pid = i, Name = new string('p', 500) }).ToArray(),
+            RemovableDrives = Enumerable.Range(0, 100).Select(_ => new RemovableDrive { Letter = "E:", Label = new string('l', 500) })
+                .Append(new RemovableDrive { Letter = "not a drive" }).ToArray(),
+            RecentBlockedSites = Enumerable.Range(0, 1000).Select(i => new BlockedSiteEvent { Host = $"site{i}.com", At = now })
+                .Append(new BlockedSiteEvent { Host = "javascript:alert(1)", At = now })
+                .Append(new BlockedSiteEvent { Host = "old.com", At = now.AddHours(-1) })
+                .ToArray(),
+        };
+
+        var clean = TelemetryLimits.Clean(flood, now);
+
+        Assert.Equal(TelemetryLimits.MaxTitleLength, clean.ForegroundWindowTitle!.Length);
+        Assert.Equal(TelemetryLimits.MaxProcesses, clean.TopProcesses.Count);
+        Assert.All(clean.TopProcesses, p => Assert.True(p.Name.Length <= TelemetryLimits.MaxNameLength));
+        Assert.Equal(RemovableDrive.MaxReported, clean.RemovableDrives.Count);
+        Assert.All(clean.RemovableDrives, d => Assert.True(d.Label!.Length <= TelemetryLimits.MaxLabelLength));
+        Assert.Equal(BlockedSiteEvent.MaxReported, clean.RecentBlockedSites.Count);
+        Assert.DoesNotContain(clean.RecentBlockedSites, b => b.Host.Contains("javascript") || b.Host == "old.com");
+    }
+
+    [Fact]
     public void Policy_cleaning_keeps_flash_drive_block_and_exam()
     {
         var clean = ClassroomLimits.Clean(new ClassPolicy { BlockUsbStorage = true, ExamMode = true, ExamTitle = "Quiz\n3" });

@@ -53,7 +53,8 @@ internal sealed class BroadcastReceiver : IAsyncDisposable
             var decoder = new VP8Codec();
             pc = new RTCPeerConnection(ScreenStreamSender.BuildConfig(_iceServers));
             pc.addTrack(new MediaStreamTrack(decoder.SupportedFormats, MediaStreamStatusEnum.RecvOnly));
-            pc.MaxReconstructedVideoFrameSize = 3_000_000;   // after addTrack (setter needs the video stream)
+            // Room for a 4K keyframe of a busy screen (the teacher can share up to 3840 px).
+            pc.MaxReconstructedVideoFrameSize = 6_000_000;   // after addTrack (setter needs the video stream)
 
             pc.onicecandidate += c =>
             {

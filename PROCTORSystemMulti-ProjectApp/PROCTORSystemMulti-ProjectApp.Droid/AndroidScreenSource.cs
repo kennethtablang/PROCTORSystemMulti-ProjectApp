@@ -6,6 +6,7 @@ using Android.Media;
 using Android.Media.Projection;
 using Android.Runtime;
 using Android.Util;
+using PROCTOR.Shared.Contracts;
 using PROCTORSystemMulti_ProjectApp.PROCTOR;
 
 namespace PROCTORSystemMulti_ProjectApp.Droid;
@@ -18,12 +19,30 @@ namespace PROCTORSystemMulti_ProjectApp.Droid;
 /// <see cref="Capture"/> converts the newest image to the BGRA frame the VP8 encoder takes.
 ///
 /// The picture is sized once, when sharing starts (Android allows one virtual display per consent):
-/// the long side is capped at <see cref="MaxLongSide"/> so a phone CPU can keep up with encoding.
+/// the long side is capped at the resolution the teacher chose (Settings; a phone CPU encodes
+/// 1280 px comfortably, larger sizes send fewer frames).
 /// </summary>
 public sealed class AndroidScreenSource : IScreenSource
 {
     private const int RequestCode = 0x5C2E;
-    private const int MaxLongSide = 1280;
+    private int _maxLongSide = 1280;
+
+    /// <summary>The screen's longer side in pixels.</summary>
+    public int NativeWidth
+    {
+        get
+        {
+            try
+            {
+                var metrics = new DisplayMetrics();
+#pragma warning disable CA1422, CS0618
+                (Platform.CurrentActivity?.WindowManager?.DefaultDisplay)?.GetRealMetrics(metrics);
+#pragma warning restore CA1422, CS0618
+                return Math.Max(metrics.WidthPixels, metrics.HeightPixels);
+            }
+            catch { return 0; }
+        }
+    }
 
     private readonly object _gate = new();
     private MediaProjection? _projection;
@@ -36,9 +55,10 @@ public sealed class AndroidScreenSource : IScreenSource
 
     public bool IsSupported => OperatingSystem.IsAndroidVersionAtLeast(21);
 
-    public async Task<string?> PrepareAsync()
+    public async Task<string?> PrepareAsync(int maxWidth)
     {
         Release();
+        _maxLongSide = Math.Clamp(maxWidth, 320, BroadcastLimits.MaxWidth);
         if (Platform.CurrentActivity is not { } activity) return "The app isn't ready yet. Try again.";
         if (activity.GetSystemService(Context.MediaProjectionService) is not MediaProjectionManager manager)
             return "This device can't share its screen.";
@@ -103,7 +123,7 @@ public sealed class AndroidScreenSource : IScreenSource
         activity.WindowManager?.DefaultDisplay?.GetRealMetrics(metrics);
 #pragma warning restore CA1422, CS0618
         int sw = Math.Max(16, metrics.WidthPixels), sh = Math.Max(16, metrics.HeightPixels);
-        var scale = Math.Min(1.0, (double)MaxLongSide / Math.Max(sw, sh));
+        var scale = Math.Min(1.0, (double)_maxLongSide / Math.Max(sw, sh));
         static int Mb(double v) => Math.Max(16, (int)Math.Round(v / 16.0) * 16);
         int w = Mb(sw * scale), h = Mb(sh * scale);
 

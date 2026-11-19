@@ -816,6 +816,18 @@ this document and `README.md` in sync with reality.
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
 
+- **0.28 — 2026-11-19**
+  - **Phone/tablet layout (NFR-USE-03).** Dashboard toolbar: the view controls wrap item by item and
+    move to their own row below 1000 px (they were one fixed ~800 px row that pushed the class actions
+    off a phone screen). Banners wrap their buttons under the text. Student view: the resolution and
+    display pickers move under the name on narrow screens. Settings and Websites stack on phones.
+    Lab layout keeps seats ≥ 170 px wide and scrolls sideways when the room is wider than the screen.
+  - **Press animation** on every button (shrink + dim while held, spring back on release).
+  - **More dashboard sizes:** XL 960, XXL 1280, XXXL 1920 px (agent `MaxStreamWidth` still caps).
+  - **Show my screen resolution:** 1280 / 1600 / 1920 / 2560 / 3840 px, only up to this screen's own
+    width (plus its native width); Settings and the broadcast banner (restarts the share). Agents
+    accept broadcast frames up to 3840 either way round (was 1920 × 2160).
+
 - **0.27 — 2026-11-19**
   - **Reload / no black screens (FR-STREAM-06).** Reload button on the dashboard (selected students,
     or all) and in the student view restarts streams from scratch. The stream watchdog now also

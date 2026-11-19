@@ -218,23 +218,25 @@
             <Button Grid.Column="1" Text="Connect" Command="{Binding ConnectManualCommand}" />
         </Grid>
 
-        <!-- One toolbar row: every class action and teacher tool on the left (all visible, no
-             "more" menu), view controls on the right (search, sort, stream quality, screen size,
-             room). Status messages appear as a short-lived pill at the bottom right. -->
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" IsVisible="{Binding IsConnected}">
+        <!-- Toolbar: every class action and teacher tool (left), view controls (right: search, sort,
+             stream quality, size, reload, layout, room, theme, settings). Both wrap, and on narrow
+             screens (phones, portrait tablets) the view controls move to their own row below
+             (ApplyToolbarLayout in code-behind). Status messages appear as a pill at the bottom right. -->
+        <Grid x:Name="Toolbar" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4"
+              IsVisible="{Binding IsConnected}">
             <!-- Shown whenever connected, so website lists and other limits can be set before students arrive. -->
             <FlexLayout Grid.Column="0" Wrap="Wrap" AlignItems="Center" AlignContent="Start">
-                <ci:IconButton Glyph="{x:Static ci:Icons.Lock}" ToolTip="Lock all screens" Clicked="OnLockAll" Margin="0,0,4,4" />
-                <ci:IconButton Glyph="{x:Static ci:Icons.Unlock}" ToolTip="Unlock all screens" Clicked="OnUnlockAll" Margin="0,0,4,4" />
-                <ci:IconButton Glyph="{x:Static ci:Icons.Message}" ToolTip="Send a message to the class" Clicked="OnMessageAll" Margin="0,0,4,4" />
-                <ci:IconButton Glyph="{x:Static ci:Icons.Globe}" ToolTip="Open a website on every PC" Clicked="OnOpenSiteAll" Margin="0,0,4,4" />
-                <ci:IconButton Glyph="{x:Static ci:Icons.Screen}" ToolTip="Show my screen to the class" Clicked="OnShowScreen" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Lock}" ToolTip="Lock screens" Clicked="OnLockAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Unlock}" ToolTip="Unlock screens" Clicked="OnUnlockAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Message}" ToolTip="Send a message" Clicked="OnMessageAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Globe}" ToolTip="Open a website" Clicked="OnOpenSiteAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Screen}" ToolTip="Show my screen" Clicked="OnShowScreen" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Poll}" ToolTip="Poll" Clicked="OnPoll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Websites}" ToolTip="Websites: allow list (whitelist) or block list (blacklist)" Clicked="OnWebsites" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Limits}" ToolTip="Limits: programs, internet, sound" Clicked="OnLimits" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Power}" ToolTip="Log off, restart or shut down" Clicked="OnPowerAll" Margin="0,0,4,4" />
                 <BoxView WidthRequest="1" HeightRequest="20" Color="#3A3E47" Margin="4,0,8,4" />
-                <ci:IconButton Glyph="{x:Static ci:Icons.Send}" ToolTip="Send files to the class" Clicked="OnSendFiles" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Send}" ToolTip="Send files" Clicked="OnSendFiles" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Collect}" ToolTip="Collect work (click again to stop collecting)" Clicked="OnCollectToggle" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Timer}" ToolTip="Lesson timer" Clicked="OnTimer" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Shuffle}" ToolTip="Pick a random student" Clicked="OnPick" Margin="0,0,4,4" />
@@ -248,38 +250,37 @@
                        VerticalOptions="Center" Margin="0,0,0,4" />
             </FlexLayout>
 
-            <HorizontalStackLayout Grid.Column="1" Spacing="6" VerticalOptions="Start">
-                <HorizontalStackLayout Spacing="6" IsVisible="{Binding HasStudents}">
-                    <SearchBar Placeholder="Search" Text="{Binding SearchText}" WidthRequest="140"
-                               ToolTipProperties.Text="Search name, user, app or site" IsVisible="{Binding ShowListControls}" />
-                    <Picker ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex}" WidthRequest="96"
-                            ToolTipProperties.Text="Sort by" IsVisible="{Binding ShowListControls}" />
-                    <Picker ItemsSource="{Binding ThumbnailChoices}" SelectedIndex="{Binding ThumbnailSizeIndex}" WidthRequest="112"
-                            ToolTipProperties.Text="Stream quality" />
-                    <!-- Screen size: drag to make the student screens bigger or smaller (columns follow). -->
-                    <HorizontalStackLayout Spacing="6" IsVisible="{Binding ShowListControls}">
-                        <Label Text="{x:Static ci:Icons.ZoomOut}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="12"
-                               VerticalOptions="Center" TextColor="#9AA0A6" />
-                        <Slider Minimum="180" Maximum="960" Value="{Binding TileSize}" WidthRequest="90"
-                                VerticalOptions="Center" ToolTipProperties.Text="Screen size"
-                                SemanticProperties.Description="Student screen size" />
-                        <Label Text="{x:Static ci:Icons.ZoomIn}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="12"
-                               VerticalOptions="Center" TextColor="#9AA0A6" Margin="0,0,4,0" />
-                    </HorizontalStackLayout>
-                    <!-- Reload: restart the screens (selected ones, or all) when one is black or frozen. -->
-                    <ci:IconButton Glyph="{x:Static ci:Icons.Reload}" ToolTip="Reload screens (the selected ones, or all)"
-                                   Clicked="OnReload" VerticalOptions="Center" />
+            <!-- View controls: each item wraps on its own, so nothing is pushed off a narrow screen. -->
+            <FlexLayout x:Name="ViewControls" Grid.Column="1" Wrap="Wrap" AlignItems="Center" AlignContent="Start">
+                <SearchBar Placeholder="Search" Text="{Binding SearchText}" WidthRequest="140" Margin="0,0,6,4"
+                           ToolTipProperties.Text="Search name, user, app or site" IsVisible="{Binding ShowSearchSort}" />
+                <Picker ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex}" WidthRequest="96" Margin="0,0,6,4"
+                        ToolTipProperties.Text="Sort by" IsVisible="{Binding ShowSearchSort}" />
+                <Picker ItemsSource="{Binding ThumbnailChoices}" SelectedIndex="{Binding ThumbnailSizeIndex}" WidthRequest="112" Margin="0,0,6,4"
+                        ToolTipProperties.Text="Stream quality" IsVisible="{Binding HasStudents}" />
+                <!-- Screen size: drag to make the student screens bigger or smaller (columns follow). -->
+                <HorizontalStackLayout Spacing="6" IsVisible="{Binding ShowSearchSort}" Margin="0,0,6,4">
+                    <Label Text="{x:Static ci:Icons.ZoomOut}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="12"
+                           VerticalOptions="Center" TextColor="#9AA0A6" />
+                    <Slider Minimum="180" Maximum="960" Value="{Binding TileSize}" WidthRequest="90"
+                            VerticalOptions="Center" ToolTipProperties.Text="Screen size"
+                            SemanticProperties.Description="Student screen size" />
+                    <Label Text="{x:Static ci:Icons.ZoomIn}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="12"
+                           VerticalOptions="Center" TextColor="#9AA0A6" />
                 </HorizontalStackLayout>
+                <!-- Reload: restart the screens (selected ones, or all) when one is black or frozen. -->
+                <ci:IconButton Glyph="{x:Static ci:Icons.Reload}" ToolTip="Reload screens (the selected ones, or all)"
+                               Clicked="OnReload" IsVisible="{Binding HasStudents}" Margin="0,0,6,4" />
                 <!-- Lab layout: student screens arranged like the computers in the room. -->
                 <ci:IconButton Glyph="{x:Static ci:Icons.Layout}" ToolTip="Lab layout: arrange screens like the computers in the room"
-                               Clicked="OnLayout" VerticalOptions="Center" />
-                <Label Text="{Binding VisibleCountText}" FontAttributes="Bold" FontSize="12" VerticalOptions="Center" />
-                <Button Text="Switch room" Command="{Binding SwitchRoomCommand}" FontSize="11" VerticalOptions="Center"
+                               Clicked="OnLayout" Margin="0,0,6,4" />
+                <Label Text="{Binding VisibleCountText}" FontAttributes="Bold" FontSize="12" VerticalOptions="Center" Margin="0,0,6,4" />
+                <Button Text="Switch room" Command="{Binding SwitchRoomCommand}" FontSize="11" Margin="0,0,6,4"
                         BackgroundColor="Transparent" TextColor="#7E57C2" BorderColor="#B794F6" BorderWidth="1" />
                 <!-- Light / dark mode (the icon shows the mode a tap switches to; set in code-behind). -->
-                <ci:IconButton x:Name="ThemeButton" Clicked="OnToggleTheme" VerticalOptions="Center" />
-                <ci:IconButton Glyph="{x:Static ci:Icons.Settings}" ToolTip="Settings" Clicked="OnSettings" VerticalOptions="Center" />
-            </HorizontalStackLayout>
+                <ci:IconButton x:Name="ThemeButton" Clicked="OnToggleTheme" Margin="0,0,6,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Settings}" ToolTip="Settings" Clicked="OnSettings" Margin="0,0,0,4" />
+            </FlexLayout>
         </Grid>
 
         <!-- Some students selected: the toolbar acts on them only. -->
@@ -287,13 +288,14 @@
             <Border.StrokeShape>
                 <RoundRectangle CornerRadius="8" />
             </Border.StrokeShape>
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+            <!-- Text first; the buttons follow on the same line when there's room, else below. -->
+            <FlexLayout Wrap="Wrap" AlignItems="Center">
                 <Label Text="{Binding SelectionText}" TextColor="#E1D5FF" FontAttributes="Bold" FontSize="13"
-                       VerticalOptions="Center" LineBreakMode="WordWrap" />
-                <Button Grid.Column="1" Text="Select all" Clicked="OnSelectAll" Padding="12,2" FontSize="12" />
-                <Button Grid.Column="2" Text="Clear selection" Clicked="OnClearSelection" Padding="12,2" FontSize="12"
+                       VerticalOptions="Center" LineBreakMode="WordWrap" FlexLayout.Grow="1" FlexLayout.Shrink="1" Margin="0,2,8,2" />
+                <Button Text="Select all" Clicked="OnSelectAll" Padding="12,2" FontSize="12" Margin="0,2,6,2" />
+                <Button Text="Clear selection" Clicked="OnClearSelection" Padding="12,2" FontSize="12" Margin="0,2,0,2"
                         BackgroundColor="#7E57C2" TextColor="White" />
-            </Grid>
+            </FlexLayout>
         </Border>
 
         <!-- Lab layout: rearranging seats. -->
@@ -301,12 +303,12 @@
             <Border.StrokeShape>
                 <RoundRectangle CornerRadius="8" />
             </Border.StrokeShape>
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+            <FlexLayout Wrap="Wrap" AlignItems="Center">
                 <Label Text="{Binding ArrangeText}" TextColor="#C8E6C9" FontAttributes="Bold" FontSize="13"
-                       VerticalOptions="Center" LineBreakMode="WordWrap" />
-                <Button Grid.Column="1" Text="Done" Clicked="OnArrangeDone" Padding="16,2" FontSize="12"
+                       VerticalOptions="Center" LineBreakMode="WordWrap" FlexLayout.Grow="1" FlexLayout.Shrink="1" Margin="0,2,8,2" />
+                <Button Text="Done" Clicked="OnArrangeDone" Padding="16,2" FontSize="12" Margin="0,2,0,2"
                         BackgroundColor="#2E7D32" TextColor="White" />
-            </Grid>
+            </FlexLayout>
         </Border>
 
         <!-- Lesson timer running -->
@@ -326,14 +328,14 @@
             <Border.StrokeShape>
                 <RoundRectangle CornerRadius="8" />
             </Border.StrokeShape>
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+            <FlexLayout Wrap="Wrap" AlignItems="Center">
                 <Label Text="{Binding TransferText}" TextColor="#0D47A1" FontAttributes="Bold" FontSize="13"
-                       VerticalOptions="Center" LineBreakMode="WordWrap" />
-                <Button Grid.Column="1" Text="Open folder" Clicked="OnOpenCollectFolder" Padding="12,2" FontSize="12"
-                        IsVisible="{Binding IsCollecting}" />
-                <Button Grid.Column="2" Text="Stop collecting" Clicked="OnStopCollecting" Padding="12,2" FontSize="12"
+                       VerticalOptions="Center" LineBreakMode="WordWrap" FlexLayout.Grow="1" FlexLayout.Shrink="1" Margin="0,2,8,2" />
+                <Button x:Name="OpenCollectButton" Text="Open folder" Clicked="OnOpenCollectFolder" Padding="12,2" FontSize="12"
+                        Margin="0,2,6,2" IsVisible="{Binding IsCollecting}" />
+                <Button Text="Stop collecting" Clicked="OnStopCollecting" Padding="12,2" FontSize="12" Margin="0,2,0,2"
                         BackgroundColor="#1565C0" TextColor="White" IsVisible="{Binding IsCollecting}" />
-            </Grid>
+            </FlexLayout>
         </Border>
 
         <!-- Screen broadcast in progress -->
@@ -341,12 +343,16 @@
             <Border.StrokeShape>
                 <RoundRectangle CornerRadius="8" />
             </Border.StrokeShape>
-            <Grid ColumnDefinitions="*,Auto">
+            <FlexLayout Wrap="Wrap" AlignItems="Center">
                 <Label Text="{Binding BroadcastText}" TextColor="#1B5E20" FontAttributes="Bold" FontSize="13"
-                       VerticalOptions="Center" />
-                <Button Grid.Column="1" Text="Stop showing" Clicked="OnStopShowScreen" Padding="12,2" FontSize="12"
+                       VerticalOptions="Center" LineBreakMode="WordWrap" FlexLayout.Grow="1" FlexLayout.Shrink="1" Margin="0,2,8,2" />
+                <!-- Resolution of the teacher's own screen; changing it restarts the share at the new size. -->
+                <Picker ItemsSource="{Binding BroadcastChoices}" SelectedIndex="{Binding BroadcastResolutionIndex}"
+                        IsVisible="{Binding IsBroadcastingOwnScreen}" WidthRequest="230" Margin="0,2,6,2"
+                        TextColor="#1B5E20" ToolTipProperties.Text="Resolution the students see (changing it restarts the share)" />
+                <Button Text="Stop showing" Clicked="OnStopShowScreen" Padding="12,2" FontSize="12" Margin="0,2,0,2"
                         BackgroundColor="#2E7D32" TextColor="White" />
-            </Grid>
+            </FlexLayout>
         </Border>
 
         <!-- Raised hands (students asking for help) — their tiles also float to the top. -->
@@ -362,7 +368,10 @@
         <!-- Live roster grid: every tile streams a thumbnail while this tab is visible (FR-STREAM-04).
              Normal view: the searched/sorted students. Lab layout: the seats in reading order
              (empty and offline seats included), one row of the room per grid row. -->
-        <CollectionView x:Name="TileGrid" Grid.Row="1" ItemsSource="{Binding GridItems}" SelectionMode="None"
+        <!-- Sideways scrolling only for a lab layout too wide for the screen (phones): seats keep a
+             usable minimum width. Otherwise the grid is exactly as wide as the page (code-behind). -->
+        <ScrollView x:Name="GridScroller" Grid.Row="1" Orientation="Horizontal">
+        <CollectionView x:Name="TileGrid" ItemsSource="{Binding GridItems}" SelectionMode="None" WidthRequest="320"
                         ItemTemplate="{StaticResource GridTemplates}">
             <CollectionView.ItemsLayout>
                 <GridItemsLayout Orientation="Vertical" Span="3"
@@ -373,6 +382,7 @@
                        HorizontalOptions="Center" VerticalOptions="Center" TextColor="Gray" />
             </CollectionView.EmptyView>
         </CollectionView>
+        </ScrollView>
         <!-- Status pill (e.g. "Connected to Classroom"): a notification at the bottom right for a few
              seconds after each message, and while the app is searching for the server. -->
         <Border Grid.Row="0" Grid.RowSpan="2" ZIndex="10" InputTransparent="True"

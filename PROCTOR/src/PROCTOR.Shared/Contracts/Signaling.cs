@@ -69,12 +69,19 @@ public static class StreamResolution
     /// <summary>Full HD: the sharpest focus stream that still holds ~15 fps on a typical lab PC.</summary>
     public const int DefaultFocusWidth = 1920;
 
-    /// <summary>Thumbnail sizes offered in the teacher app.</summary>
+    /// <summary>
+    /// Thumbnail sizes offered in the teacher app. The bigger ones cost every student PC more CPU and
+    /// the network more bandwidth (each tile is a separate stream), and the agent's
+    /// <c>MaxStreamWidth</c> (1920 by default) still caps what's sent.
+    /// </summary>
     public static readonly IReadOnlyList<(string Label, int Width)> ThumbnailChoices =
     [
         ("Small (320 px)", 320),
         ("Normal (480 px)", 480),
         ("Large (640 px)", 640),
+        ("XL (960 px)", 960),
+        ("XXL (1280 px)", 1280),
+        ("XXXL (1920 px)", 1920),
     ];
 
     /// <summary>Focus-view resolutions offered in the teacher app.</summary>

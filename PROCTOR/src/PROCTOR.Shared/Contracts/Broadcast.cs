@@ -36,14 +36,33 @@ public sealed record BroadcastInfo
 public static class BroadcastLimits
 {
     /// <summary>
-    /// Width the teacher's screen is sent at (height follows its aspect ratio; smaller screens are
-    /// sent at their native size). Full HD is the largest the managed VP8 encoder sustains at
+    /// Default width the teacher's screen is sent at (height follows its aspect ratio; smaller screens
+    /// are sent at their native size). Full HD is the largest the managed VP8 encoder sustains at
     /// <see cref="Fps"/>: measured ≈ 71 ms/frame at 1920×1088, 123 ms at 2560×1440, 305 ms at 4K.
     /// </summary>
     public const int Width = 1920;
 
+    /// <summary>The sharpest a teacher may choose (4K); above Full HD the frame rate drops.</summary>
+    public const int MaxWidth = 3840;
+
+    /// <summary>
+    /// Resolutions the teacher can share their screen at. The app offers only those up to its own
+    /// screen's width, plus that native width itself.
+    /// </summary>
+    public static readonly IReadOnlyList<(string Label, int Width)> Choices =
+    [
+        ("Standard · 1280 px", 1280),
+        ("High · 1600 px", 1600),
+        ("Full HD · 1920 px (recommended)", 1920),
+        ("QHD · 2560 px (smoother text, fewer frames)", 2560),
+        ("4K · 3840 px (sharpest, slowest)", 3840),
+    ];
+
     public const int Fps = 10;
 
-    /// <summary>Largest frame a viewer accepts (anything bigger is a misbehaving sender).</summary>
-    public const int MaxFrameWidth = 1920, MaxFrameHeight = 2160;
+    /// <summary>
+    /// Largest frame a viewer accepts (anything bigger is a misbehaving sender): 4K either way round,
+    /// for landscape screens and portrait ones (phones, rotated monitors).
+    /// </summary>
+    public const int MaxFrameWidth = MaxWidth, MaxFrameHeight = MaxWidth;
 }

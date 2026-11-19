@@ -27,6 +27,10 @@ public sealed class SettingsPage : ContentPage
         var size = new Slider { Minimum = DashboardViewModel.MinTileSize, Maximum = DashboardViewModel.MaxTileSize, Value = vm.TileSize, WidthRequest = 220 };
         size.ValueChanged += (_, e) => vm.TileSize = e.NewValue;
 
+        // ---- show my screen
+        var share = new Picker { ItemsSource = vm.BroadcastChoices.ToList(), SelectedIndex = vm.BroadcastResolutionIndex, WidthRequest = 220 };
+        share.SelectedIndexChanged += (_, _) => vm.BroadcastResolutionIndex = share.SelectedIndex;
+
         // ---- appearance
         var theme = new Picker { ItemsSource = Appearance.Choices.ToList(), SelectedIndex = Appearance.SavedIndex, WidthRequest = 220 };
         theme.SelectedIndexChanged += (_, _) => Appearance.SetIndex(theme.SelectedIndex);
@@ -67,12 +71,20 @@ public sealed class SettingsPage : ContentPage
                 Row("Student view quality", focus),
                 Row("Screen size on the dashboard", size),
 
+                Section("Show my screen"),
+                Row("Resolution students see", share),
+                new Label
+                {
+                    Text = "Up to this screen's own resolution. Full HD runs smoothly; QHD and 4K are sharper but send fewer frames per second.",
+                    FontSize = 11, TextColor = Muted, LineBreakMode = LineBreakMode.WordWrap,
+                },
+
                 Section("Appearance"),
                 Row("Light or dark mode", theme),
 
                 Section("Teacher PIN"),
                 Row("PIN", _pinState),
-                new HorizontalStackLayout { Spacing = 8, Children = { pin, lockNow } },
+                new FlexLayout { Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap, Children = { WithGap(pin), WithGap(lockNow) } },
 
                 Section("Classroom"),
                 Row("Room", Value(server is null ? "Not connected" : server.RoomName)),
@@ -128,11 +140,24 @@ public sealed class SettingsPage : ContentPage
 
     private static View Row(string label, View control)
     {
+        // Phones: the name above the control (side by side needs ~450 px, wider than a phone).
+        if (DeviceInfo.Idiom == DeviceIdiom.Phone)
+        {
+            control.HorizontalOptions = LayoutOptions.Fill;
+            if (control is Picker or Slider) control.WidthRequest = -1;
+            return new VerticalStackLayout
+            {
+                Spacing = 2,
+                Children = { new Label { Text = label, FontSize = 12, TextColor = Colors.White }, control },
+            };
+        }
         var grid = new Grid { ColumnDefinitions = { new ColumnDefinition(new GridLength(200)), new ColumnDefinition(GridLength.Star) }, ColumnSpacing = 10 };
         grid.Add(new Label { Text = label, FontSize = 12, TextColor = Colors.White, VerticalOptions = LayoutOptions.Center }, 0, 0);
         grid.Add(control, 1, 0);
         return grid;
     }
+
+    private static View WithGap(View v) { v.Margin = new Thickness(0, 0, 8, 6); return v; }
 
     private static Label Value(string text) => new()
     {

@@ -10,24 +10,26 @@
     <Grid x:Name="Root" RowDefinitions="Auto,Auto,*,Auto" ColumnDefinitions="*,Auto">
 
         <!-- Status / identity bar -->
-        <Grid Grid.Row="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="8"
-              Padding="12,6" BackgroundColor="#181A1F">
+        <Grid Grid.Row="0" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto,Auto" RowDefinitions="Auto,Auto"
+              ColumnSpacing="8" RowSpacing="4" Padding="12,6" BackgroundColor="#181A1F">
             <VerticalStackLayout Grid.Column="0" Spacing="2">
                 <Label Text="{Binding Header}" FontAttributes="Bold" FontSize="14" TextColor="White"
                        LineBreakMode="TailTruncation" />
                 <Label x:Name="StreamInfo" FontSize="11" TextColor="#9AA0A6" />
             </VerticalStackLayout>
-            <!-- Stream resolution for this view (remembered on this device). -->
-            <Picker x:Name="ResolutionPicker" Grid.Column="1" WidthRequest="170" TextColor="White"
-                    SelectedIndexChanged="OnResolutionChanged" />
-            <!-- Which display to watch, for multi-monitor students (FR-AGENT-04). -->
-            <Picker x:Name="DisplayPicker" Grid.Column="2" ItemsSource="{Binding DisplayLabels}"
-                    IsVisible="{Binding HasMultipleDisplays}" WidthRequest="300" TextColor="White"
-                    SelectedIndexChanged="OnDisplayChanged" />
+            <!-- Stream resolution and (multi-monitor students) display. Beside the name on wide
+                 screens; on a second line, wrapping, on phones (ApplyLayout in code-behind). -->
+            <FlexLayout x:Name="Pickers" Grid.Column="1" Wrap="Wrap" AlignItems="Center">
+                <Picker x:Name="ResolutionPicker" WidthRequest="170" TextColor="White" Margin="0,0,8,0"
+                        SelectedIndexChanged="OnResolutionChanged" />
+                <Picker x:Name="DisplayPicker" ItemsSource="{Binding DisplayLabels}"
+                        IsVisible="{Binding HasMultipleDisplays}" WidthRequest="300" TextColor="White"
+                        SelectedIndexChanged="OnDisplayChanged" />
+            </FlexLayout>
             <!-- Show / hide the Live metrics panel (remembered). -->
-            <ci:IconButton x:Name="MetricsButton" Grid.Column="3" Glyph="{x:Static ci:Icons.Pane}" ToolTip="Hide live metrics"
+            <ci:IconButton x:Name="MetricsButton" Grid.Column="2" Glyph="{x:Static ci:Icons.Pane}" ToolTip="Hide live metrics"
                            Clicked="OnToggleMetrics" BackgroundColor="#2A2D34" IconColor="White" />
-            <ci:IconButton Grid.Column="4" Glyph="{x:Static ci:Icons.Back}" ToolTip="Back to the class"
+            <ci:IconButton Grid.Column="3" Glyph="{x:Static ci:Icons.Back}" ToolTip="Back to the class"
                            Clicked="OnStopClicked" BackgroundColor="#2A2D34" IconColor="White" />
         </Grid>
 

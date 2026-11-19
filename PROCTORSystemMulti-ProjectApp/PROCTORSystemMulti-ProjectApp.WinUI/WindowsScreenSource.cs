@@ -18,6 +18,9 @@ public sealed class WindowsScreenSource : IScreenSource
 
     public bool IsSupported => true;
 
+    /// <summary>The primary screen's width in physical pixels (the app is per-monitor DPI aware).</summary>
+    public int NativeWidth => Math.Max(0, GetSystemMetrics(SM_CXSCREEN));
+
     public ScreenFrame? Capture(int maxWidth)
     {
         int sw = Math.Max(1, GetSystemMetrics(SM_CXSCREEN)), sh = Math.Max(1, GetSystemMetrics(SM_CYSCREEN));

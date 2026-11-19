@@ -19,11 +19,32 @@ public partial class DashboardPage : ContentPage
         // GridItemsLayout isn't in the visual tree, so its Span is set here rather than bound.
         Application.Current!.Resources[ThumbHeightKey] = 140d;
         Application.Current!.Resources[TileHeightKey] = 140d + TileExtraHeight;
-        TileGrid.SizeChanged += (_, _) => ApplyTileSize();
+        GridScroller.SizeChanged += (_, _) => ApplyTileSize();
+        SizeChanged += (_, _) => ApplyToolbarLayout();
         _vm.PropertyChanged += OnVmPropertyChanged;
+
+        // Phones and tablets can't open a folder: the button shares the handed-in files instead.
+        if (!OperatingSystem.IsWindows()) OpenCollectButton.Text = "Share work";
 
         UpdateThemeButton();
         Application.Current.RequestedThemeChanged += (_, _) => UpdateThemeButton();
+    }
+
+    // ---- responsive toolbar ----
+    // Below this width (phones, portrait tablets, a narrow window) the view controls get their own
+    // row under the class actions instead of a column beside them.
+    private const double NarrowToolbar = 1000;
+    private bool? _narrowToolbar;
+
+    private void ApplyToolbarLayout()
+    {
+        if (Width <= 0) return;
+        var narrow = Width < NarrowToolbar;
+        if (narrow == _narrowToolbar) return;
+        _narrowToolbar = narrow;
+        Grid.SetRow(ViewControls, narrow ? 1 : 0);
+        Grid.SetColumn(ViewControls, narrow ? 0 : 1);
+        Grid.SetColumnSpan(ViewControls, narrow ? 2 : 1);
     }
 
     // ---- light / dark mode ----
@@ -54,16 +75,23 @@ public partial class DashboardPage : ContentPage
     /// Columns: from the Size slider, or (lab layout) the computers per row. The picture keeps a
     /// 16:9 shape, and every tile and seat gets the same height so the rows line up.
     /// </summary>
+    // A lab-layout seat is never narrower than this; wider rooms scroll sideways (phones).
+    private const double MinSeatWidth = 170;
+
     private void ApplyTileSize()
     {
-        var width = TileGrid.Width;
+        var width = GridScroller.Width;
         if (width <= 0) return;
-        var span = _vm.LayoutMode && _vm.LayoutColumns > 0
+        var layoutMode = _vm.LayoutMode && _vm.LayoutColumns > 0;
+        var span = layoutMode
             ? _vm.LayoutColumns
             : Math.Clamp((int)Math.Floor((width + TileSpacing) / (_vm.TileSize + TileSpacing)), 1, 12);
-        if (!_vm.LayoutMode) _vm.Columns = span;
+        if (!layoutMode) _vm.Columns = span;
         if (TileGrid.ItemsLayout is GridItemsLayout layout && layout.Span != span) layout.Span = span;
         var tileWidth = (width - TileSpacing * (span - 1)) / span;
+        if (layoutMode) tileWidth = Math.Max(MinSeatWidth, tileWidth);
+        var gridWidth = layoutMode ? tileWidth * span + TileSpacing * (span - 1) : width;
+        if (Math.Abs(TileGrid.WidthRequest - gridWidth) > 0.5) TileGrid.WidthRequest = gridWidth;
         var thumb = Math.Max(60, Math.Round((tileWidth - TileChrome) * 9 / 16));
         Application.Current!.Resources[ThumbHeightKey] = thumb;
         Application.Current!.Resources[TileHeightKey] = thumb + TileExtraHeight;

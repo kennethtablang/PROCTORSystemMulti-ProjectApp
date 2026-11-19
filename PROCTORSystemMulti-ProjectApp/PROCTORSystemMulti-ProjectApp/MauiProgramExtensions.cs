@@ -19,6 +19,12 @@ namespace PROCTORSystemMulti_ProjectApp
                     fonts.AddFont("MaterialIcons-Regular.ttf", "MaterialIcons");
                 });
 
+            // Every button animates when pressed (shrinks and dims, then springs back).
+            Microsoft.Maui.Handlers.ButtonHandler.Mapper.AppendToMapping("PressAnimation", (_, view) =>
+            {
+                if (view is Button button) PressAnimation.Attach(button);
+            });
+
             // One shared view model (FR-TEACH-03): a single server connection and a single live
             // roster behind the dashboard and every student view. MAUI resolves Shell content pages
             // through this container, so the singleton is injected into the dashboard.

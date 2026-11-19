@@ -59,8 +59,9 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         Broadcaster.Changed += () =>
         {
             Streams.SetPinned(Broadcaster.IsActive ? Broadcaster.ShowingStudent?.ConnectionId : null);
-            OnUi(() => { Raise(nameof(IsBroadcasting)); Raise(nameof(BroadcastText)); });
+            OnUi(() => { Raise(nameof(IsBroadcasting)); Raise(nameof(BroadcastText)); Raise(nameof(IsBroadcastingOwnScreen)); });
         };
+        _ = BroadcastResolutionIndex;   // apply the saved "show my screen" resolution
 
         _client.Status += s => OnUi(() => Status = s);
         _client.RosterUpdated += r => OnUi(() => ReplaceRoster(r));
@@ -283,7 +284,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
     public bool IsBroadcasting => Broadcaster.IsActive;
 
     public string BroadcastText => Broadcaster.IsActive
-        ? $"Showing {(Broadcaster.ShowingStudent is { } shown ? shown.MachineName + "'s" : "your")} screen ({(Broadcaster.Mode == BroadcastMode.FullScreen ? "full screen" : "in a window")}) · {Broadcaster.Viewers} watching"
+        ? $"Showing {(Broadcaster.ShowingStudent is { } shown ? shown.MachineName + "'s" : "your")} screen ({(Broadcaster.Mode == BroadcastMode.FullScreen ? "full screen" : "in a window")}" +
+          $"{(Broadcaster.ShowingStudent is null ? $", {BroadcastResolutionText}" : "")}) · {Broadcaster.Viewers} watching"
         : "";
 
     // ---- polls -------------------------------------------------------------
@@ -429,6 +431,66 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
             SavePref(PrefFocus, w.ToString());
         }
     }
+
+    // ---- "show my screen" resolution ----------------------------------------
+
+    private const string PrefBroadcast = "proctor.broadcastwidth";
+    private IReadOnlyList<(string Label, int Width)>? _broadcastOptions;
+
+    /// <summary>
+    /// Resolutions this device can share its screen at: the standard ones up to its own screen width,
+    /// plus that native width (the sharpest it can send, at most 4K).
+    /// </summary>
+    private IReadOnlyList<(string Label, int Width)> BroadcastOptions => _broadcastOptions ??= BuildBroadcastOptions();
+
+    private IReadOnlyList<(string Label, int Width)> BuildBroadcastOptions()
+    {
+        var native = Math.Min(Broadcaster.NativeWidth, BroadcastLimits.MaxWidth);
+        if (native <= 0) return BroadcastLimits.Choices;
+        var list = BroadcastLimits.Choices.Where(c => c.Width <= native).ToList();
+        if (!list.Any(c => c.Width == native)) list.Add(($"Native · {native} px (this screen)", native));
+        return list.OrderBy(c => c.Width).ToList();
+    }
+
+    public IReadOnlyList<string> BroadcastChoices => BroadcastOptions.Select(c => c.Label).ToArray();
+
+    private int _broadcastIndex = -1;
+    /// <summary>"Show my screen" resolution; changing it while sharing restarts the share at the new size.</summary>
+    public int BroadcastResolutionIndex
+    {
+        get
+        {
+            if (_broadcastIndex < 0)
+            {
+                var options = BroadcastOptions;
+                // Saved choice, else Full HD (1280 on phones/tablets, whose CPUs encode more slowly),
+                // else the largest available below that.
+                var want = int.TryParse(LoadPref(PrefBroadcast), out var saved) ? saved
+                    : DeviceInfo.Idiom is var idiom && (idiom == DeviceIdiom.Phone || idiom == DeviceIdiom.Tablet) ? 1280 : BroadcastLimits.Width;
+                var i = options.ToList().FindLastIndex(c => c.Width <= want);
+                _broadcastIndex = i >= 0 ? i : 0;
+                Broadcaster.Width = options[_broadcastIndex].Width;
+            }
+            return _broadcastIndex;
+        }
+        set
+        {
+            if (value < 0 || value >= BroadcastOptions.Count || value == _broadcastIndex) return;
+            _broadcastIndex = value;
+            var w = BroadcastOptions[value].Width;
+            Broadcaster.Width = w;
+            SavePref(PrefBroadcast, w.ToString());
+            Raise();
+            Raise(nameof(BroadcastText));
+            if (Broadcaster.IsActive && Broadcaster.ShowingStudent is null) _ = Broadcaster.RestartAsync();
+        }
+    }
+
+    /// <summary>The share resolution as a short label, e.g. "1920 px".</summary>
+    public string BroadcastResolutionText => $"{Broadcaster.Width} px";
+
+    /// <summary>The broadcast banner's resolution picker: only while sharing the teacher's own screen.</summary>
+    public bool IsBroadcastingOwnScreen => Broadcaster.IsActive && Broadcaster.ShowingStudent is null;
 
     private static int IndexOf(IReadOnlyList<(string Label, int Width)> choices, string saved, int fallback)
     {

@@ -98,6 +98,9 @@ public sealed partial class DashboardViewModel
     /// <summary>Search, sort and the size slider only apply to the normal grid.</summary>
     public bool ShowListControls => !LayoutMode;
 
+    /// <summary>The search / sort / size controls: students connected, normal grid.</summary>
+    public bool ShowSearchSort => HasStudents && !LayoutMode;
+
     private bool _isArranging;
     /// <summary>Rearranging seats: tap a computer, then the seat it should move to (they swap).</summary>
     public bool IsArranging
@@ -126,6 +129,7 @@ public sealed partial class DashboardViewModel
         Raise(nameof(LayoutRows));
         Raise(nameof(LayoutColumns));
         Raise(nameof(ShowListControls));
+        Raise(nameof(ShowSearchSort));
         Raise(nameof(GridItems));
         Raise(nameof(ArrangeText));
     }

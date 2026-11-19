@@ -225,6 +225,12 @@ public partial class FocusPage : ContentPage
         if (narrow == _narrow) return;
         _narrow = narrow;
 
+        // Header: the pickers go on their own line under the name, sized to the screen.
+        Grid.SetRow(Pickers, narrow ? 1 : 0);
+        Grid.SetColumn(Pickers, narrow ? 0 : 1);
+        Grid.SetColumnSpan(Pickers, narrow ? 4 : 1);
+        DisplayPicker.WidthRequest = narrow ? Math.Max(160, Math.Min(300, Width - 210)) : 300;
+
         if (narrow)
         {
             Grid.SetRow(DetailPanel, 3);

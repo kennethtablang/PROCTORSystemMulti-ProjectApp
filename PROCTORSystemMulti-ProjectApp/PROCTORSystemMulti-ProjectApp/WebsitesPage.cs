@@ -41,7 +41,10 @@ public sealed class WebsitesPage : ContentPage
         if (savedBlock.Length == 0 && current is { WebMode: WebLimitMode.BlockListed }) savedBlock = string.Join(Environment.NewLine, current.WebHosts);
 
         var options = student is null ? new List<string> { NoLimits, UseBlock, UseAllow } : new List<string> { SameAsClass, NoLimits, UseBlock, UseAllow };
-        _mode = new Picker { ItemsSource = options, WidthRequest = 360, HorizontalOptions = LayoutOptions.Start };
+        var phone = DeviceInfo.Idiom == DeviceIdiom.Phone;
+        _mode = phone
+            ? new Picker { ItemsSource = options, HorizontalOptions = LayoutOptions.Fill }
+            : new Picker { ItemsSource = options, WidthRequest = 360, HorizontalOptions = LayoutOptions.Start };
         _mode.SelectedItem = current is null ? SameAsClass : current.WebMode switch
         {
             WebLimitMode.AllowOnlyListed => UseAllow,
@@ -52,13 +55,18 @@ public sealed class WebsitesPage : ContentPage
         _allow = ListEditor(savedAllow, "One site per line, e.g.\ndocs.google.com\nwikipedia.org");
         _block = ListEditor(savedBlock, "One site per line, e.g.\nyoutube.com\ntiktok.com");
 
+        // Side by side; one above the other on phones (two lists in ~150 px each are too narrow).
         var lists = new Grid
         {
-            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) },
+            ColumnDefinitions = phone
+                ? [new ColumnDefinition(GridLength.Star)]
+                : [new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star)],
+            RowDefinitions = phone ? [new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto)] : [new RowDefinition(GridLength.Auto)],
             ColumnSpacing = 12,
+            RowSpacing = 10,
         };
         lists.Add(new VerticalStackLayout { Spacing = 4, Children = { Heading("Allow list (whitelist)"), _allow } }, 0, 0);
-        lists.Add(new VerticalStackLayout { Spacing = 4, Children = { Heading("Block list (blacklist)"), _block } }, 1, 0);
+        lists.Add(new VerticalStackLayout { Spacing = 4, Children = { Heading("Block list (blacklist)"), _block } }, phone ? 0 : 1, phone ? 1 : 0);
 
         var apply = new Button { Text = "Apply", Padding = new Thickness(18, 4), BackgroundColor = Color.FromArgb("#7E57C2"), TextColor = Colors.White };
         apply.Clicked += async (_, _) => await ApplyAsync();

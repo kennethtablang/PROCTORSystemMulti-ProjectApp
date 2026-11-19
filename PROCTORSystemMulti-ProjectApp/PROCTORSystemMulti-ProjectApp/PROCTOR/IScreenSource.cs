@@ -11,11 +11,15 @@ public interface IScreenSource : IDisposable
 {
     bool IsSupported { get; }
 
+    /// <summary>The screen's own width in pixels (Android: its longer side), or 0 if unknown.</summary>
+    int NativeWidth => 0;
+
     /// <summary>
-    /// Get ready to capture, on the UI thread, before the broadcast starts: Android asks the teacher
-    /// for screen-recording consent here. Returns an error to show, or null when ready.
+    /// Get ready to capture at up to <paramref name="maxWidth"/>, on the UI thread, before the
+    /// broadcast starts: Android asks the teacher for screen-recording consent here. Returns an
+    /// error to show, or null when ready.
     /// </summary>
-    Task<string?> PrepareAsync() => Task.FromResult<string?>(null);
+    Task<string?> PrepareAsync(int maxWidth) => Task.FromResult<string?>(null);
 
     /// <summary>Grab the primary screen scaled to about <paramref name="maxWidth"/>; null if capture failed this time.</summary>
     ScreenFrame? Capture(int maxWidth);

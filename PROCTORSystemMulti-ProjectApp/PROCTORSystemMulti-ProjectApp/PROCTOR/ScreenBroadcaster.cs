@@ -50,6 +50,26 @@ public sealed class ScreenBroadcaster : IAsyncDisposable
     public bool IsActive { get; private set; }
     public BroadcastMode Mode { get; private set; }
 
+    /// <summary>This device's screen width (the highest resolution worth offering), or 0 if unknown.</summary>
+    public int NativeWidth => _ownScreen.NativeWidth;
+
+    /// <summary>Resolution the teacher's own screen is shared at (Settings / the broadcast banner).</summary>
+    public int Width { get; set; } = BroadcastLimits.Width;
+
+    private IReadOnlyList<string>? _targets;
+
+    /// <summary>
+    /// Sharing the teacher's own screen: start again at <see cref="Width"/> for the same students
+    /// (the encoder and every student's viewer start fresh at the new size).
+    /// </summary>
+    public async Task<string?> RestartAsync()
+    {
+        if (!IsActive || ShowingStudent is not null) return null;
+        var (mode, targets) = (Mode, _targets);
+        await StopAsync();
+        return await StartAsync(mode, targets);
+    }
+
     /// <summary>The student whose screen is being shown, or null when it's the teacher's own screen.</summary>
     public StudentTile? ShowingStudent { get; private set; }
 
@@ -63,7 +83,7 @@ public sealed class ScreenBroadcaster : IAsyncDisposable
         if (IsActive) await StopAsync();
 
         // Own screen: get the device ready first (Android asks the teacher to allow screen recording).
-        if (student is null && await _ownScreen.PrepareAsync() is { } notReady) return notReady;
+        if (student is null && await _ownScreen.PrepareAsync(Width) is { } notReady) return notReady;
 
         IReadOnlyList<string> students;
         try
@@ -83,6 +103,7 @@ public sealed class ScreenBroadcaster : IAsyncDisposable
 
         _source = student is null ? _ownScreen : new StudentFrameSource(student);
         ShowingStudent = student;
+        _targets = targets;
         IsActive = true;
         Mode = mode;
         _cts = new CancellationTokenSource();
@@ -177,7 +198,9 @@ public sealed class ScreenBroadcaster : IAsyncDisposable
             try
             {
                 var connected = _peers.Values.Where(p => p.connectionState == RTCPeerConnectionState.connected).ToArray();
-                if (connected.Length > 0 && _source.Capture(BroadcastLimits.Width) is { } f)
+                // Own screen: the chosen resolution. A student's screen: their stream as it arrives (≤ Full HD).
+                var width = ShowingStudent is null ? Width : BroadcastLimits.Width;
+                if (connected.Length > 0 && _source.Capture(width) is { } f)
                 {
                     var now = clock.Elapsed;
                     var send = _forceKey || f.Changed || lastSent is null || now - lastSent.Value >= TimeSpan.FromSeconds(1);

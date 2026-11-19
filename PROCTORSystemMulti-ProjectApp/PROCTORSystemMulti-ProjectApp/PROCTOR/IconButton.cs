@@ -47,6 +47,12 @@ public static class Icons
     public static readonly string Pane = G('', '');        // view_sidebar
     public static readonly string Settings = G('', '');    // settings
     public static readonly string Keyboard = G('', '');    // keyboard
+    public static readonly string Reload = G('', '');      // refresh
+    public static readonly string Layout = G('', '');      // grid_view (lab seat layout)
+    public static readonly string SelectAll = G('', '');   // select_all
+    public static readonly string ClearSelection = G('', ''); // deselect
+    public static readonly string LightMode = G('', '');   // light_mode (sun)
+    public static readonly string DarkMode = G('', '');    // dark_mode (moon)
 }
 
 /// <summary>

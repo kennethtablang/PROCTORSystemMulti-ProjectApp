@@ -816,6 +816,23 @@ this document and `README.md` in sync with reality.
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
 
+- **0.27 — 2026-11-19**
+  - **Reload / no black screens (FR-STREAM-06).** Reload button on the dashboard (selected students,
+    or all) and in the student view restarts streams from scratch. The stream watchdog now also
+    restarts a stream that is connected but has shown no frame for 8 s (agents send ≥ 1 frame/s), or
+    was answered but never connected within 15 s.
+  - **Select students.** A tick box on each tile (or tap the name); with a selection, lock, unlock,
+    message, open website, power, send files, show my screen and reload act on those students only.
+  - **Tile outline removed** (the light grey border read as a white line around every screen); it
+    now shows only for a selection (purple), a raised hand (amber) or a seat being moved (green).
+  - **Open on arrival.** Sending files asks "Send and open the folder on their PCs" or "Just send";
+    the agent opens Explorer on *Files from teacher* with the file selected (one window per batch).
+    New `FileOffer.OpenOnArrival`, relayed by the server; older agents just save the file.
+  - **Lab layout.** Dashboard seat map: rows × computers per row, filled in natural name order
+    (PC2 before PC10), rearranged by tapping two seats; offline PCs keep their seat, new PCs take
+    the first free one. Saved per classroom on the teacher device.
+  - **Light / dark mode**: toolbar toggle and Settings (match device / light / dark), remembered.
+
 - **0.26 — 2026-11-18**
   - **Phone/tablet installers for the teacher app (FR-TEACH-05 🟡).** Android: `Build-AndroidApp.ps1`
     publishes a Release `.apk`, signs it with a project key kept outside the repo

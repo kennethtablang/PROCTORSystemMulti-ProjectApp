@@ -89,6 +89,25 @@ public sealed class StudentTile : INotifyPropertyChanged
         set { if (_handRaised != value) { _handRaised = value; Raise(); Raise(nameof(TileBorderColor)); } }
     }
 
+    private bool _isSelected;
+    /// <summary>Ticked on the dashboard: the toolbar's actions apply to the selected students only.</summary>
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set { if (_isSelected != value) { _isSelected = value; Raise(); Raise(nameof(TileBorderColor)); } }
+    }
+
+    private bool _isSwapSource;
+    /// <summary>Lab layout, rearranging: this PC was tapped first and moves to the next seat tapped.</summary>
+    public bool IsSwapSource
+    {
+        get => _isSwapSource;
+        set { if (_isSwapSource != value) { _isSwapSource = value; Raise(); Raise(nameof(TileBorderColor)); } }
+    }
+
+    /// <summary>Seat key in the lab layout: the computer name, case-insensitive.</summary>
+    public string SeatKey => MachineName.ToUpperInvariant();
+
     private int _unreadChat;
     /// <summary>Chat lines from this student the teacher hasn't read yet.</summary>
     public int UnreadChat
@@ -99,8 +118,15 @@ public sealed class StudentTile : INotifyPropertyChanged
     public bool HasUnreadChat => _unreadChat > 0;
     public string ChatBadge => _unreadChat > 0 ? _unreadChat.ToString() : "";
 
-    /// <summary>Tile outline: amber while the student's hand is up, so it stands out in the grid.</summary>
-    public Color TileBorderColor => _handRaised ? Color.FromArgb("#F9A825") : Color.FromArgb("#DDDDDD");
+    /// <summary>
+    /// Tile outline: none normally (a light outline read as a white line around every screen);
+    /// green while being moved in the lab layout, purple when selected, amber while the hand is up.
+    /// </summary>
+    public Color TileBorderColor =>
+        _isSwapSource ? Color.FromArgb("#66BB6A")
+        : _isSelected ? Color.FromArgb("#B794F6")
+        : _handRaised ? Color.FromArgb("#F9A825")
+        : Colors.Transparent;
 
     /// <summary>Latest decoded screen frame — what the thumbnail and the focus view paint.</summary>
     public FrameBuffer Frame { get; } = new();

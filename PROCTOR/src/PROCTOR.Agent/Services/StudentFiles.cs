@@ -60,19 +60,20 @@ internal sealed class StudentFiles : IDisposable
         }
     }
 
-    /// <summary>All bytes arrived: verify and save. Returns (saved path, error).</summary>
-    public (string? Path, string? FileName, string? Error) Finished(FileFinish finish)
+    /// <summary>All bytes arrived: verify and save. Returns (saved path, error, whether to show it to the student).</summary>
+    public (string? Path, string? FileName, string? Error, bool Open) Finished(FileFinish finish)
     {
         FileAssembler? a;
         lock (_gate)
         {
-            if (!_incoming.Remove(finish.TransferId, out a)) return (null, null, null);
+            if (!_incoming.Remove(finish.TransferId, out a)) return (null, null, null, false);
         }
         using (a)
         {
             var name = FileLimits.CleanFileName(a.Offer.FileName)!;
+            var open = a.Offer.OpenOnArrival;
             var data = a.Finish(finish.Sha256);
-            if (data is null) return (null, name, "The file arrived damaged.");
+            if (data is null) return (null, name, "The file arrived damaged.", false);
             try
             {
                 var path = UserSession.AsStudent(UserSession.DesktopFolder, desktop =>
@@ -87,12 +88,12 @@ internal sealed class StudentFiles : IDisposable
                     return target;
                 });
                 _logger.LogInformation("Saved a file from the teacher: {Path}", path);
-                return (path, name, null);
+                return (path, name, null, open);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Couldn't save a file from the teacher.");
-                return (null, name, "It couldn't be saved on the student's desktop.");
+                return (null, name, "It couldn't be saved on the student's desktop.", false);
             }
         }
     }

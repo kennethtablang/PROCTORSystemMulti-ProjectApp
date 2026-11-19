@@ -32,8 +32,12 @@ public sealed partial class DashboardViewModel
 
     public bool HasTransferText => !string.IsNullOrEmpty(_transferText) || IsCollecting;
 
-    /// <summary>Send files to students (null targets = whole class). Returns an error to show, or null.</summary>
-    public async Task<string?> SendFilesAsync(IEnumerable<Microsoft.Maui.Storage.FileResult> files, IReadOnlyList<string>? targets)
+    /// <summary>
+    /// Send files to students (null targets = whole class). <paramref name="openOnArrival"/>: each
+    /// student PC opens the folder with the file selected once it's saved. Returns an error, or null.
+    /// </summary>
+    public async Task<string?> SendFilesAsync(IEnumerable<Microsoft.Maui.Storage.FileResult> files, IReadOnlyList<string>? targets,
+        bool openOnArrival = false)
     {
         foreach (var file in files)
         {
@@ -60,7 +64,7 @@ public sealed partial class DashboardViewModel
                     var accepted = await FileSender.SendAsync(
                         _client.OfferFileAsync, _client.SendFileChunkAsync, _client.FinishFileAsync, _client.CancelFileAsync,
                         source,
-                        new FileOffer { FileName = name, Size = size, Targets = targets ?? [] },
+                        new FileOffer { FileName = name, Size = size, Targets = targets ?? [], OpenOnArrival = openOnArrival },
                         progress);
                     OnUi(() =>
                     {

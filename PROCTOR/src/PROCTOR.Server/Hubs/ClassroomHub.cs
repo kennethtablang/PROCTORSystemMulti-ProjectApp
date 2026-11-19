@@ -365,6 +365,7 @@ public sealed class ClassroomHub : Hub
             FileName = name,
             Size = offer.Size,
             HandIn = !teacher,
+            OpenOnArrival = teacher && offer.OpenOnArrival,
             FromName = fromName,
             FromConnectionId = me,
         };

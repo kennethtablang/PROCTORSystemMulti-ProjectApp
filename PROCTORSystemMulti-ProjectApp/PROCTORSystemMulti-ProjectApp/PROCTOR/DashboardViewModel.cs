@@ -713,6 +713,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
             return;
         }
         var tile = new StudentTile(snap);
+        tile.PropertyChanged += OnTileChanged;   // selection count for the toolbar
         _byConnection[snap.ConnectionId] = tile;
         Students.Add(tile);
         if (refresh) RosterChanged();
@@ -748,6 +749,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         Raise(nameof(HasStudents));
         Raise(nameof(ShowConnectGuide));
         RefreshVisible();
+        SyncLayout();
+        RaiseSelection();
         Streams.RosterChanged();
     }
 

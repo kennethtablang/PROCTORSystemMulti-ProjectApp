@@ -79,9 +79,12 @@ public static class ClassActions
         var list = files?.Where(f => f is not null).ToList();
         if (list is not { Count: > 0 }) return;
         var names = string.Join(", ", list.Take(5).Select(f => f.FileName)) + (list.Count > 5 ? $" and {list.Count - 5} more" : "");
-        if (!await page.DisplayAlertAsync($"Send to {who}?", $"{names}\n\nThey'll appear in \u201CFiles from teacher\u201D on the students' desktops.", "Send", "Cancel"))
-            return;
-        var error = await vm.SendFilesAsync(list, targets);
+        // Saved in "Files from teacher" on the desktop either way; opening shows it to the student.
+        const string open = "Send and open the folder on their PCs", only = "Just send (students open it themselves)";
+        var choice = await page.DisplayActionSheetAsync(
+            $"Send {names} to {who}? It's saved in \u201CFiles from teacher\u201D on the desktop.", "Cancel", null, open, only);
+        if (choice != open && choice != only) return;
+        var error = await vm.SendFilesAsync(list, targets, openOnArrival: choice == open);
         if (error is not null) await page.DisplayAlertAsync("Couldn't send", error, "OK");
     }
 

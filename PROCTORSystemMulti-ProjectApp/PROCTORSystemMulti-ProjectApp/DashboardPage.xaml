@@ -7,6 +7,98 @@
              Shell.NavBarIsVisible="False"
              Title="Dashboard">
 
+    <ContentPage.Resources>
+        <!-- One student. The tick box (or a tap on the name) selects it for the toolbar's actions;
+             a tap on the screen opens the focus view (or, when rearranging the lab, picks the seat).
+             Every tile and seat has the same height (TileHeight, set in code) so rows line up. -->
+        <DataTemplate x:Key="TileTemplate" x:DataType="ci:StudentTile">
+            <Border Stroke="{Binding TileBorderColor}" StrokeThickness="2" Padding="8" HeightRequest="{DynamicResource TileHeight}">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="4">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="5" HeightRequest="28">
+                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Color="#B794F6" VerticalOptions="Center"
+                                  WidthRequest="32" HeightRequest="28" Margin="-6,0,-4,0"
+                                  ToolTipProperties.Text="Select (the toolbar then acts on the selected students)" />
+                        <Label Grid.Column="1" Text="{Binding Header}" FontAttributes="Bold" FontSize="12"
+                               VerticalOptions="Center" LineBreakMode="TailTruncation">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnTileHeaderTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                        <!-- Badges: raised hand (needs help), locked, unread chat, own website list. -->
+                        <Label Grid.Column="2" Text="{x:Static ci:Icons.Help}" FontFamily="{x:Static ci:Icons.FontFamily}"
+                               FontSize="12" TextColor="#F9A825" VerticalOptions="Center" IsVisible="{Binding HandRaised}"
+                               ToolTipProperties.Text="Needs help" />
+                        <Label Grid.Column="3" Text="{x:Static ci:Icons.Lock}" FontFamily="{x:Static ci:Icons.FontFamily}"
+                               FontSize="12" TextColor="#C62828" VerticalOptions="Center" IsVisible="{Binding IsLocked}"
+                               ToolTipProperties.Text="Locked" />
+                        <Label Grid.Column="4" Text="{x:Static ci:Icons.Chat}" FontFamily="{x:Static ci:Icons.FontFamily}"
+                               FontSize="12" TextColor="#7E57C2" VerticalOptions="Center" IsVisible="{Binding HasUnreadChat}"
+                               ToolTipProperties.Text="Unread messages" />
+                        <Label Grid.Column="5" Text="{Binding ChatBadge}" FontSize="10" TextColor="#7E57C2"
+                               FontAttributes="Bold" VerticalOptions="Center" IsVisible="{Binding HasUnreadChat}" />
+                        <Label Grid.Column="6" Text="{x:Static ci:Icons.Websites}" FontFamily="{x:Static ci:Icons.FontFamily}"
+                               FontSize="11" TextColor="#4FC3F7" VerticalOptions="Center" IsVisible="{Binding HasOwnWebLimits}"
+                               ToolTipProperties.Text="{Binding OwnWebLimitsText}" />
+                        <Label Grid.Column="7" Text="{Binding StateText}" TextColor="{Binding StateColor}"
+                               FontSize="10" FontAttributes="Bold" VerticalOptions="Center" />
+                    </Grid>
+
+                    <VerticalStackLayout Spacing="4">
+                        <VerticalStackLayout.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnTileTapped" />
+                        </VerticalStackLayout.GestureRecognizers>
+
+                        <!-- Live thumbnail: its height follows the Size slider / lab layout (set in code-behind). -->
+                        <Grid HeightRequest="{DynamicResource TileThumbHeight}">
+                            <ci:LiveScreenView Source="{Binding Frame}" />
+                            <Label Text="{Binding PlaceholderText}" TextColor="#AAAAAA" FontSize="11"
+                                   HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True" />
+                        </Grid>
+
+                        <HorizontalStackLayout Spacing="10">
+                            <Label Text="{Binding CpuText}" FontSize="11" />
+                            <Label Text="{Binding MemoryText}" FontSize="11" />
+                            <Label Text="{Binding BandwidthText}" FontSize="11" TextColor="#777777" />
+                        </HorizontalStackLayout>
+                        <Label Text="{Binding ForegroundText}" FontSize="10" TextColor="#888888"
+                               LineBreakMode="TailTruncation" />
+                        <HorizontalStackLayout Spacing="4" IsVisible="{Binding HasActiveHost}">
+                            <Label Text="{x:Static ci:Icons.Globe}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="10"
+                                   TextColor="#7E57C2" VerticalOptions="Center" />
+                            <Label Text="{Binding ActiveHostText}" FontSize="10" TextColor="#7E57C2"
+                                   LineBreakMode="TailTruncation" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </DataTemplate>
+
+        <!-- Lab layout: a seat with no connected student (empty place, or a computer that is off). -->
+        <DataTemplate x:Key="SeatTemplate" x:DataType="ci:SeatSlot">
+            <Border Stroke="{Binding BorderColor}" StrokeThickness="2" StrokeDashArray="4,3" Padding="8"
+                    HeightRequest="{DynamicResource TileHeight}">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8" />
+                </Border.StrokeShape>
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnSeatTapped" />
+                </Border.GestureRecognizers>
+                <Grid RowDefinitions="28,*">
+                    <Label Text="{Binding Title}" FontAttributes="Bold" FontSize="12" TextColor="#9AA0A6"
+                           VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                    <Label Grid.Row="1" Text="{Binding Detail}" TextColor="#6B7078" FontSize="11"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <ci:GridItemTemplateSelector x:Key="GridTemplates"
+                                     Tile="{StaticResource TileTemplate}" Seat="{StaticResource SeatTemplate}" />
+    </ContentPage.Resources>
+
     <Grid RowDefinitions="Auto,*" Padding="12,10" RowSpacing="8">
 
       <!-- Header panels stack without leaving gaps for the ones that are hidden. -->
@@ -159,26 +251,63 @@
             <HorizontalStackLayout Grid.Column="1" Spacing="6" VerticalOptions="Start">
                 <HorizontalStackLayout Spacing="6" IsVisible="{Binding HasStudents}">
                     <SearchBar Placeholder="Search" Text="{Binding SearchText}" WidthRequest="140"
-                               ToolTipProperties.Text="Search name, user, app or site" />
+                               ToolTipProperties.Text="Search name, user, app or site" IsVisible="{Binding ShowListControls}" />
                     <Picker ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex}" WidthRequest="96"
-                            ToolTipProperties.Text="Sort by" />
+                            ToolTipProperties.Text="Sort by" IsVisible="{Binding ShowListControls}" />
                     <Picker ItemsSource="{Binding ThumbnailChoices}" SelectedIndex="{Binding ThumbnailSizeIndex}" WidthRequest="112"
                             ToolTipProperties.Text="Stream quality" />
                     <!-- Screen size: drag to make the student screens bigger or smaller (columns follow). -->
-                    <Label Text="{x:Static ci:Icons.ZoomOut}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="12"
-                           VerticalOptions="Center" TextColor="#9AA0A6" />
-                    <Slider Minimum="180" Maximum="960" Value="{Binding TileSize}" WidthRequest="90"
-                            VerticalOptions="Center" ToolTipProperties.Text="Screen size"
-                            SemanticProperties.Description="Student screen size" />
-                    <Label Text="{x:Static ci:Icons.ZoomIn}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="12"
-                           VerticalOptions="Center" TextColor="#9AA0A6" Margin="0,0,4,0" />
+                    <HorizontalStackLayout Spacing="6" IsVisible="{Binding ShowListControls}">
+                        <Label Text="{x:Static ci:Icons.ZoomOut}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="12"
+                               VerticalOptions="Center" TextColor="#9AA0A6" />
+                        <Slider Minimum="180" Maximum="960" Value="{Binding TileSize}" WidthRequest="90"
+                                VerticalOptions="Center" ToolTipProperties.Text="Screen size"
+                                SemanticProperties.Description="Student screen size" />
+                        <Label Text="{x:Static ci:Icons.ZoomIn}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="12"
+                               VerticalOptions="Center" TextColor="#9AA0A6" Margin="0,0,4,0" />
+                    </HorizontalStackLayout>
+                    <!-- Reload: restart the screens (selected ones, or all) when one is black or frozen. -->
+                    <ci:IconButton Glyph="{x:Static ci:Icons.Reload}" ToolTip="Reload screens (the selected ones, or all)"
+                                   Clicked="OnReload" VerticalOptions="Center" />
                 </HorizontalStackLayout>
+                <!-- Lab layout: student screens arranged like the computers in the room. -->
+                <ci:IconButton Glyph="{x:Static ci:Icons.Layout}" ToolTip="Lab layout: arrange screens like the computers in the room"
+                               Clicked="OnLayout" VerticalOptions="Center" />
                 <Label Text="{Binding VisibleCountText}" FontAttributes="Bold" FontSize="12" VerticalOptions="Center" />
                 <Button Text="Switch room" Command="{Binding SwitchRoomCommand}" FontSize="11" VerticalOptions="Center"
                         BackgroundColor="Transparent" TextColor="#7E57C2" BorderColor="#B794F6" BorderWidth="1" />
+                <!-- Light / dark mode (the icon shows the mode a tap switches to; set in code-behind). -->
+                <ci:IconButton x:Name="ThemeButton" Clicked="OnToggleTheme" VerticalOptions="Center" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Settings}" ToolTip="Settings" Clicked="OnSettings" VerticalOptions="Center" />
             </HorizontalStackLayout>
         </Grid>
+
+        <!-- Some students selected: the toolbar acts on them only. -->
+        <Border IsVisible="{Binding HasSelection}" BackgroundColor="#2A2340" Stroke="#B794F6" Padding="12,4">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="8" />
+            </Border.StrokeShape>
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                <Label Text="{Binding SelectionText}" TextColor="#E1D5FF" FontAttributes="Bold" FontSize="13"
+                       VerticalOptions="Center" LineBreakMode="WordWrap" />
+                <Button Grid.Column="1" Text="Select all" Clicked="OnSelectAll" Padding="12,2" FontSize="12" />
+                <Button Grid.Column="2" Text="Clear selection" Clicked="OnClearSelection" Padding="12,2" FontSize="12"
+                        BackgroundColor="#7E57C2" TextColor="White" />
+            </Grid>
+        </Border>
+
+        <!-- Lab layout: rearranging seats. -->
+        <Border IsVisible="{Binding IsArranging}" BackgroundColor="#1F3324" Stroke="#66BB6A" Padding="12,4">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="8" />
+            </Border.StrokeShape>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <Label Text="{Binding ArrangeText}" TextColor="#C8E6C9" FontAttributes="Bold" FontSize="13"
+                       VerticalOptions="Center" LineBreakMode="WordWrap" />
+                <Button Grid.Column="1" Text="Done" Clicked="OnArrangeDone" Padding="16,2" FontSize="12"
+                        BackgroundColor="#2E7D32" TextColor="White" />
+            </Grid>
+        </Border>
 
         <!-- Lesson timer running -->
         <Border IsVisible="{Binding TimerRunning}" BackgroundColor="#EDE7F6" Stroke="#7E57C2" Padding="12,6">
@@ -230,8 +359,11 @@
 
       </VerticalStackLayout>
 
-        <!-- Live roster grid: every tile streams a thumbnail while this tab is visible (FR-STREAM-04). -->
-        <CollectionView x:Name="TileGrid" Grid.Row="1" ItemsSource="{Binding VisibleStudents}" SelectionMode="None">
+        <!-- Live roster grid: every tile streams a thumbnail while this tab is visible (FR-STREAM-04).
+             Normal view: the searched/sorted students. Lab layout: the seats in reading order
+             (empty and offline seats included), one row of the room per grid row. -->
+        <CollectionView x:Name="TileGrid" Grid.Row="1" ItemsSource="{Binding GridItems}" SelectionMode="None"
+                        ItemTemplate="{StaticResource GridTemplates}">
             <CollectionView.ItemsLayout>
                 <GridItemsLayout Orientation="Vertical" Span="3"
                                  HorizontalItemSpacing="10" VerticalItemSpacing="10" />
@@ -240,62 +372,6 @@
                 <Label Text="{Binding EmptyText}"
                        HorizontalOptions="Center" VerticalOptions="Center" TextColor="Gray" />
             </CollectionView.EmptyView>
-            <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="ci:StudentTile">
-                    <Border Stroke="{Binding TileBorderColor}" StrokeThickness="2" Padding="8">
-                        <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="8" />
-                        </Border.StrokeShape>
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnTileTapped" />
-                        </Border.GestureRecognizers>
-                        <VerticalStackLayout Spacing="4">
-                            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="5">
-                                <Label Grid.Column="0" Text="{Binding Header}" FontAttributes="Bold" FontSize="12"
-                                       LineBreakMode="TailTruncation" />
-                                <!-- Badges: raised hand (needs help), locked, unread chat. -->
-                                <Label Grid.Column="1" Text="{x:Static ci:Icons.Help}" FontFamily="{x:Static ci:Icons.FontFamily}"
-                                       FontSize="12" TextColor="#F9A825" VerticalOptions="Center" IsVisible="{Binding HandRaised}"
-                                       ToolTipProperties.Text="Needs help" />
-                                <Label Grid.Column="2" Text="{x:Static ci:Icons.Lock}" FontFamily="{x:Static ci:Icons.FontFamily}"
-                                       FontSize="12" TextColor="#C62828" VerticalOptions="Center" IsVisible="{Binding IsLocked}"
-                                       ToolTipProperties.Text="Locked" />
-                                <Label Grid.Column="6" Text="{x:Static ci:Icons.Websites}" FontFamily="{x:Static ci:Icons.FontFamily}"
-                                       FontSize="11" TextColor="#4FC3F7" VerticalOptions="Center" IsVisible="{Binding HasOwnWebLimits}"
-                                       ToolTipProperties.Text="{Binding OwnWebLimitsText}" />
-                                <Label Grid.Column="3" Text="{x:Static ci:Icons.Chat}" FontFamily="{x:Static ci:Icons.FontFamily}"
-                                       FontSize="12" TextColor="#7E57C2" VerticalOptions="Center" IsVisible="{Binding HasUnreadChat}"
-                                       ToolTipProperties.Text="Unread messages" />
-                                <Label Grid.Column="4" Text="{Binding ChatBadge}" FontSize="10" TextColor="#7E57C2"
-                                       FontAttributes="Bold" VerticalOptions="Center" IsVisible="{Binding HasUnreadChat}" />
-                                <Label Grid.Column="5" Text="{Binding StateText}" TextColor="{Binding StateColor}"
-                                       FontSize="10" FontAttributes="Bold" VerticalOptions="Center" />
-                            </Grid>
-
-                            <!-- Live thumbnail: its height follows the Size slider (set in code-behind). -->
-                            <Grid HeightRequest="{DynamicResource TileThumbHeight}">
-                                <ci:LiveScreenView Source="{Binding Frame}" />
-                                <Label Text="{Binding PlaceholderText}" TextColor="#AAAAAA" FontSize="11"
-                                       HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True" />
-                            </Grid>
-
-                            <HorizontalStackLayout Spacing="10">
-                                <Label Text="{Binding CpuText}" FontSize="11" />
-                                <Label Text="{Binding MemoryText}" FontSize="11" />
-                                <Label Text="{Binding BandwidthText}" FontSize="11" TextColor="#777777" />
-                            </HorizontalStackLayout>
-                            <Label Text="{Binding ForegroundText}" FontSize="10" TextColor="#888888"
-                                   LineBreakMode="TailTruncation" />
-                            <HorizontalStackLayout Spacing="4" IsVisible="{Binding HasActiveHost}">
-                                <Label Text="{x:Static ci:Icons.Globe}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="10"
-                                       TextColor="#7E57C2" VerticalOptions="Center" />
-                                <Label Text="{Binding ActiveHostText}" FontSize="10" TextColor="#7E57C2"
-                                       LineBreakMode="TailTruncation" />
-                            </HorizontalStackLayout>
-                        </VerticalStackLayout>
-                    </Border>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
         </CollectionView>
         <!-- Status pill (e.g. "Connected to Classroom"): a notification at the bottom right for a few
              seconds after each message, and while the app is searching for the server. -->

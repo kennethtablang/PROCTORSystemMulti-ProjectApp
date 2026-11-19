@@ -164,6 +164,18 @@ internal static class UserSession
         StartAsUser(explorer, $"\"{explorer}\" \"{path}\"", logger);
     }
 
+    /// <summary>Open the student's Explorer on the folder holding <paramref name="file"/>, with it selected (as the student).</summary>
+    public static void ShowFileInFolder(string file, ILogger logger)
+    {
+        var explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+        if (!RunningAsSystem)
+        {
+            Process.Start(new ProcessStartInfo(explorer, $"/select,\"{file}\"") { UseShellExecute = false })?.Dispose();
+            return;
+        }
+        StartAsUser(explorer, $"\"{explorer}\" /select,\"{file}\"", logger);
+    }
+
     private static string KnownFolder(Guid id, IntPtr token)
     {
         var hr = SHGetKnownFolderPath(id, 0, token, out var ptr);

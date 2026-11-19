@@ -72,6 +72,7 @@ public sealed class AgentWorker : BackgroundService
     // Remote control (FR-CTRL-05): null unless IT opted in (see the constructor).
     private readonly RemoteInput? _remote;
     private volatile string? _remoteTeacher;
+    private DateTime _lastFolderOpened = DateTime.MinValue;   // "open on arrival": one Explorer window per batch
 
     public AgentWorker(ILogger<AgentWorker> logger, ILoggerFactory loggerFactory, IConfiguration configuration)
     {
@@ -453,10 +454,27 @@ public sealed class AgentWorker : BackgroundService
         hub.On<FileFinish>(Protocol.ClientMethods.FileFinished, async finish =>
         {
             if (_files is null) return;
-            var (path, name, error) = await Task.Run(() => _files.Finished(finish));
+            var (path, name, error, open) = await Task.Run(() => _files.Finished(finish));
             if (path is null && error is null) return;   // not ours
             if (error is null)
-                _ui?.ShowNotice($"Your teacher sent you \u201C{name}\u201D. It's in \u201C{StudentFiles.ReceivedFolderName}\u201D on your desktop.", TimeSpan.FromSeconds(8));
+            {
+                // The teacher chose "open on their PCs": show the file in Explorer. Several files
+                // sent together open one window, not one each.
+                var shown = false;
+                if (open && path is not null && DateTime.UtcNow - _lastFolderOpened > TimeSpan.FromSeconds(10))
+                {
+                    try
+                    {
+                        UserSession.ShowFileInFolder(path, _logger);
+                        _lastFolderOpened = DateTime.UtcNow;
+                        shown = true;
+                    }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Couldn't open the folder of a file from the teacher."); }
+                }
+                _ui?.ShowNotice(shown || (open && DateTime.UtcNow - _lastFolderOpened < TimeSpan.FromSeconds(10))
+                    ? $"Your teacher sent you \u201C{name}\u201D. It's open in \u201C{StudentFiles.ReceivedFolderName}\u201D."
+                    : $"Your teacher sent you \u201C{name}\u201D. It's in \u201C{StudentFiles.ReceivedFolderName}\u201D on your desktop.", TimeSpan.FromSeconds(8));
+            }
             await ReportFileAsync(hub, finish.TransferId, error);
         });
         hub.On<string>(Protocol.ClientMethods.FileCancelled, id => _files?.Cancelled(id));

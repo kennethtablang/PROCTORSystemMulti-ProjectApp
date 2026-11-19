@@ -18,28 +18,55 @@ public partial class DashboardPage : ContentPage
         // columns follow from the grid's width, and the picture keeps a 16:9 shape.
         // GridItemsLayout isn't in the visual tree, so its Span is set here rather than bound.
         Application.Current!.Resources[ThumbHeightKey] = 140d;
+        Application.Current!.Resources[TileHeightKey] = 140d + TileExtraHeight;
         TileGrid.SizeChanged += (_, _) => ApplyTileSize();
         _vm.PropertyChanged += OnVmPropertyChanged;
+
+        UpdateThemeButton();
+        Application.Current.RequestedThemeChanged += (_, _) => UpdateThemeButton();
+    }
+
+    // ---- light / dark mode ----
+    private void OnToggleTheme(object? sender, EventArgs e) => Appearance.Toggle();
+
+    private void UpdateThemeButton()
+    {
+        var dark = Appearance.IsDark;
+        ThemeButton.Glyph = dark ? Icons.LightMode : Icons.DarkMode;
+        ThemeButton.ToolTip = dark ? "Switch to light mode" : "Switch to dark mode";
     }
 
     private const string ThumbHeightKey = "TileThumbHeight";
+    private const string TileHeightKey = "TileHeight";
     private const double TileSpacing = 10;
     private const double TileChrome = 2 * 8 + 4;   // tile padding + border
+    // Everything in a tile besides the picture: padding + border, name row, three info rows, spacing.
+    private const double TileExtraHeight = 16 + 4 + 28 + 4 + 4 + 16 + 4 + 14 + 4 + 16;
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(DashboardViewModel.TileSize)) ApplyTileSize();
+        if (e.PropertyName is nameof(DashboardViewModel.TileSize) or nameof(DashboardViewModel.LayoutMode)
+            or nameof(DashboardViewModel.LayoutColumns))
+            ApplyTileSize();
     }
 
+    /// <summary>
+    /// Columns: from the Size slider, or (lab layout) the computers per row. The picture keeps a
+    /// 16:9 shape, and every tile and seat gets the same height so the rows line up.
+    /// </summary>
     private void ApplyTileSize()
     {
         var width = TileGrid.Width;
         if (width <= 0) return;
-        var span = Math.Clamp((int)Math.Floor((width + TileSpacing) / (_vm.TileSize + TileSpacing)), 1, 12);
-        _vm.Columns = span;
+        var span = _vm.LayoutMode && _vm.LayoutColumns > 0
+            ? _vm.LayoutColumns
+            : Math.Clamp((int)Math.Floor((width + TileSpacing) / (_vm.TileSize + TileSpacing)), 1, 12);
+        if (!_vm.LayoutMode) _vm.Columns = span;
         if (TileGrid.ItemsLayout is GridItemsLayout layout && layout.Span != span) layout.Span = span;
         var tileWidth = (width - TileSpacing * (span - 1)) / span;
-        Application.Current!.Resources[ThumbHeightKey] = Math.Max(60, Math.Round((tileWidth - TileChrome) * 9 / 16));
+        var thumb = Math.Max(60, Math.Round((tileWidth - TileChrome) * 9 / 16));
+        Application.Current!.Resources[ThumbHeightKey] = thumb;
+        Application.Current!.Resources[TileHeightKey] = thumb + TileExtraHeight;
     }
 
     protected override async void OnAppearing()
@@ -57,12 +84,13 @@ public partial class DashboardPage : ContentPage
         _vm.Streams.SetGridVisible(false);
     }
 
-    // ---- whole-class controls (P5) ----
-    private async void OnLockAll(object? sender, EventArgs e) => await ClassActions.LockAsync(this, _vm, null);
-    private async void OnUnlockAll(object? sender, EventArgs e) => await ClassActions.UnlockAsync(this, _vm, null);
-    private async void OnMessageAll(object? sender, EventArgs e) => await ClassActions.MessageAsync(this, _vm, null, "the whole class");
-    private async void OnOpenSiteAll(object? sender, EventArgs e) => await ClassActions.OpenSiteAsync(this, _vm, null, "the whole class");
-    private async void OnPowerAll(object? sender, EventArgs e) => await ClassActions.PowerAsync(this, _vm, null, "every student PC");
+    // ---- class controls (P5): the whole class, or only the selected students ----
+    private async void OnLockAll(object? sender, EventArgs e) => await ClassActions.LockAsync(this, _vm, _vm.SelectedTargets);
+    private async void OnUnlockAll(object? sender, EventArgs e) => await ClassActions.UnlockAsync(this, _vm, _vm.SelectedTargets);
+    private async void OnMessageAll(object? sender, EventArgs e) => await ClassActions.MessageAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);
+    private async void OnOpenSiteAll(object? sender, EventArgs e) => await ClassActions.OpenSiteAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);
+    private async void OnPowerAll(object? sender, EventArgs e) =>
+        await ClassActions.PowerAsync(this, _vm, _vm.SelectedTargets, _vm.HasSelection ? _vm.TargetsWho : "every student PC");
     private async void OnLimits(object? sender, EventArgs e) => await Navigation.PushModalAsync(new LimitsPage(_vm));
     private async void OnWebsites(object? sender, EventArgs e) => await Navigation.PushModalAsync(new WebsitesPage(_vm));
     private async void OnShowScreen(object? sender, EventArgs e)
@@ -73,9 +101,9 @@ public partial class DashboardPage : ContentPage
             return;
         }
         const string full = "Full screen (students can't close it)", window = "In a window";
-        var choice = await DisplayActionSheetAsync("Show your screen to the whole class", "Cancel", null, full, window);
+        var choice = await DisplayActionSheetAsync($"Show your screen to {_vm.TargetsWho}", "Cancel", null, full, window);
         if (choice != full && choice != window) return;
-        var error = await _vm.Broadcaster.StartAsync(choice == full ? BroadcastMode.FullScreen : BroadcastMode.Window);
+        var error = await _vm.Broadcaster.StartAsync(choice == full ? BroadcastMode.FullScreen : BroadcastMode.Window, _vm.SelectedTargets);
         if (error is not null) await DisplayAlertAsync("Couldn't show your screen", error, "OK");
     }
 
@@ -87,7 +115,85 @@ public partial class DashboardPage : ContentPage
     private async void OnSnapshot(object? sender, EventArgs e) => await SnapshotAll();
     private async void OnAttendance(object? sender, EventArgs e) => await ExportAttendance();
     private async void OnPin(object? sender, EventArgs e) => await ManagePin();
-    private async void OnSendFiles(object? sender, EventArgs e) => await ClassActions.SendFilesAsync(this, _vm, null, "the whole class");
+    private async void OnSendFiles(object? sender, EventArgs e) => await ClassActions.SendFilesAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);
+
+    // ---- reload, selection, lab layout ----
+    private async void OnReload(object? sender, EventArgs e)
+    {
+        var only = _vm.HasSelection ? _vm.SelectedStudents.Select(s => s.ConnectionId).ToArray() : null;
+        await _vm.Streams.ReloadAsync(only);
+    }
+
+    private void OnSelectAll(object? sender, EventArgs e) => _vm.SelectAll();
+    private void OnClearSelection(object? sender, EventArgs e) => _vm.ClearSelection();
+    private void OnArrangeDone(object? sender, EventArgs e) => _vm.IsArranging = false;
+
+    private async void OnLayout(object? sender, EventArgs e)
+    {
+        if (!_vm.HasLayout)
+        {
+            await CreateLayoutAsync();
+            return;
+        }
+        const string show = "Show the lab layout", normal = "Back to the normal grid", arrange = "Rearrange seats (tap two to swap)",
+            size = "Change rows and computers per row", auto = "Re-arrange by computer name", clear = "Delete this layout";
+        var options = _vm.LayoutMode ? new[] { normal, arrange, size, auto, clear } : new[] { show, arrange, size, auto, clear };
+        var choice = await DisplayActionSheetAsync($"Lab layout · {_vm.LayoutRows} rows × {_vm.LayoutColumns} computers", "Cancel", null, options);
+        switch (choice)
+        {
+            case show: _vm.LayoutMode = true; break;
+            case normal: _vm.LayoutMode = false; break;
+            case arrange: _vm.LayoutMode = true; _vm.IsArranging = true; break;
+            case size:
+                if (await AskLayoutSizeAsync(_vm.LayoutRows, _vm.LayoutColumns) is { } s) { _vm.ResizeLayout(s.Rows, s.Columns); _vm.LayoutMode = true; }
+                break;
+            case auto:
+                if (await DisplayAlertAsync("Re-arrange by computer name?", "Seats are filled in name order (PC1, PC2 … PC10). Your own arrangement is replaced.", "Re-arrange", "Cancel"))
+                    _vm.AutoArrange();
+                break;
+            case clear:
+                if (await DisplayAlertAsync("Delete the lab layout?", "The dashboard goes back to the normal grid. You can make a new layout any time.", "Delete", "Cancel"))
+                    _vm.ClearLayout();
+                break;
+        }
+        ApplyTileSize();
+    }
+
+    private async Task CreateLayoutAsync()
+    {
+        var count = Math.Max(1, _vm.StudentCount);
+        var columns = Math.Clamp((int)Math.Ceiling(Math.Sqrt(count * 1.5)), 1, DashboardViewModel.MaxLayoutSide);
+        var rows = Math.Clamp((int)Math.Ceiling(count / (double)columns), 1, DashboardViewModel.MaxLayoutSide);
+        if (await AskLayoutSizeAsync(rows, columns) is not { } s) return;
+        _vm.CreateLayout(s.Rows, s.Columns);
+        ApplyTileSize();
+        await DisplayAlertAsync("Lab layout ready",
+            "Computers are seated in name order. To match the room, use the layout button → Rearrange seats, " +
+            "then tap a computer and the seat it belongs in. The layout is saved on this device for this classroom.", "OK");
+    }
+
+    private async Task<(int Rows, int Columns)?> AskLayoutSizeAsync(int rows, int columns)
+    {
+        var r = await DisplayPromptAsync("Lab layout", "How many rows of computers are in the lab?", "Next", "Cancel",
+            "e.g. 5", 2, Keyboard.Numeric, rows.ToString());
+        if (!int.TryParse(r, out var rr) || rr < 1) return null;
+        var c = await DisplayPromptAsync("Lab layout", "How many computers in each row? (count aisles as places too)", "OK", "Cancel",
+            "e.g. 8", 2, Keyboard.Numeric, columns.ToString());
+        if (!int.TryParse(c, out var cc) || cc < 1) return null;
+        return (Math.Min(rr, DashboardViewModel.MaxLayoutSide), Math.Min(cc, DashboardViewModel.MaxLayoutSide));
+    }
+
+    private void OnTileHeaderTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is not StudentTile tile) return;
+        if (_vm.IsArranging) { _vm.SeatTapped(_vm.SeatIndexOf(tile)); return; }
+        tile.IsSelected = !tile.IsSelected;
+    }
+
+    private void OnSeatTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is SeatSlot seat && _vm.IsArranging) _vm.SeatTapped(seat.Index);
+    }
 
     private async void OnCollectToggle(object? sender, EventArgs e)
     {
@@ -183,6 +289,13 @@ public partial class DashboardPage : ContentPage
     private async void OnTileTapped(object? sender, TappedEventArgs e)
     {
         if ((sender as BindableObject)?.BindingContext is not StudentTile tile) return;
+
+        // Rearranging the lab: a tap picks this computer's seat instead of opening it.
+        if (_vm.IsArranging)
+        {
+            _vm.SeatTapped(_vm.SeatIndexOf(tile));
+            return;
+        }
 
         if (!_vm.Client.IsConnected)
         {

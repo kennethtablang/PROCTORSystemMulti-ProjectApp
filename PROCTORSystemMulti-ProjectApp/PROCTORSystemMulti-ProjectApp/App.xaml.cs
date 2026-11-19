@@ -5,6 +5,8 @@ namespace PROCTORSystemMulti_ProjectApp
         public App()
         {
             InitializeComponent();
+            // Light / dark mode: the teacher's choice (Settings or the toolbar), else the device's.
+            PROCTOR.Appearance.Apply();
         }
 
         protected override Window CreateWindow(IActivationState? activationState)

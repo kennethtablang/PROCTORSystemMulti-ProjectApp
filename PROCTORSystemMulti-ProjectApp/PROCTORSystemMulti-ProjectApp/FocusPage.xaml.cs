@@ -145,6 +145,8 @@ public partial class FocusPage : ContentPage
         if (message is not null) await DisplayAlertAsync("Remote control", message, "OK");
     }
 
+    private async void OnReload(object? sender, EventArgs e) => await _vm.Streams.ReloadAsync([_tile.ConnectionId]);
+
     private void OnKeyboard(object? sender, EventArgs e)
     {
         if (_control is not null) PlatformServices.RemoteInput.ShowKeyboard();

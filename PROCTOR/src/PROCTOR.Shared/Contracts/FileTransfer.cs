@@ -19,6 +19,12 @@ public sealed record FileOffer
 
     public bool HandIn { get; init; }
 
+    /// <summary>
+    /// Teacher's send: once saved, the student PC opens "Files from teacher" with the file selected.
+    /// (Older agents ignore it and just save the file.)
+    /// </summary>
+    public bool OpenOnArrival { get; init; }
+
     /// <summary>Set by the server: who it's from (computer · user for students).</summary>
     public string? FromName { get; init; }
 

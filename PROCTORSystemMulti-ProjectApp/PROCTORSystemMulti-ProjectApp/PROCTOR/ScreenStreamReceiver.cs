@@ -62,6 +62,27 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
     /// <summary>True while waiting for the agent's offer to the current request.</summary>
     public bool AwaitingOffer { get; private set; }
 
+    // Black-screen watchdog: the agent sends at least one frame a second even when nothing changes,
+    // so a connected stream with no picture for a while is stuck, and so is one that was answered
+    // but never connected.
+    private static readonly TimeSpan NoPictureLimit = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan ConnectLimit = TimeSpan.FromSeconds(15);
+    private long _lastFrameTicks, _connectedTicks, _answeredTicks;
+
+    /// <summary>The stream looks alive but shows nothing: restart it (StreamManager's watchdog).</summary>
+    public bool IsStalled(DateTimeOffset now)
+    {
+        if (_disposed || AwaitingOffer || Failed) return false;
+        var nowTicks = now.UtcTicks;
+        if (IsConnected)
+        {
+            var since = Math.Max(Interlocked.Read(ref _lastFrameTicks), Interlocked.Read(ref _connectedTicks));
+            return since > 0 && nowTicks - since > NoPictureLimit.Ticks;
+        }
+        var answered = Interlocked.Read(ref _answeredTicks);
+        return answered > 0 && nowTicks - answered > ConnectLimit.Ticks;
+    }
+
     /// <summary>Ask the server for a stream at this quality/display (also used to switch).</summary>
     public async Task RequestAsync(StreamQuality quality, int displayIndex, int width)
     {
@@ -125,6 +146,7 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
                 switch (state)
                 {
                     case RTCPeerConnectionState.connected:
+                        Interlocked.Exchange(ref _connectedTicks, DateTimeOffset.UtcNow.UtcTicks);
                         _status("Live");
                         break;
                     case RTCPeerConnectionState.connecting:
@@ -162,6 +184,9 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
             _pc = pc;
             _decoder = decoder;
             AwaitingOffer = false;
+            Interlocked.Exchange(ref _answeredTicks, DateTimeOffset.UtcNow.UtcTicks);
+            Interlocked.Exchange(ref _connectedTicks, 0);
+            Interlocked.Exchange(ref _lastFrameTicks, 0);
         }
 
         await pc.setLocalDescription(answer);
@@ -211,6 +236,7 @@ public sealed class ScreenStreamReceiver : IAsyncDisposable
                 if (sample.Sample.Length < (long)w * h * 3) continue;
 
                 _tile.Frame.WriteBgr(w, h, sample.Sample);
+                Interlocked.Exchange(ref _lastFrameTicks, DateTimeOffset.UtcNow.UtcTicks);
             }
         }
         catch

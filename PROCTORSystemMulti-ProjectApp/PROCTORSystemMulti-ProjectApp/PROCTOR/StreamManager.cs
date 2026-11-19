@@ -177,7 +177,9 @@ public sealed class StreamManager : IAsyncDisposable
 
                 if (_receivers.TryGetValue(id, out var existing))
                 {
-                    var stale = existing.Failed || (existing.AwaitingOffer && now - existing.RequestedAt > OfferTimeout);
+                    // Failed, never answered, or "live" without a picture (black tile): start over.
+                    var stale = existing.Failed || (existing.AwaitingOffer && now - existing.RequestedAt > OfferTimeout)
+                                || existing.IsStalled(now);
                     if (existing.Quality == want.Quality && existing.DisplayIndex == want.Display
                         && existing.Width == want.Width && !stale) continue;
 
@@ -218,6 +220,37 @@ public sealed class StreamManager : IAsyncDisposable
     {
         if (_receivers.TryGetValue(candidate.FromConnectionId, out var receiver))
             receiver.HandleIceCandidate(candidate);
+    }
+
+    /// <summary>
+    /// The teacher's Reload button: restart these students' streams (null = everyone) from scratch,
+    /// so a black or frozen screen comes back with a fresh picture.
+    /// </summary>
+    public async Task ReloadAsync(IReadOnlyCollection<string>? studentConnectionIds = null)
+    {
+        var only = studentConnectionIds is null ? null : new HashSet<string>(studentConnectionIds, StringComparer.Ordinal);
+        await _lock.WaitAsync();
+        try
+        {
+            var tiles = _students().ToDictionary(t => t.ConnectionId);
+            foreach (var id in _receivers.Keys.ToArray())
+            {
+                if (only is not null && !only.Contains(id)) continue;
+                if (_receivers.TryRemove(id, out var receiver)) await receiver.DisposeAsync();
+                _unwantedSince.Remove(id);
+                if (tiles.TryGetValue(id, out var tile))
+                {
+                    tile.Frame.Clear();
+                    OnUi(() => tile.StreamStatus = "Reloading…");
+                }
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+        // Give the agents a moment to tear the old streams down before asking again.
+        ScheduleAfter(TimeSpan.FromMilliseconds(400));
     }
 
     /// <summary>Drop every receiver (connection reset) and rebuild from the current view state.</summary>

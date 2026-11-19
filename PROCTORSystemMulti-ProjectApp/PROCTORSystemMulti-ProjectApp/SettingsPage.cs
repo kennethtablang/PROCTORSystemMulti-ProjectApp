@@ -27,6 +27,10 @@ public sealed class SettingsPage : ContentPage
         var size = new Slider { Minimum = DashboardViewModel.MinTileSize, Maximum = DashboardViewModel.MaxTileSize, Value = vm.TileSize, WidthRequest = 220 };
         size.ValueChanged += (_, e) => vm.TileSize = e.NewValue;
 
+        // ---- appearance
+        var theme = new Picker { ItemsSource = Appearance.Choices.ToList(), SelectedIndex = Appearance.SavedIndex, WidthRequest = 220 };
+        theme.SelectedIndexChanged += (_, _) => Appearance.SetIndex(theme.SelectedIndex);
+
         // ---- teacher PIN
         var pin = Secondary("Set or change PIN");
         pin.Clicked += async (_, _) => { await TeacherPinFlow.ManageAsync(this); RefreshPin(); };
@@ -62,6 +66,9 @@ public sealed class SettingsPage : ContentPage
                 Row("Dashboard stream quality", quality),
                 Row("Student view quality", focus),
                 Row("Screen size on the dashboard", size),
+
+                Section("Appearance"),
+                Row("Light or dark mode", theme),
 
                 Section("Teacher PIN"),
                 Row("PIN", _pinState),

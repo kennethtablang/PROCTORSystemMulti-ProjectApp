@@ -50,6 +50,7 @@
             <ci:IconButton Glyph="{x:Static ci:Icons.Websites}" ToolTip="This student's websites: own allow / block list" Clicked="OnWebsites" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Power}" ToolTip="Log off, restart or shut down" Clicked="OnPower" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Camera}" ToolTip="Save a screenshot" Clicked="OnScreenshot" Margin="0,0,4,4" />
+            <ci:IconButton Glyph="{x:Static ci:Icons.Reload}" ToolTip="Reload this screen (if it's black or frozen)" Clicked="OnReload" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Screen}" ToolTip="Show this screen to the class" Clicked="OnShowToClass" Margin="0,0,12,4" />
             <Label Text="{x:Static ci:Icons.Lock}" FontFamily="{x:Static ci:Icons.FontFamily}" TextColor="#EF9A9A" FontSize="12"
                    VerticalOptions="Center" IsVisible="{Binding IsLocked}" Margin="0,0,4,4" />

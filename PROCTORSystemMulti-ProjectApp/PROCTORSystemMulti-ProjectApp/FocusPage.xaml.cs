@@ -195,6 +195,8 @@ public partial class FocusPage : ContentPage
             error ?? $"The class now sees {_tile.MachineName}'s screen, and the student has been told. Stop it from the dashboard banner or this button.", "OK");
     }
 
+    private async void OnHistory(object? sender, EventArgs e) => await Navigation.PushModalAsync(new HistoryPage(_vm, _tile.MachineName));
+
     private async void OnScreenshot(object? sender, EventArgs e)
     {
         var path = DashboardViewModel.SaveScreenshot(_tile);

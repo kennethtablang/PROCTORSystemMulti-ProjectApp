@@ -16,7 +16,7 @@ public sealed class ActivityPage : ContentPage
     private readonly CollectionView _list;
     private readonly Label _count = new() { FontSize = 12, TextColor = Color.FromArgb("#9AA0A6"), VerticalOptions = LayoutOptions.Center };
 
-    private static readonly string[] Kinds = ["Everything", "Programs", "Websites", "Blocked sites", "Flash drives", "Joined / left"];
+    private static readonly string[] Kinds = ["Everything", "Programs", "Websites", "Blocked sites / programs", "Flash drives", "Joined / left"];
 
     public ActivityPage(DashboardViewModel vm)
     {
@@ -25,7 +25,7 @@ public sealed class ActivityPage : ContentPage
 
         _who = new Picker { WidthRequest = 200, ItemsSource = Names(), SelectedIndex = 0 };
         _who.SelectedIndexChanged += (_, _) => Refresh();
-        _kind = new Picker { WidthRequest = 160, ItemsSource = Kinds, SelectedIndex = 0 };
+        _kind = new Picker { WidthRequest = 210, ItemsSource = Kinds, SelectedIndex = 0 };
         _kind.SelectedIndexChanged += (_, _) => Refresh();
 
         _list = new CollectionView
@@ -149,7 +149,7 @@ public sealed class ActivityPage : ContentPage
     {
         1 => kind == "Program",
         2 => kind == "Website",
-        3 => kind == "Blocked site",
+        3 => kind is "Blocked site" or "Blocked program",
         4 => kind == "Flash drive",
         5 => kind is "Joined" or "Left",
         _ => true,

@@ -44,6 +44,28 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GlobalMemoryStatusEx([In, Out] MEMORYSTATUSEX lpBuffer);
 
+    // ---- keyboard / mouse idle time ----
+    [StructLayout(LayoutKind.Sequential)]
+    public struct LASTINPUTINFO
+    {
+        public uint cbSize;
+        public uint dwTime;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+    /// <summary>Seconds since the last keyboard or mouse input in this session, or null if unknown.</summary>
+    public static int? IdleSeconds()
+    {
+        var info = new LASTINPUTINFO { cbSize = (uint)Marshal.SizeOf<LASTINPUTINFO>() };
+        if (!GetLastInputInfo(ref info)) return null;
+        // Both are milliseconds since boot, wrapping every 49.7 days; unsigned subtraction handles the wrap.
+        var ms = unchecked((uint)Environment.TickCount - info.dwTime);
+        return (int)Math.Min(ms / 1000, int.MaxValue);
+    }
+
     // ---- DPI ----
     // Per-monitor-v2: GetSystemMetrics / monitor rects / BitBlt all speak physical pixels, so a
     // scaled display (125%, 150%…) is captured whole and sharp instead of DPI-virtualised.

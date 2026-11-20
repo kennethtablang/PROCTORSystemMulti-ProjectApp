@@ -57,6 +57,15 @@ public static class Icons
     public static readonly string Exam = G('', '');        // quiz (exam mode)
     public static readonly string Activity = G('', '');    // history (activity log)
     public static readonly string Programs = G('', '');    // launch (open / close programs)
+    public static readonly string Alert = G('', '');      // warning (teacher alerts)
+    public static readonly string Replay = G('', '');     // video_library (screen history)
+    public static readonly string Groups = G('', '');     // group (saved student groups)
+    public static readonly string Computer = G('', '');   // computer (PC inventory)
+    public static readonly string Play = G('', '');       // play_arrow
+    public static readonly string Pause = G('', '');      // pause
+    public static readonly string Previous = G('', '');   // skip_previous
+    public static readonly string Next = G('', '');       // skip_next
+    public static readonly string Delete = G('', '');     // delete
 }
 
 /// <summary>

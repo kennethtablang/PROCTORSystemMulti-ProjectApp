@@ -45,7 +45,28 @@ public sealed class SystemTelemetryCollector
             ActiveUrl = _browser?.CurrentHost,
             RemovableDrives = SampleRemovableDrives(),
             RecentBlockedSites = BlockedSiteLog.Recent(),
+            RecentBlockedApps = BlockedAppLog.Recent(),
+            IdleSeconds = SafeIdleSeconds(),
+            Inventory = SampleInventory(),
         };
+    }
+
+    private static int? SafeIdleSeconds()
+    {
+        try { return NativeMethods.IdleSeconds(); }
+        catch { return null; }
+    }
+
+    // The PC inventory: in the first sample, then every 30 seconds (disk space and uptime change).
+    private static readonly TimeSpan InventoryInterval = TimeSpan.FromSeconds(30);
+    private DateTime _inventoryAt = DateTime.MinValue;
+
+    private PcInventory? SampleInventory()
+    {
+        if (DateTime.UtcNow - _inventoryAt < InventoryInterval) return null;
+        _inventoryAt = DateTime.UtcNow;
+        try { return PcInventoryReader.Read(); }
+        catch { return null; }
     }
 
     // Flash drives / memory cards: re-read every few seconds (enough to notice one being plugged in).

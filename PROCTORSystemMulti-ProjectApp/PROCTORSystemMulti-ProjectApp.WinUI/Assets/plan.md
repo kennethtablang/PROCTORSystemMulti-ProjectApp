@@ -816,6 +816,26 @@ this document and `README.md` in sync with reality.
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
 
+- **0.31 — 2026-11-20** (release 0.5.0)
+  - **Teacher alerts.** A banner, a sound (Windows) or a buzz (phones) and a red outline/badge on the
+    student's screen when a blocked site or blocked program is opened (new telemetry
+    `RecentBlockedApps`), a flash drive is plugged in, a watched word appears in a window title or
+    website, a PC is idle for N minutes (new telemetry `IdleSeconds`, from `GetLastInputInfo`), or a
+    PC disconnects during an exam. Each kind can be switched off; repeats are held back for a minute.
+    Alerts page lists the session's alerts. Kept on the teacher device only.
+  - **Screen history.** Every 5–60 s a JPEG of each student's screen (only when it changed) is saved
+    on the teacher device: off / during exams only (default) / always. While recording, thumbnails
+    keep streaming even when the grid is hidden. Old days are deleted after 1–30 days, and the total
+    is capped (5 GB on a PC, 1 GB on a phone). A player scrubs one computer's day (from the toolbar
+    or the focus view).
+  - **Saved student groups.** Name the selected computers ("Group A", "Row 1"); picking a group
+    selects its connected computers, so every toolbar action applies to it. Per classroom, on this
+    device.
+  - **PC inventory.** Agents report maker/model, processor, memory, Windows drive space, Windows
+    edition and build, start time and agent version (`PcInventory` in telemetry, every 30 s; registry
+    and Win32 only). The inventory page flags low disk space and older agents and exports CSV.
+  - All new telemetry is bounded by `TelemetryLimits.Clean` (server and teacher app); test added.
+
 - **0.30 — 2026-11-19**
   - **Toolbar layout fix (Windows).** The view controls were a wrapping FlexLayout in an Auto-width
     grid column, which MAUI measures with unlimited width and mis-arranges. Wide screens are back to

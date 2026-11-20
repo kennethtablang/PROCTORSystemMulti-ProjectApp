@@ -35,6 +35,40 @@ public sealed record TelemetrySnapshot
     /// activity log; the teacher app keeps each event once. Empty on older agents.
     /// </summary>
     public IReadOnlyList<BlockedSiteEvent> RecentBlockedSites { get; init; } = Array.Empty<BlockedSiteEvent>();
+
+    /// <summary>Blocked programs the agent closed in the last two minutes (name + time). Empty on older agents.</summary>
+    public IReadOnlyList<BlockedAppEvent> RecentBlockedApps { get; init; } = Array.Empty<BlockedAppEvent>();
+
+    /// <summary>Seconds since the student last used the keyboard or mouse; null on older agents.</summary>
+    public int? IdleSeconds { get; init; }
+
+    /// <summary>
+    /// The PC's hardware and Windows details (for the lab inventory). Sent in the first sample and
+    /// then about every 30 seconds; null in the samples between and from older agents.
+    /// </summary>
+    public PcInventory? Inventory { get; init; }
+}
+
+/// <summary>What a student PC is: hardware, Windows, disk space, uptime and agent version.</summary>
+public sealed record PcInventory
+{
+    public string? Manufacturer { get; init; }
+    public string? Model { get; init; }
+    public string? CpuName { get; init; }
+    public int CpuCores { get; init; }
+    public long MemoryTotalBytes { get; init; }
+
+    /// <summary>The Windows drive (usually C:).</summary>
+    public long DiskTotalBytes { get; init; }
+    public long DiskFreeBytes { get; init; }
+
+    /// <summary>e.g. "Windows 11 Pro 24H2 (build 26100.2605)".</summary>
+    public string? Windows { get; init; }
+
+    /// <summary>When Windows last started (UTC).</summary>
+    public DateTimeOffset? BootedAt { get; init; }
+
+    public string? AgentVersion { get; init; }
 }
 
 /// <summary>
@@ -79,8 +113,33 @@ public static class TelemetryLimits
                 .Take(BlockedSiteEvent.MaxReported)
                 .Select(x => x.Event with { Host = x.Host! })
                 .ToArray(),
+            RecentBlockedApps = (t.RecentBlockedApps ?? [])
+                .Where(b => b is not null && b.At >= at - BlockedSiteWindow && b.At <= at + TimeSpan.FromMinutes(1))
+                .Select(b => b with { Name = Cap(b.Name, MaxNameLength) ?? "" })
+                .Where(b => b.Name.Length > 0)
+                .Take(BlockedAppEvent.MaxReported)
+                .ToArray(),
+            IdleSeconds = t.IdleSeconds is { } idle ? Math.Clamp(idle, 0, MaxIdleSeconds) : null,
+            Inventory = t.Inventory is { } inv ? CleanInventory(inv) : null,
         };
     }
+
+    /// <summary>Idle time is capped at a week (longer is still "idle").</summary>
+    public const int MaxIdleSeconds = 7 * 24 * 3600;
+
+    private static PcInventory CleanInventory(PcInventory i) => i with
+    {
+        Manufacturer = Cap(i.Manufacturer, MaxLabelLength),
+        Model = Cap(i.Model, MaxNameLength),
+        CpuName = Cap(i.CpuName, MaxNameLength),
+        CpuCores = Math.Clamp(i.CpuCores, 0, 1024),
+        MemoryTotalBytes = Math.Max(0, i.MemoryTotalBytes),
+        DiskTotalBytes = Math.Max(0, i.DiskTotalBytes),
+        DiskFreeBytes = Math.Clamp(i.DiskFreeBytes, 0, Math.Max(0, i.DiskTotalBytes)),
+        Windows = Cap(i.Windows, MaxNameLength),
+        BootedAt = i.BootedAt is { } b && b.Year >= 2000 && b <= DateTimeOffset.UtcNow.AddDays(1) ? b : null,
+        AgentVersion = Cap(i.AgentVersion, 32),
+    };
 
     private static bool IsDriveLetter(string? letter) =>
         letter is { Length: 2 } && char.IsAsciiLetter(letter[0]) && letter[1] == ':';
@@ -98,6 +157,14 @@ public sealed record BlockedSiteEvent
 {
     public const int MaxReported = 10;
     public string Host { get; init; } = string.Empty;
+    public DateTimeOffset At { get; init; }
+}
+
+/// <summary>A blocked program the agent closed (its process name, e.g. "Roblox").</summary>
+public sealed record BlockedAppEvent
+{
+    public const int MaxReported = 10;
+    public string Name { get; init; } = string.Empty;
     public DateTimeOffset At { get; init; }
 }
 

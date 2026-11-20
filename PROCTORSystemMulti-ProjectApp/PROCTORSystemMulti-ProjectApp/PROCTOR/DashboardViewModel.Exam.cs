@@ -112,7 +112,12 @@ public sealed partial class DashboardViewModel
             AddActivity(tile, "Program", tile.ForegroundText);
         if (tile.ActiveHostText != oldHost && !string.IsNullOrWhiteSpace(tile.ActiveHostText))
             AddActivity(tile, "Website", tile.ActiveHostText);
-        if (tile.HasUsbDrive && !oldUsb) AddActivity(tile, "Flash drive", "Plugged in: " + tile.UsbText.Replace("Flash drive: ", ""));
+        if (tile.HasUsbDrive && !oldUsb)
+        {
+            var drive = tile.UsbText.Replace("Flash drive: ", "");
+            AddActivity(tile, "Flash drive", "Plugged in: " + drive);
+            RaiseAlert(tile, tile.MachineName, AlertKind.FlashDrive, "Plugged in: " + drive);
+        }
         else if (!tile.HasUsbDrive && oldUsb) AddActivity(tile, "Flash drive", "Removed: " + oldUsbText.Replace("Flash drive: ", ""));
 
         foreach (var b in t.RecentBlockedSites ?? [])
@@ -120,7 +125,18 @@ public sealed partial class DashboardViewModel
             if (string.IsNullOrWhiteSpace(b.Host)) continue;
             if (!_seenBlocked.Add($"{tile.ConnectionId}|{b.Host}|{b.At.UtcTicks}")) continue;
             if (_seenBlocked.Count > 20000) _seenBlocked.Clear();
-            AddActivity(tile, "Blocked site", b.Host.Length > 100 ? b.Host[..100] : b.Host);
+            var site = b.Host.Length > 100 ? b.Host[..100] : b.Host;
+            AddActivity(tile, "Blocked site", site);
+            RaiseAlert(tile, tile.MachineName, AlertKind.BlockedSite, site);
+        }
+
+        foreach (var a in t.RecentBlockedApps ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(a.Name)) continue;
+            if (!_seenBlocked.Add($"{tile.ConnectionId}|app:{a.Name}|{a.At.UtcTicks}")) continue;
+            if (_seenBlocked.Count > 20000) _seenBlocked.Clear();
+            AddActivity(tile, "Blocked program", a.Name + " (closed)");
+            RaiseAlert(tile, tile.MachineName, AlertKind.BlockedProgram, a.Name);
         }
     }
 
@@ -144,7 +160,7 @@ public sealed record ActivityEntry(DateTimeOffset At, string Computer, string Us
     public string Who => string.IsNullOrEmpty(User) ? Computer : $"{Computer} · {User}";
     public Color KindColor => Kind switch
     {
-        "Blocked site" => Color.FromArgb("#EF5350"),
+        "Blocked site" or "Blocked program" => Color.FromArgb("#EF5350"),
         "Flash drive" => Color.FromArgb("#FF8A65"),
         "Website" => Color.FromArgb("#7E57C2"),
         "Joined" or "Left" => Color.FromArgb("#26A69A"),

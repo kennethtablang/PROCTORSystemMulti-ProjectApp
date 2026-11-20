@@ -160,6 +160,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
             if (value) { NeedsRoomChoice = false; ShowManualEntry = false; }
             RefreshCommands();
             RaiseConnectGuide();
+            UpdateRecorder();
         }
     }
     public bool NotConnected => !_isConnected;
@@ -264,6 +265,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
             _policy = value;
             Raise(); Raise(nameof(PolicySummary)); Raise(nameof(HasPolicy));
             Raise(nameof(IsExamRunning)); Raise(nameof(ExamText));
+            UpdateRecorder();   // screen history follows the exam
         }
     }
 
@@ -803,6 +805,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         if (_byConnection.Remove(connectionId, out var tile))
         {
             AddActivity(tile, "Left", "Disconnected");
+            if (IsExamRunning) RaiseAlert(null, tile.MachineName, AlertKind.LeftExam, "Disconnected during the exam");
             Students.Remove(tile);
             RosterChanged();
         }
@@ -818,9 +821,10 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         if (!_byConnection.TryGetValue(connectionId, out var tile)) return;
         // Same bounds as the server applies (an older server forwards reports unchecked).
         telemetry = TelemetryLimits.Clean(telemetry);
-        var (window, host, usb, usbText) = (tile.ForegroundText, tile.ActiveHostText, tile.HasUsbDrive, tile.UsbText);
+        var (window, host, usb, usbText, idle) = (tile.ForegroundText, tile.ActiveHostText, tile.HasUsbDrive, tile.UsbText, tile.IdleSeconds);
         tile.Apply(telemetry);
         TrackActivity(tile, window, host, usb, usbText, telemetry);
+        CheckAlerts(tile, window, host, idle);
     }
 
     private void RosterChanged()

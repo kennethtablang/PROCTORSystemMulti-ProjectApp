@@ -19,6 +19,8 @@ public sealed class StudentTile : INotifyPropertyChanged
         ConnectionId = snap.ConnectionId;
         MachineName = string.IsNullOrWhiteSpace(snap.MachineName) ? "(unknown)" : snap.MachineName;
         UserName = snap.UserName;
+        IpAddress = snap.IpAddress ?? "";
+        MacAddresses = snap.MacAddresses ?? [];
         Displays = snap.Displays.Count > 0
             ? snap.Displays
             : [new DisplayInfo { Index = 0, Width = snap.ScreenWidth, Height = snap.ScreenHeight, IsPrimary = true }];
@@ -44,6 +46,8 @@ public sealed class StudentTile : INotifyPropertyChanged
     public string ConnectionId { get; }
     public string MachineName { get; }
     public string? UserName { get; }
+    public string IpAddress { get; }
+    public IReadOnlyList<string> MacAddresses { get; }
 
     /// <summary>The student's displays, primary first (FR-AGENT-04).</summary>
     public IReadOnlyList<DisplayInfo> Displays { get; }
@@ -120,13 +124,61 @@ public sealed class StudentTile : INotifyPropertyChanged
 
     /// <summary>
     /// Tile outline: none normally (a light outline read as a white line around every screen);
-    /// green while being moved in the lab layout, purple when selected, amber while the hand is up.
+    /// green while being moved in the lab layout, red while it has an alert, purple when selected,
+    /// amber while the hand is up.
     /// </summary>
     public Color TileBorderColor =>
         _isSwapSource ? Color.FromArgb("#66BB6A")
+        : _alertText is not null ? Color.FromArgb("#EF5350")
         : _isSelected ? Color.FromArgb("#B794F6")
         : _handRaised ? Color.FromArgb("#F9A825")
         : Colors.Transparent;
+
+    // ---- teacher alerts ----
+
+    private string? _alertText;
+    /// <summary>The latest alert for this PC not yet dismissed (e.g. "Blocked site: youtube.com"), or null.</summary>
+    public string? AlertText
+    {
+        get => _alertText;
+        set
+        {
+            if (_alertText == value) return;
+            _alertText = value;
+            Raise(); Raise(nameof(HasAlert)); Raise(nameof(TileBorderColor));
+        }
+    }
+    public bool HasAlert => _alertText is not null;
+
+    // ---- idle (no keyboard or mouse) ----
+
+    private int? _idleSeconds;
+    /// <summary>Seconds since the student last used the keyboard or mouse; null from older agents.</summary>
+    public int? IdleSeconds => _idleSeconds;
+
+    /// <summary>"Idle 6 min" once nobody has touched the PC for a minute or more; empty otherwise.</summary>
+    public string IdleText => _idleSeconds is { } s && s >= 60 ? $"Idle {FormatDuration(s)}" : "";
+    public bool IsIdle => _idleSeconds is >= 60;
+
+    private void SetIdle(int? seconds)
+    {
+        var before = IdleText;
+        _idleSeconds = seconds;
+        if (IdleText != before) { Raise(nameof(IdleText)); Raise(nameof(IsIdle)); }
+    }
+
+    public static string FormatDuration(int seconds) =>
+        seconds < 3600 ? $"{seconds / 60} min" : seconds < 86400 ? $"{seconds / 3600} h {seconds / 60 % 60} min" : $"{seconds / 86400} d {seconds / 3600 % 24} h";
+
+    // ---- PC inventory ----
+
+    private PcInventory? _inventory;
+    /// <summary>The PC's last hardware / Windows report (arrives within 30 s of joining); null until then.</summary>
+    public PcInventory? Inventory
+    {
+        get => _inventory;
+        private set { _inventory = value; Raise(); }
+    }
 
     /// <summary>Latest decoded screen frame — what the thumbnail and the focus view paint.</summary>
     public FrameBuffer Frame { get; } = new();
@@ -260,6 +312,8 @@ public sealed class StudentTile : INotifyPropertyChanged
         _foreground = t.ForegroundWindowTitle;
         _activeHost = t.ActiveUrl;
         SetDrives(t.RemovableDrives ?? []);
+        SetIdle(t.IdleSeconds);
+        if (t.Inventory is { } inventory) Inventory = inventory;
 
         Processes = t.TopProcesses
             .Select(p => new ProcessRow(p.Name, $"PID {p.Pid}", $"{p.CpuPercent:0.#}%", Human(p.MemoryBytes)))
@@ -278,7 +332,7 @@ public sealed class StudentTile : INotifyPropertyChanged
         Raise(nameof(Processes));
     }
 
-    private static string Human(double bytes)
+    public static string Human(double bytes)
     {
         string[] units = ["B", "KB", "MB", "GB"];
         double v = bytes;

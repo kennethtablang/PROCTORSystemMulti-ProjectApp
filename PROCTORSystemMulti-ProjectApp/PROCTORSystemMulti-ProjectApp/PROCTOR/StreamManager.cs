@@ -82,6 +82,18 @@ public sealed class StreamManager : IAsyncDisposable
         Schedule();
     }
 
+    private bool _keepThumbnails;
+
+    /// <summary>
+    /// Keep every thumbnail streaming even while the grid is hidden (focus view, another page open):
+    /// screen history is recording and needs the pictures.
+    /// </summary>
+    public bool KeepThumbnails
+    {
+        get => _keepThumbnails;
+        set { if (_keepThumbnails != value) { _keepThumbnails = value; Schedule(); } }
+    }
+
     /// <summary>Open (or close, with null) the focus view on a student and display.</summary>
     public void SetFocus(string? studentConnectionId, int displayIndex = 0)
     {
@@ -107,7 +119,7 @@ public sealed class StreamManager : IAsyncDisposable
     private (StreamQuality Quality, int Display, int Width)? DesiredFor(string id) =>
         id == _focusId ? (StreamQuality.Focus, _focusDisplay, _focusWidth)
         : id == _pinnedId ? (StreamQuality.Focus, 0, Math.Max(_focusWidth, BroadcastLimits.Width))
-        : _gridVisible ? (StreamQuality.Thumbnail, 0, _thumbnailWidth)
+        : _gridVisible || _keepThumbnails ? (StreamQuality.Thumbnail, 0, _thumbnailWidth)
         : null;
 
     private void Schedule()

@@ -77,6 +77,47 @@ public class ClassroomLimitsTests
     }
 
     [Fact]
+    public void Telemetry_cleaning_bounds_blocked_programs_idle_time_and_inventory()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var flood = new TelemetrySnapshot
+        {
+            RecentBlockedApps = Enumerable.Range(0, 50)
+                .Select(i => new BlockedAppEvent { Name = (i == 0 ? "\u0007" : "Game" + i) + new string('x', 500), At = now })
+                .Append(new BlockedAppEvent { Name = "old", At = now.AddHours(-1) })
+                .Append(new BlockedAppEvent { Name = "   ", At = now })
+                .ToArray(),
+            IdleSeconds = int.MaxValue,
+            Inventory = new PcInventory
+            {
+                CpuName = new string('c', 5000),
+                Windows = "Windows\r\n11",
+                CpuCores = -3,
+                DiskTotalBytes = 100,
+                DiskFreeBytes = 500,
+                BootedAt = now.AddYears(5),
+                AgentVersion = new string('9', 200),
+            },
+        };
+
+        var clean = TelemetryLimits.Clean(flood, now);
+
+        Assert.Equal(BlockedAppEvent.MaxReported, clean.RecentBlockedApps.Count);
+        Assert.All(clean.RecentBlockedApps, a => Assert.True(a.Name.Length is > 0 and <= TelemetryLimits.MaxNameLength));
+        Assert.DoesNotContain(clean.RecentBlockedApps, a => a.Name == "old" || a.Name.Any(char.IsControl));
+        Assert.Equal(TelemetryLimits.MaxIdleSeconds, clean.IdleSeconds);
+        Assert.Null(TelemetryLimits.Clean(new TelemetrySnapshot(), now).IdleSeconds);
+
+        var inv = clean.Inventory!;
+        Assert.Equal(TelemetryLimits.MaxNameLength, inv.CpuName!.Length);
+        Assert.Equal("Windows11", inv.Windows);
+        Assert.Equal(0, inv.CpuCores);
+        Assert.Equal(100, inv.DiskFreeBytes);   // never more free space than the disk holds
+        Assert.Null(inv.BootedAt);              // a start time in the future is nonsense
+        Assert.Equal(32, inv.AgentVersion!.Length);
+    }
+
+    [Fact]
     public void Policy_cleaning_keeps_flash_drive_block_and_exam()
     {
         var clean = ClassroomLimits.Clean(new ClassPolicy { BlockUsbStorage = true, ExamMode = true, ExamTitle = "Quiz\n3" });

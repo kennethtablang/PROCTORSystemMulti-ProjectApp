@@ -91,6 +91,36 @@ public sealed class FrameBuffer
         }
     }
 
+    /// <summary>Changes every time a new frame arrives (0 = none yet).</summary>
+    public long Version { get { lock (_lock) return _version; } }
+
+    /// <summary>
+    /// The current frame as a JPEG no wider than <paramref name="maxWidth"/> (screen history), or
+    /// null if there's no frame yet. <paramref name="version"/> is the frame it was made from.
+    /// </summary>
+    public byte[]? EncodeJpeg(int maxWidth, int quality, out long version)
+    {
+        lock (_lock)
+        {
+            version = _version;
+            if (_bitmap is null) return null;
+            var scale = Math.Min(1.0, (double)maxWidth / _bitmap.Width);
+            if (scale >= 1.0)
+            {
+                using var full = SKImage.FromBitmap(_bitmap);
+                using var fullData = full.Encode(SKEncodedImageFormat.Jpeg, quality);
+                return fullData?.ToArray();
+            }
+            var info = new SKImageInfo(Math.Max(1, (int)(_bitmap.Width * scale)), Math.Max(1, (int)(_bitmap.Height * scale)),
+                SKColorType.Bgra8888, SKAlphaType.Opaque);
+            using var scaled = new SKBitmap(info);
+            if (!_bitmap.ScalePixels(scaled, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None))) return null;
+            using var image = SKImage.FromBitmap(scaled);
+            using var data = image.Encode(SKEncodedImageFormat.Jpeg, quality);
+            return data?.ToArray();
+        }
+    }
+
     /// <summary>The current frame as PNG bytes (for screenshots), or null if there's no frame yet.</summary>
     public byte[]? EncodePng()
     {

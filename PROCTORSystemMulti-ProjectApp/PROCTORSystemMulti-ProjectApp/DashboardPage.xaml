@@ -17,7 +17,7 @@
                     <RoundRectangle CornerRadius="8" />
                 </Border.StrokeShape>
                 <VerticalStackLayout Spacing="4">
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="5" HeightRequest="28">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="5" HeightRequest="28">
                         <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Color="#B794F6" VerticalOptions="Center"
                                   WidthRequest="32" HeightRequest="28" Margin="-6,0,-4,0"
                                   ToolTipProperties.Text="Select (the toolbar then acts on the selected students)" />
@@ -46,7 +46,15 @@
                         <Label Grid.Column="7" Text="{x:Static ci:Icons.Usb}" FontFamily="{x:Static ci:Icons.FontFamily}"
                                FontSize="13" TextColor="#FF8A65" VerticalOptions="Center" IsVisible="{Binding HasUsbDrive}"
                                ToolTipProperties.Text="{Binding UsbText}" SemanticProperties.Description="{Binding UsbText}" />
-                        <Label Grid.Column="8" Text="{Binding StateText}" TextColor="{Binding StateColor}"
+                        <!-- An alert (blocked site, watched word...): hover shows it, a tap clears it. -->
+                        <Label Grid.Column="8" Text="{x:Static ci:Icons.Alert}" FontFamily="{x:Static ci:Icons.FontFamily}"
+                               FontSize="13" TextColor="#EF5350" VerticalOptions="Center" IsVisible="{Binding HasAlert}"
+                               ToolTipProperties.Text="{Binding AlertText}" SemanticProperties.Description="{Binding AlertText}">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnTileAlertTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                        <Label Grid.Column="9" Text="{Binding StateText}" TextColor="{Binding StateColor}"
                                FontSize="10" FontAttributes="Bold" VerticalOptions="Center" />
                     </Grid>
 
@@ -66,6 +74,8 @@
                             <Label Text="{Binding CpuText}" FontSize="11" />
                             <Label Text="{Binding MemoryText}" FontSize="11" />
                             <Label Text="{Binding BandwidthText}" FontSize="11" TextColor="#777777" />
+                            <Label Text="{Binding IdleText}" FontSize="11" TextColor="#FFB74D" IsVisible="{Binding IsIdle}"
+                                   ToolTipProperties.Text="No keyboard or mouse use for this long" />
                         </HorizontalStackLayout>
                         <Label Text="{Binding ForegroundText}" FontSize="10" TextColor="#888888"
                                LineBreakMode="TailTruncation" />
@@ -241,6 +251,7 @@
                 <ci:IconButton Glyph="{x:Static ci:Icons.Limits}" ToolTip="Limits: programs, internet, sound" Clicked="OnLimits" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Power}" ToolTip="Log off, restart or shut down" Clicked="OnPowerAll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Exam}" ToolTip="Exam mode: start or end an exam" Clicked="OnExam" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Groups}" ToolTip="Groups: select a saved group of students, or save the selection as one" Clicked="OnGroups" Margin="0,0,4,4" />
                 <BoxView WidthRequest="1" HeightRequest="20" Color="#3A3E47" Margin="4,0,8,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Send}" ToolTip="Send files" Clicked="OnSendFiles" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Collect}" ToolTip="Collect work (click again to stop collecting)" Clicked="OnCollectToggle" Margin="0,0,4,4" />
@@ -249,12 +260,17 @@
                 <ci:IconButton Glyph="{x:Static ci:Icons.Camera}" ToolTip="Save snapshots of all screens" Clicked="OnSnapshot" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Attendance}" ToolTip="Export attendance (CSV)" Clicked="OnAttendance" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Activity}" ToolTip="Activity log: programs, websites, blocked sites, flash drives" Clicked="OnActivity" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Alert}" ToolTip="Alerts: blocked sites and programs, flash drives, watched words, idle students" Clicked="OnAlerts" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Replay}" ToolTip="Screen history: replay what each student's screen showed" Clicked="OnHistory" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Computer}" ToolTip="PC inventory: hardware, Windows, disk space, agent version" Clicked="OnInventory" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Key}" ToolTip="Teacher PIN" Clicked="OnPin" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.SignOut}" ToolTip="Lock this app now (needs a teacher PIN)" Clicked="OnLockApp" Margin="0,0,8,4" />
                 <Label Text="{Binding PolicySummary}" FontSize="11" TextColor="#7E57C2" VerticalOptions="Center"
                        Margin="0,0,10,4" />
                 <Label Text="{Binding PollBadge}" FontSize="11" TextColor="#2E7D32" FontAttributes="Bold"
-                       VerticalOptions="Center" Margin="0,0,0,4" />
+                       VerticalOptions="Center" Margin="0,0,10,4" />
+                <Label Text="{Binding RecordingText}" FontSize="11" TextColor="#EF5350" FontAttributes="Bold"
+                       VerticalOptions="Center" Margin="0,0,0,4" IsVisible="{Binding IsRecordingHistory}" />
             </FlexLayout>
 
             <!-- View controls. Wide screens: one row beside the class actions (WideControls). Narrow
@@ -308,6 +324,22 @@
             </FlexLayout>
         </Border>
 
+        <!-- New alerts (blocked site, watched word, flash drive...): the students' outlines are red too. -->
+        <Border IsVisible="{Binding HasNewAlerts}" BackgroundColor="#3A1F1F" Stroke="#EF5350" Padding="12,4">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="8" />
+            </Border.StrokeShape>
+            <FlexLayout Wrap="Wrap" AlignItems="Center">
+                <Label Text="{x:Static ci:Icons.Alert}" FontFamily="{x:Static ci:Icons.FontFamily}" FontSize="14"
+                       TextColor="#EF5350" VerticalOptions="Center" Margin="0,2,8,2" />
+                <Label Text="{Binding AlertBannerText}" TextColor="#FFCDD2" FontAttributes="Bold" FontSize="13"
+                       VerticalOptions="Center" LineBreakMode="WordWrap" FlexLayout.Grow="1" FlexLayout.Shrink="1" Margin="0,2,8,2" />
+                <Button Text="View" Clicked="OnAlerts" Padding="14,2" FontSize="12" Margin="0,2,6,2" />
+                <Button Text="Dismiss" Clicked="OnDismissAlerts" Padding="14,2" FontSize="12" Margin="0,2,0,2"
+                        BackgroundColor="#C62828" TextColor="White" />
+            </FlexLayout>
+        </Border>
+
         <!-- Some students selected: the toolbar acts on them only. -->
         <Border IsVisible="{Binding HasSelection}" BackgroundColor="#2A2340" Stroke="#B794F6" Padding="12,4">
             <Border.StrokeShape>
@@ -318,6 +350,7 @@
                 <Label Text="{Binding SelectionText}" TextColor="#E1D5FF" FontAttributes="Bold" FontSize="13"
                        VerticalOptions="Center" LineBreakMode="WordWrap" FlexLayout.Grow="1" FlexLayout.Shrink="1" Margin="0,2,8,2" />
                 <Button Text="Select all" Clicked="OnSelectAll" Padding="12,2" FontSize="12" Margin="0,2,6,2" />
+                <Button Text="Save as group" Clicked="OnSaveGroup" Padding="12,2" FontSize="12" Margin="0,2,6,2" />
                 <Button Text="Clear selection" Clicked="OnClearSelection" Padding="12,2" FontSize="12" Margin="0,2,0,2"
                         BackgroundColor="#7E57C2" TextColor="White" />
             </FlexLayout>

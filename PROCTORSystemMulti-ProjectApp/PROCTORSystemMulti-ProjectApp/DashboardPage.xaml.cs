@@ -152,6 +152,60 @@ public partial class DashboardPage : ContentPage
     private async void OnSendFiles(object? sender, EventArgs e) => await ClassActions.SendFilesAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);
     private async void OnPrograms(object? sender, EventArgs e) => await ClassActions.ProgramsAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);
     private async void OnActivity(object? sender, EventArgs e) => await Navigation.PushModalAsync(new ActivityPage(_vm));
+    private async void OnAlerts(object? sender, EventArgs e) => await Navigation.PushModalAsync(new AlertsPage(_vm));
+    private void OnDismissAlerts(object? sender, EventArgs e) => _vm.DismissAlerts();
+    private async void OnHistory(object? sender, EventArgs e) => await Navigation.PushModalAsync(new HistoryPage(_vm));
+    private async void OnInventory(object? sender, EventArgs e) => await Navigation.PushModalAsync(new InventoryPage(_vm));
+
+    private void OnTileAlertTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is StudentTile tile) _vm.DismissAlert(tile);
+    }
+
+    // ---- saved groups ----
+    private async void OnGroups(object? sender, EventArgs e)
+    {
+        if (!_vm.IsConnected) { await DisplayAlertAsync("Not connected", "Connect to the classroom server first.", "OK"); return; }
+        var groups = _vm.Groups;
+        string Label(StudentGroup g) => $"{g.Name} · {_vm.OnlineCount(g)} of {g.Members.Count} online";
+        const string save = "Save the selected students as a group…", delete = "Delete a group…";
+        var options = groups.Select(Label).ToList();
+        if (_vm.HasSelection) options.Add(save);
+        if (groups.Count > 0) options.Add(delete);
+        if (options.Count == 0)
+        {
+            await DisplayAlertAsync("Groups", "No groups yet. Tick the students' screens (or tap their names), then use Groups → Save, " +
+                "or \u201CSave as group\u201D on the selection bar. Groups are remembered on this device for this classroom.", "OK");
+            return;
+        }
+        var choice = await DisplayActionSheetAsync(groups.Count == 0 ? "Groups" : "Select a group", "Cancel", null, options.ToArray());
+        if (choice == save) { await SaveGroupAsync(); return; }
+        if (choice == delete) { await DeleteGroupAsync(groups); return; }
+        if (groups.FirstOrDefault(g => Label(g) == choice) is not { } picked) return;
+        if (_vm.SelectGroup(picked) == 0)
+            await DisplayAlertAsync(picked.Name, "None of this group's computers are connected right now.", "OK");
+    }
+
+    private async void OnSaveGroup(object? sender, EventArgs e) => await SaveGroupAsync();
+
+    private async Task SaveGroupAsync()
+    {
+        if (!_vm.HasSelection) { await DisplayAlertAsync("Save as group", "Select the students first (tick their screens).", "OK"); return; }
+        var count = _vm.SelectedCount;
+        var name = await DisplayPromptAsync("Save as group", $"Name for these {count} computer(s), e.g. Group A or Row 1. " +
+            "A group with the same name is replaced.", "Save", "Cancel", "Group name", DashboardViewModel.MaxGroupName);
+        if (name is null) return;
+        if (_vm.SaveGroup(name) is { } error) await DisplayAlertAsync("Couldn't save the group", error, "OK");
+        else _vm.ShowStatus($"Saved the group \u201C{DashboardViewModel.CleanGroupName(name)}\u201D ({count} computers).");
+    }
+
+    private async Task DeleteGroupAsync(IReadOnlyList<StudentGroup> groups)
+    {
+        var choice = await DisplayActionSheetAsync("Delete which group?", "Cancel", null, groups.Select(g => g.Name).ToArray());
+        if (groups.FirstOrDefault(g => g.Name == choice) is not { } group) return;
+        if (await DisplayAlertAsync($"Delete \u201C{group.Name}\u201D?", "Only the group is deleted; the computers aren't affected.", "Delete", "Cancel"))
+            _vm.DeleteGroup(group);
+    }
 
     // ---- exam mode ----
     private async void OnExam(object? sender, EventArgs e)

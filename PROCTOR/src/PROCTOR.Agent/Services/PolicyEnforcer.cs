@@ -172,6 +172,7 @@ internal sealed class PolicyEnforcer : IDisposable
                     if (!blocked.Contains(name) || ClassroomLimits.ProtectedApps.Contains(name)) continue;
                     if (p.SessionId != mySession) continue;   // only the student's own session
                     p.Kill();
+                    BlockedAppLog.Record(name);   // for the teacher's activity log and alerts
                     Notice(name, $"{name} is blocked by your teacher.");
                     _logger.LogInformation("Closed blocked app {Name} (pid {Pid}).", name, p.Id);
                 }

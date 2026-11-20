@@ -11,8 +11,8 @@ namespace PROCTOR.Agent.Services;
 /// <summary>
 /// "Freeze keyboard and mouse": the student's own keyboard and mouse stop working but the screen
 /// stays visible (watching a demo or the teacher's shared screen). A small bar says why. Input the
-/// teacher sends through remote control still works (it is marked as injected), and Ctrl+Alt+Del
-/// always reaches Windows. Released by Unlock, a lost connection, the teacher leaving, or after
+/// teacher sends through remote control still works (it carries <see cref="RemoteInput.Marker"/>),
+/// input faked by any other program does not, and Ctrl+Alt+Del always reaches Windows. Released by Unlock, a lost connection, the teacher leaving, or after
 /// <see cref="Shared.Contracts.ClassroomLimits.MaxLockDuration"/> at the latest.
 /// </summary>
 internal sealed partial class ClassroomUi
@@ -74,20 +74,24 @@ internal sealed partial class ClassroomUi
         var handle = GetModuleHandle(module?.ModuleName);
         if (_freezeKeyboardHook == IntPtr.Zero)
         {
-            // KBDLLHOOKSTRUCT.flags (offset 8): LLKHF_INJECTED = 0x10 — the teacher's remote control.
+            // Only the teacher's remote control gets through: injected input carrying PROCTOR's own
+            // marker. Input faked by other programs (scripts, macro tools) is swallowed like the rest.
             _freezeKeyboardProc = (code, wParam, lParam) =>
-                code >= 0 && IsFrozen && (Marshal.ReadInt32(lParam, 8) & 0x10) == 0
-                    ? (IntPtr)1
-                    : CallNextHookEx(IntPtr.Zero, code, wParam, lParam);
+            {
+                if (code < 0 || !IsFrozen) return CallNextHookEx(IntPtr.Zero, code, wParam, lParam);
+                var k = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+                return FromTeacher(k.flags, 0x10, k.dwExtraInfo) ? CallNextHookEx(IntPtr.Zero, code, wParam, lParam) : (IntPtr)1;
+            };
             _freezeKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, _freezeKeyboardProc, handle, 0);
         }
         if (_freezeMouseHook == IntPtr.Zero)
         {
-            // MSLLHOOKSTRUCT.flags (offset 12): LLMHF_INJECTED = 0x01.
             _freezeMouseProc = (code, wParam, lParam) =>
-                code >= 0 && IsFrozen && (Marshal.ReadInt32(lParam, 12) & 0x01) == 0
-                    ? (IntPtr)1
-                    : CallNextHookEx(IntPtr.Zero, code, wParam, lParam);
+            {
+                if (code < 0 || !IsFrozen) return CallNextHookEx(IntPtr.Zero, code, wParam, lParam);
+                var m = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+                return FromTeacher(m.flags, 0x01, m.dwExtraInfo) ? CallNextHookEx(IntPtr.Zero, code, wParam, lParam) : (IntPtr)1;
+            };
             _freezeMouseHook = SetWindowsHookEx(WH_MOUSE_LL, _freezeMouseProc, handle, 0);
         }
         if (_freezeKeyboardHook == IntPtr.Zero || _freezeMouseHook == IntPtr.Zero)
@@ -141,6 +145,25 @@ internal sealed partial class ClassroomUi
         };
         _freezeWindow = w;
         w.Show();
+    }
+
+    /// <summary>Injected (LLKHF_INJECTED 0x10 / LLMHF_INJECTED 0x01) and tagged by our remote control.</summary>
+    private static bool FromTeacher(uint flags, uint injectedFlag, IntPtr extraInfo) =>
+        (flags & injectedFlag) != 0 && extraInfo == RemoteInput.Marker;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KBDLLHOOKSTRUCT
+    {
+        public uint vkCode, scanCode, flags, time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSLLHOOKSTRUCT
+    {
+        public int x, y;
+        public uint mouseData, flags, time;
+        public IntPtr dwExtraInfo;
     }
 
     private const int WH_MOUSE_LL = 14;

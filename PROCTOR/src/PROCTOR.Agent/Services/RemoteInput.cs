@@ -80,10 +80,22 @@ internal sealed class RemoteInput
         Send(inputs);
     }
 
+    /// <summary>
+    /// Tag on every event the teacher's remote control plays in (the hooks see it as dwExtraInfo).
+    /// Random per agent run and known only to this process, so "freeze keyboard and mouse" can let
+    /// the teacher's input through without trusting other programs that fake input.
+    /// </summary>
+    public static readonly IntPtr Marker = (IntPtr)Random.Shared.NextInt64(1, long.MaxValue);
+
     private void Send(List<INPUT> inputs)
     {
         if (inputs.Count == 0) return;
         var arr = inputs.ToArray();
+        for (var i = 0; i < arr.Length; i++)
+        {
+            if (arr[i].type == INPUT_MOUSE) arr[i].u.mi.dwExtraInfo = Marker;
+            else if (arr[i].type == INPUT_KEYBOARD) arr[i].u.ki.dwExtraInfo = Marker;
+        }
         var sent = SendInput((uint)arr.Length, arr, Marshal.SizeOf<INPUT>());
         if (sent != arr.Length)
             _logger.LogDebug("SendInput delivered {Sent} of {Count} events (error {Error}; secure desktop or UAC prompt?).",

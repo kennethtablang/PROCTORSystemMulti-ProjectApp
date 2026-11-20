@@ -173,11 +173,13 @@ internal sealed class PolicyEnforcer : IDisposable
                 try
                 {
                     var name = p.ProcessName;
-                    if (ClassroomLimits.ProtectedApps.Contains(name) || p.Id == Environment.ProcessId) continue;
-                    var isBlocked = blocked.Contains(name);
-                    var notAllowed = withWindows is not null && withWindows.Contains(p.Id) && !allowed.Contains(name)
-                        && !ClassroomLimits.AlwaysAllowedApps.Contains(name)
-                        && !name.StartsWith("PROCTOR", StringComparison.OrdinalIgnoreCase);
+                    if (p.Id == Environment.ProcessId) continue;
+                    var isBlocked = blocked.Contains(name) && !ClassroomLimits.ProtectedApps.Contains(name);
+                    // Exact names only, and a Windows / PROCTOR name only counts when the program really
+                    // runs from Windows or PROCTOR's folder: a game renamed to explorer.exe is still closed.
+                    var notAllowed = withWindows is not null && withWindows.Contains(p.Id)
+                        && !(allowed.Contains(name) && IsGenuinelyNamed(p, name))
+                        && !(ClassroomLimits.AlwaysAllowedApps.Contains(name) && IsGenuineSystemProgram(p));
                     if (!isBlocked && !notAllowed) continue;
                     if (p.SessionId != mySession) continue;   // only the student's own session
                     p.Kill();
@@ -188,6 +190,86 @@ internal sealed class PolicyEnforcer : IDisposable
                 catch { /* exited, or access denied (elevated process in dev mode) */ }
             }
         }
+    }
+
+    private static readonly string[] SystemFolders = new[]
+    {
+        Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+        AppContext.BaseDirectory,
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "EdgeWebView"),
+    }
+    .Where(d => !string.IsNullOrEmpty(d))
+    .Select(d => Path.TrimEndingDirectorySeparator(Path.GetFullPath(d)) + Path.DirectorySeparatorChar)
+    .ToArray();
+
+    /// <summary>
+    /// True when the program's file is inside Windows, PROCTOR's own folder or the WebView2 runtime.
+    /// A program whose path can't be read is a protected Windows process (anything a student starts
+    /// can be read by the agent, which runs as SYSTEM).
+    /// </summary>
+    private static bool IsGenuineSystemProgram(Process p)
+    {
+        string? path;
+        try { path = p.MainModule?.FileName; }
+        catch { return true; }
+        if (string.IsNullOrEmpty(path)) return true;
+        try { path = Path.GetFullPath(path); } catch { return false; }
+        return SystemFolders.Any(dir => path.StartsWith(dir, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // Folders a standard user (the student) can't write to: a program there wasn't planted by them.
+    private static readonly string[] TrustedFolders = SystemFolders.Concat(new[]
+    {
+        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+    }
+    .Where(d => !string.IsNullOrEmpty(d))
+    .Select(d => Path.TrimEndingDirectorySeparator(Path.GetFullPath(d)) + Path.DirectorySeparatorChar))
+    .ToArray();
+
+    // Checks can overlap (a slow pass and the next timer tick), so the cache is concurrent.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _genuineByPath = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A program the teacher allowed by name really is that program, not something renamed to look
+    /// like it: it runs from a folder students can't write to, or its built-in original file name
+    /// (version info, e.g. "chrome.exe" or a .NET app's "Program1.dll") matches its name.
+    /// </summary>
+    private bool IsGenuinelyNamed(Process p, string name)
+    {
+        string? path;
+        try { path = p.MainModule?.FileName; }
+        catch { return true; }   // unreadable: a protected Windows process, not something the student started
+        if (string.IsNullOrEmpty(path)) return true;
+        if (_genuineByPath.TryGetValue(path, out var known)) return known;
+
+        bool ok;
+        try
+        {
+            var full = Path.GetFullPath(path);
+            if (TrustedFolders.Any(dir => full.StartsWith(dir, StringComparison.OrdinalIgnoreCase)))
+            {
+                ok = true;
+            }
+            else
+            {
+                var info = FileVersionInfo.GetVersionInfo(full);
+                var names = new[] { info.OriginalFilename, info.InternalName }
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .Select(n => Path.GetFileNameWithoutExtension(n!.Trim()))
+                    .ToArray();
+                // No version info at all (some small tools): nothing to compare, so the name is trusted.
+                ok = names.Length == 0 || names.Any(n => n.Equals(name, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+        catch
+        {
+            ok = false;
+        }
+        if (_genuineByPath.Count > 500) _genuineByPath.Clear();
+        _genuineByPath[path] = ok;
+        if (!ok) _logger.LogInformation("{Path} is named like the allowed program {Name} but isn't it; closing it.", path, name);
+        return ok;
     }
 
     private void Notice(string key, string text)

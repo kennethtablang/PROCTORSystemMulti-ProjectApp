@@ -89,6 +89,7 @@ public partial class FocusPage : ContentPage
     private IReadOnlyList<string> Me => [_tile.ConnectionId];
     private async void OnLock(object? sender, EventArgs e) => await ClassActions.LockAsync(this, _vm, Me);
     private async void OnUnlock(object? sender, EventArgs e) => await ClassActions.UnlockAsync(this, _vm, Me);
+    private async void OnFreeze(object? sender, EventArgs e) => await ClassActions.FreezeAsync(this, _vm, Me, _tile.MachineName);
     private async void OnMessage(object? sender, EventArgs e) => await ClassActions.MessageAsync(this, _vm, Me, _tile.MachineName);
     private async void OnOpenSite(object? sender, EventArgs e) => await ClassActions.OpenSiteAsync(this, _vm, Me, _tile.MachineName);
     private async void OnPower(object? sender, EventArgs e) => await ClassActions.PowerAsync(this, _vm, Me, _tile.MachineName);

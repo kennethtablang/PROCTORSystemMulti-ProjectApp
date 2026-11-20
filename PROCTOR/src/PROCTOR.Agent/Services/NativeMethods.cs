@@ -56,6 +56,36 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
 
+    // ---- top-level windows (program allow-list) ----
+    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+    /// <summary>Processes that own a visible, un-owned top-level window: the programs a student "has open".</summary>
+    public static HashSet<int> ProcessesWithWindows()
+    {
+        var pids = new HashSet<int>();
+        EnumWindows((hWnd, _) =>
+        {
+            if (IsWindowVisible(hWnd) && GetWindow(hWnd, 4 /* GW_OWNER */) == IntPtr.Zero)
+            {
+                GetWindowThreadProcessId(hWnd, out var pid);
+                if (pid != 0) pids.Add((int)pid);
+            }
+            return true;
+        }, IntPtr.Zero);
+        return pids;
+    }
+
     /// <summary>Seconds since the last keyboard or mouse input in this session, or null if unknown.</summary>
     public static int? IdleSeconds()
     {
@@ -208,6 +238,21 @@ internal static class NativeMethods
         var sb = new StringBuilder(len + 1);
         var copied = GetWindowText(h, sb, sb.Capacity);
         return copied > 0 ? sb.ToString() : null;
+    }
+
+    /// <summary>Process name of the program in front (e.g. "winword"), or null.</summary>
+    public static string? GetForegroundProcessName()
+    {
+        var h = GetForegroundWindow();
+        if (h == IntPtr.Zero) return null;
+        GetWindowThreadProcessId(h, out var pid);
+        if (pid == 0) return null;
+        try
+        {
+            using var p = System.Diagnostics.Process.GetProcessById((int)pid);
+            return p.ProcessName;
+        }
+        catch { return null; }   // exited
     }
 
     // ---- sessions (WTS) ----

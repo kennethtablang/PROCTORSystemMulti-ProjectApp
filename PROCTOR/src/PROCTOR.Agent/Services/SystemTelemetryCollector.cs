@@ -42,6 +42,7 @@ public sealed class SystemTelemetryCollector
             Bandwidth = SampleBandwidth(),
             TopProcesses = SampleTopProcesses(),
             ForegroundWindowTitle = SafeForegroundTitle(),
+            ForegroundApp = SafeForegroundApp(),
             ActiveUrl = _browser?.CurrentHost,
             RemovableDrives = SampleRemovableDrives(),
             RecentBlockedSites = BlockedSiteLog.Recent(),
@@ -49,6 +50,12 @@ public sealed class SystemTelemetryCollector
             IdleSeconds = SafeIdleSeconds(),
             Inventory = SampleInventory(),
         };
+    }
+
+    private static string? SafeForegroundApp()
+    {
+        try { return NativeMethods.GetForegroundProcessName(); }
+        catch { return null; }
     }
 
     private static int? SafeIdleSeconds()

@@ -27,6 +27,7 @@ public sealed class ExamPage : ContentPage
     private readonly Switch _usb;
     private readonly Switch _mute;
     private readonly Editor _apps;
+    private readonly Editor _allowed;
     private readonly Label _error = new() { FontSize = 12, TextColor = Color.FromArgb("#EF9A9A"), IsVisible = false, LineBreakMode = LineBreakMode.WordWrap };
 
     public ExamPage(DashboardViewModel vm)
@@ -48,6 +49,12 @@ public sealed class ExamPage : ContentPage
         _apps = new Editor
         {
             Text = string.Join(Environment.NewLine, saved.BlockedApps), Placeholder = "Optional, one per line, e.g.\ndiscord\nsteam",
+            HeightRequest = 70, AutoSize = EditorAutoSizeOption.Disabled,
+        };
+
+        _allowed = new Editor
+        {
+            Text = string.Join(Environment.NewLine, saved.AllowedApps), Placeholder = "Optional: if you list programs, only these can be used, e.g.\nWord\nChrome",
             HeightRequest = 70, AutoSize = EditorAutoSizeOption.Disabled,
         };
 
@@ -73,6 +80,7 @@ public sealed class ExamPage : ContentPage
                 SwitchRow("Block flash drives", "No copying from or to USB drives during the exam.", _usb),
                 SwitchRow("Mute sound", null, _mute),
                 Caption("Also block these programs"), _apps,
+                Caption("Only these programs (whitelist)"), _allowed,
                 _error,
                 new FlexLayout
                 {
@@ -119,6 +127,9 @@ public sealed class ExamPage : ContentPage
         var apps = Lines(_apps.Text);
         var badApps = apps.Where(a => ClassroomLimits.CleanAppName(a) is null).ToArray();
         if (badApps.Length > 0) { ShowError($"Can't block: {string.Join(", ", badApps.Take(5))} (not a program name, or protected)."); return; }
+        var allowed = Lines(_allowed.Text);
+        var badAllowed = allowed.Where(a => ClassroomLimits.CleanAllowedApp(a) is null).ToArray();
+        if (badAllowed.Length > 0) { ShowError($"Not a program name: {string.Join(", ", badAllowed.Take(5))}."); return; }
         if (!_vm.IsConnected) { ShowError("Not connected to the classroom server."); return; }
 
         var exam = new ExamSettings
@@ -129,6 +140,7 @@ public sealed class ExamPage : ContentPage
             BlockUsb = _usb.IsToggled,
             Mute = _mute.IsToggled,
             BlockedApps = apps,
+            AllowedApps = allowed,
         };
         Save(exam);
         var error = await _vm.StartExamAsync(exam);
@@ -141,6 +153,9 @@ public sealed class ExamPage : ContentPage
         _error.Text = text;
         _error.IsVisible = true;
     }
+
+    /// <summary>The exam settings used last time (the schedule offers them for a scheduled exam).</summary>
+    public static ExamSettings Saved => Load();
 
     private static ExamSettings Load()
     {

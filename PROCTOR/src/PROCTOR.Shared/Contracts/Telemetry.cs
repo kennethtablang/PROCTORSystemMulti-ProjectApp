@@ -21,6 +21,9 @@ public sealed record TelemetrySnapshot
     /// <summary>Title of the window currently in the foreground, if resolvable.</summary>
     public string? ForegroundWindowTitle { get; init; }
 
+    /// <summary>Process name of the program in front, e.g. "winword" (usage report); null on older agents.</summary>
+    public string? ForegroundApp { get; init; }
+
     /// <summary>Active browser tab URL/host if the agent surfaces it (optional).</summary>
     public string? ActiveUrl { get; init; }
 
@@ -100,6 +103,7 @@ public static class TelemetryLimits
                 .Select(p => p with { Name = Cap(p.Name, MaxNameLength) ?? string.Empty })
                 .ToArray(),
             ForegroundWindowTitle = Cap(t.ForegroundWindowTitle, MaxTitleLength),
+            ForegroundApp = ClassroomLimits.CleanAllowedApp(Cap(t.ForegroundApp, MaxNameLength)),
             ActiveUrl = ClassroomLimits.CleanHost(t.ActiveUrl),
             RemovableDrives = (t.RemovableDrives ?? [])
                 .Where(d => d is not null && IsDriveLetter(d.Letter))

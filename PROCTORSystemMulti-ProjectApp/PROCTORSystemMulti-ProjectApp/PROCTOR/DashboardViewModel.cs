@@ -161,6 +161,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
             RefreshCommands();
             RaiseConnectGuide();
             UpdateRecorder();
+            UpdateScheduleTimer();
         }
     }
     public bool NotConnected => !_isConnected;
@@ -280,6 +281,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
             if (_policy.WebMode == WebLimitMode.BlockListed && _policy.WebHosts.Count > 0) parts.Add($"{_policy.WebHosts.Count} site(s) blocked");
             if (_policy.WebMode == WebLimitMode.AllowOnlyListed) parts.Add($"only {_policy.WebHosts.Count} site(s) allowed");
             if (_policy.BlockedApps.Count > 0) parts.Add($"{_policy.BlockedApps.Count} app(s) blocked");
+            if (_policy.AllowOnlyApps) parts.Add($"only {_policy.AllowedApps.Count} program(s) allowed");
             if (_policy.BlockInternet) parts.Add("internet off");
             if (_policy.MuteSound) parts.Add("sound muted");
             if (_policy.BlockUsbStorage) parts.Add("flash drives blocked");
@@ -825,6 +827,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         tile.Apply(telemetry);
         TrackActivity(tile, window, host, usb, usbText, telemetry);
         CheckAlerts(tile, window, host, idle);
+        TrackUsage(tile, telemetry);
     }
 
     private void RosterChanged()

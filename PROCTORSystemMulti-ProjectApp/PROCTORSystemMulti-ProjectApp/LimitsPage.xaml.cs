@@ -18,6 +18,8 @@ public partial class LimitsPage : ContentPage
         BlockInternet.IsToggled = p.BlockInternet;
         Mute.IsToggled = p.MuteSound;
         BlockUsb.IsToggled = p.BlockUsbStorage;
+        AllowOnly.IsToggled = p.AllowOnlyApps;
+        Allowed.Text = string.Join(Environment.NewLine, p.AllowedApps.Select(DashboardViewModel.FriendlyApp));
     }
 
     private async void OnApply(object? sender, EventArgs e)
@@ -26,6 +28,8 @@ public partial class LimitsPage : ContentPage
         var policy = new ClassPolicy
         {
             BlockedApps = Lines(Apps.Text),
+            AllowOnlyApps = AllowOnly.IsToggled,
+            AllowedApps = AllowOnly.IsToggled ? Lines(Allowed.Text) : [],
             BlockInternet = BlockInternet.IsToggled,
             MuteSound = Mute.IsToggled,
             BlockUsbStorage = BlockUsb.IsToggled,
@@ -40,6 +44,16 @@ public partial class LimitsPage : ContentPage
             ShowError($"Can't block: {string.Join(", ", badApps)} (not a program name, or protected).");
             return;
         }
+
+        var badAllowed = policy.AllowedApps.Where(a => ClassroomLimits.CleanAllowedApp(a) is null).ToArray();
+        if (badAllowed.Length > 0)
+        {
+            ShowError($"Not a program name: {string.Join(", ", badAllowed)}.");
+            return;
+        }
+        if (policy.AllowOnlyApps && policy.AllowedApps.Count == 0
+            && !await DisplayAlertAsync("No programs listed", "With an empty list only Windows itself and PROCTOR can be used. Continue?", "Apply", "Go back"))
+            return;
 
         await Save(policy);
     }

@@ -118,6 +118,36 @@ public class ClassroomLimitsTests
     }
 
     [Fact]
+    public void Program_allow_list_is_cleaned_and_counts_as_a_lesson_limit()
+    {
+        var clean = ClassroomLimits.Clean(new ClassPolicy
+        {
+            AllowOnlyApps = true,
+            AllowedApps = ["Word", "chrome.exe", @"C:\Program Files\Microsoft VS Code\Code.exe", "Word", "bad|name", " "],
+        });
+
+        Assert.True(clean.AllowOnlyApps);
+        Assert.Equal(["winword", "chrome", "code"], clean.AllowedApps);
+        Assert.False(clean.IsEmpty);
+        Assert.True(clean.HasLessonLimits);
+
+        // Off: the list isn't kept (and doesn't restrict anything).
+        var off = ClassroomLimits.Clean(new ClassPolicy { AllowedApps = ["chrome"] });
+        Assert.False(off.AllowOnlyApps);
+        Assert.Empty(off.AllowedApps);
+        Assert.True(off.IsEmpty);
+    }
+
+    [Theory]
+    [InlineData("explorer")]
+    [InlineData("proctor.agent")]
+    [InlineData("osk")]
+    [InlineData("logonui")]
+    [InlineData("applicationframehost")]
+    public void Windows_and_PROCTOR_always_run_under_a_program_allow_list(string process) =>
+        Assert.Contains(process, ClassroomLimits.AlwaysAllowedApps);
+
+    [Fact]
     public void Policy_cleaning_keeps_flash_drive_block_and_exam()
     {
         var clean = ClassroomLimits.Clean(new ClassPolicy { BlockUsbStorage = true, ExamMode = true, ExamTitle = "Quiz\n3" });

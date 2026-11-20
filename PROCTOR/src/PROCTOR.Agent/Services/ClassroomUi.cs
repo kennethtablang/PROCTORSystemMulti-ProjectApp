@@ -740,6 +740,7 @@ internal sealed partial class ClassroomUi : IDisposable
                 _dispatcher.Invoke(() =>
                 {
                     UnlockNow();
+                    UnfreezeNow();
                     if (_tray is not null) { _tray.Visible = false; _tray.Dispose(); }
                 });
                 _dispatcher.InvokeShutdown();

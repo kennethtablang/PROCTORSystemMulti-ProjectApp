@@ -105,8 +105,8 @@ internal sealed class PolicyEnforcer : IDisposable
             _ui?.ShowExam(policy.ExamMode, policy.ExamTitle);
 
         if (!policy.IsEmpty)
-            _logger.LogInformation("Limits applied: web {Mode} ({Hosts}), {Apps} blocked app(s), internet {Net}, mute {Mute}.",
-                policy.WebMode, policy.WebHosts.Count, policy.BlockedApps.Count, policy.BlockInternet ? "off" : "on", policy.MuteSound);
+            _logger.LogInformation("Limits applied: web {Mode} ({Hosts}), {Apps} blocked app(s), only-these-programs {Only} ({Allowed}), internet {Net}, mute {Mute}.",
+                policy.WebMode, policy.WebHosts.Count, policy.BlockedApps.Count, policy.AllowOnlyApps, policy.AllowedApps.Count, policy.BlockInternet ? "off" : "on", policy.MuteSound);
         else if (!was.IsEmpty)
             _logger.LogInformation("Limits lifted.");
     }
@@ -158,8 +158,12 @@ internal sealed class PolicyEnforcer : IDisposable
 
     private void EnforceApps(ClassPolicy policy)
     {
-        if (policy.BlockedApps.Count == 0) return;
+        if (policy.BlockedApps.Count == 0 && !policy.AllowOnlyApps) return;
         var blocked = new HashSet<string>(policy.BlockedApps, StringComparer.OrdinalIgnoreCase);
+        var allowed = new HashSet<string>(policy.AllowedApps, StringComparer.OrdinalIgnoreCase);
+        // "Only these programs": only programs with a window count (background helpers and services
+        // are left alone), found with one pass over the desktop's windows.
+        var withWindows = policy.AllowOnlyApps ? NativeMethods.ProcessesWithWindows() : null;
         NativeMethods.ProcessIdToSessionId((uint)Environment.ProcessId, out var mySession);
 
         foreach (var p in Process.GetProcesses())
@@ -169,11 +173,16 @@ internal sealed class PolicyEnforcer : IDisposable
                 try
                 {
                     var name = p.ProcessName;
-                    if (!blocked.Contains(name) || ClassroomLimits.ProtectedApps.Contains(name)) continue;
+                    if (ClassroomLimits.ProtectedApps.Contains(name) || p.Id == Environment.ProcessId) continue;
+                    var isBlocked = blocked.Contains(name);
+                    var notAllowed = withWindows is not null && withWindows.Contains(p.Id) && !allowed.Contains(name)
+                        && !ClassroomLimits.AlwaysAllowedApps.Contains(name)
+                        && !name.StartsWith("PROCTOR", StringComparison.OrdinalIgnoreCase);
+                    if (!isBlocked && !notAllowed) continue;
                     if (p.SessionId != mySession) continue;   // only the student's own session
                     p.Kill();
                     BlockedAppLog.Record(name);   // for the teacher's activity log and alerts
-                    Notice(name, $"{name} is blocked by your teacher.");
+                    Notice(name, isBlocked ? $"{name} is blocked by your teacher." : $"{name} isn't allowed right now. Your teacher chose which programs you can use.");
                     _logger.LogInformation("Closed blocked app {Name} (pid {Pid}).", name, p.Id);
                 }
                 catch { /* exited, or access denied (elevated process in dev mode) */ }

@@ -65,6 +65,9 @@ public static class Icons
     public static readonly string Pause = G('', '');      // pause
     public static readonly string Previous = G('', '');   // skip_previous
     public static readonly string Next = G('', '');       // skip_next
+    public static readonly string Freeze = G('\uE769', '\ue036');     // pause_circle_outline (freeze keyboard and mouse)
+    public static readonly string Schedule = G('\uE787', '\ue878');   // event (class schedule)
+    public static readonly string Report = G('\uE9D2', '\ue85c');     // assessment (usage report)
     public static readonly string Delete = G('', '');     // delete
 }
 

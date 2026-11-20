@@ -18,6 +18,18 @@
             <Label Text="Listed programs are closed when they start. Windows itself and PROCTOR can never be blocked."
                    FontSize="11" TextColor="Gray" />
 
+            <!-- Program allow-list (whitelist) -->
+            <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                    <Label Text="Only these programs (whitelist)" FontAttributes="Bold" FontSize="15" />
+                    <Label Text="Any other program the student opens is closed at once. Windows itself (desktop, Start, File Explorer, sign-in), accessibility tools and PROCTOR always work."
+                           FontSize="11" TextColor="Gray" LineBreakMode="WordWrap" />
+                </VerticalStackLayout>
+                <Switch x:Name="AllowOnly" Grid.Column="1" VerticalOptions="Center" />
+            </Grid>
+            <Editor x:Name="Allowed" HeightRequest="90" AutoSize="Disabled" IsVisible="{Binding Source={x:Reference AllowOnly}, Path=IsToggled}"
+                    Placeholder="One program per line: a name like Word, Excel, Chrome, Notepad, or the program file, e.g.&#10;code&#10;devenv.exe" />
+
             <!-- Internet / sound -->
             <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
                 <VerticalStackLayout Grid.Column="0" Spacing="2">

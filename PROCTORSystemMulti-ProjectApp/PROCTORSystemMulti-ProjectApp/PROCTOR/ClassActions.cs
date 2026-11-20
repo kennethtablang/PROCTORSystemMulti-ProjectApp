@@ -16,6 +16,17 @@ public static class ClassActions
     public static Task UnlockAsync(Page page, DashboardViewModel vm, IReadOnlyList<string>? targets) =>
         Send(page, vm, CommandKind.Unlock, targets);
 
+    /// <summary>Stop the students' keyboard and mouse (the screen stays visible); Unlock releases it.</summary>
+    public static async Task FreezeAsync(Page page, DashboardViewModel vm, IReadOnlyList<string>? targets, string who)
+    {
+        const string freeze = "Freeze keyboard and mouse", release = "Release (unfreeze)";
+        var choice = await page.DisplayActionSheetAsync($"Keyboard and mouse · {who}", "Cancel", null, freeze, release);
+        if (choice == freeze)
+            await Send(page, vm, CommandKind.Freeze, targets);
+        else if (choice == release)
+            await Send(page, vm, CommandKind.Unlock, targets);
+    }
+
     public static async Task MessageAsync(Page page, DashboardViewModel vm, IReadOnlyList<string>? targets, string who)
     {
         var text = await page.DisplayPromptAsync($"Message {who}", "What should the students see?",

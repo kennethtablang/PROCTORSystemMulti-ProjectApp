@@ -21,6 +21,11 @@ public enum CommandKind
     LaunchProgram = 7,
     /// <summary>Ask every open program in the student's session to close (they can still save).</summary>
     CloseAllPrograms = 8,
+    /// <summary>
+    /// Stop the student's keyboard and mouse without covering the screen (Text = optional caption).
+    /// Tracked and released like <see cref="Lock"/>: <see cref="Unlock"/> ends it.
+    /// </summary>
+    Freeze = 9,
 }
 
 /// <summary>
@@ -75,6 +80,15 @@ public sealed record ClassPolicy
     /// <summary>Program names to close, e.g. <c>steam</c> or <c>discord.exe</c>.</summary>
     public IReadOnlyList<string> BlockedApps { get; init; } = Array.Empty<string>();
 
+    /// <summary>
+    /// Only the programs in <see cref="AllowedApps"/> may be open (a program whitelist): any other
+    /// program with a window is closed. Windows, the shell, accessibility tools and PROCTOR always run.
+    /// </summary>
+    public bool AllowOnlyApps { get; init; }
+
+    /// <summary>Program names allowed while <see cref="AllowOnlyApps"/> is on, e.g. <c>winword</c>, <c>chrome</c>.</summary>
+    public IReadOnlyList<string> AllowedApps { get; init; } = Array.Empty<string>();
+
     /// <summary>Block internet access (the lab LAN and the classroom server stay reachable).</summary>
     public bool BlockInternet { get; init; }
 
@@ -91,10 +105,10 @@ public sealed record ClassPolicy
     public string? ExamTitle { get; init; }
 
     /// <summary>True when the policy restricts nothing.</summary>
-    public bool IsEmpty => !HasWebLimits && BlockedApps.Count == 0 && !BlockInternet && !MuteSound && !BlockUsbStorage && !ExamMode;
+    public bool IsEmpty => !HasWebLimits && BlockedApps.Count == 0 && !AllowOnlyApps && !BlockInternet && !MuteSound && !BlockUsbStorage && !ExamMode;
 
     /// <summary>The parts that end with the lesson (cleared when the last teacher leaves).</summary>
-    public bool HasLessonLimits => BlockedApps.Count > 0 || BlockInternet || MuteSound || BlockUsbStorage || ExamMode;
+    public bool HasLessonLimits => BlockedApps.Count > 0 || AllowOnlyApps || BlockInternet || MuteSound || BlockUsbStorage || ExamMode;
 
     /// <summary>True when the website part restricts something.</summary>
     public bool HasWebLimits => !(WebMode == WebLimitMode.Off || (WebMode == WebLimitMode.BlockListed && WebHosts.Count == 0));
@@ -262,6 +276,34 @@ public static class ClassroomLimits
     }
 
     /// <summary>Normalise a program name ("Steam.exe" → "steam"); null if empty or protected.</summary>
+    /// <summary>
+    /// Programs that always run under "only these programs": Windows' own windows (shell, sign-in,
+    /// settings host, pickers, error reports), accessibility tools and PROCTOR. Closing them would
+    /// break the PC or lock a student out, so the whitelist never touches them.
+    /// </summary>
+    public static readonly IReadOnlySet<string> AlwaysAllowedApps = new HashSet<string>(ProtectedApps, StringComparer.OrdinalIgnoreCase)
+    {
+        "applicationframehost", "searchapp", "searchui", "lockapp", "credentialuihost", "openwith",
+        "pickerhost", "useroobebroker", "werfault", "taskmgr", "msedgewebview2", "shellhost",
+        "osk", "magnify", "narrator", "tabtip", "inputapp", "systemsettingsbroker",
+        "proctor.agent", "proctor.agent.ui",
+    };
+
+    /// <summary>
+    /// An allow-list entry: a friendly name ("Word"), a program name ("chrome") or an .exe path;
+    /// returns the process name ("winword"), or null if it isn't one. Names Windows always allows are kept.
+    /// </summary>
+    public static string? CleanAllowedApp(string? entry)
+    {
+        if (string.IsNullOrWhiteSpace(entry)) return null;
+        var text = entry.Trim();
+        if (ProgramAliases.TryGetValue(text, out var exe)) text = exe;
+        var name = Path.GetFileName(text);
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
+        name = name.Trim().ToLowerInvariant();
+        return name.Length is 0 or > 100 || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ? null : name;
+    }
+
     public static string? CleanAppName(string? entry)
     {
         if (string.IsNullOrWhiteSpace(entry)) return null;
@@ -295,6 +337,10 @@ public static class ClassroomLimits
             WebMode = mode,
             WebHosts = hosts,
             BlockedApps = apps,
+            AllowOnlyApps = policy.AllowOnlyApps,
+            AllowedApps = policy.AllowOnlyApps
+                ? (policy.AllowedApps ?? []).Select(CleanAllowedApp).OfType<string>().Distinct().Take(MaxBlockedApps).ToArray()
+                : [],
             BlockInternet = policy.BlockInternet,
             MuteSound = policy.MuteSound,
             BlockUsbStorage = policy.BlockUsbStorage,

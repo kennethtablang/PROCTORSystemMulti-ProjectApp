@@ -39,7 +39,8 @@
             <ci:IconButton Glyph="{x:Static ci:Icons.Help}" ToolTip="Lower the student's hand" Clicked="OnLowerHand"
                            IsVisible="{Binding HandRaised}" Margin="0,0,8,4" BackgroundColor="#F9A825" IconColor="Black" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Lock}" ToolTip="Lock screen" Clicked="OnLock" Margin="0,0,4,4" />
-            <ci:IconButton Glyph="{x:Static ci:Icons.Unlock}" ToolTip="Unlock screen" Clicked="OnUnlock" Margin="0,0,4,4" />
+            <ci:IconButton Glyph="{x:Static ci:Icons.Unlock}" ToolTip="Unlock screen (also releases a frozen keyboard and mouse)" Clicked="OnUnlock" Margin="0,0,4,4" />
+            <ci:IconButton Glyph="{x:Static ci:Icons.Freeze}" ToolTip="Freeze keyboard and mouse (the screen stays visible)" Clicked="OnFreeze" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Message}" ToolTip="Send a message" Clicked="OnMessage" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Chat}" ToolTip="Chat" Clicked="OnChat" Margin="0,0,4,4" />
             <ci:IconButton Glyph="{x:Static ci:Icons.Send}" ToolTip="Send a file" Clicked="OnSendFile" Margin="0,0,4,4" />

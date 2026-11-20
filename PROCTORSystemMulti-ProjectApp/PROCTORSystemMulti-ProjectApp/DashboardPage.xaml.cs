@@ -121,6 +121,13 @@ public partial class DashboardPage : ContentPage
     // ---- class controls (P5): the whole class, or only the selected students ----
     private async void OnLockAll(object? sender, EventArgs e) => await ClassActions.LockAsync(this, _vm, _vm.SelectedTargets);
     private async void OnUnlockAll(object? sender, EventArgs e) => await ClassActions.UnlockAsync(this, _vm, _vm.SelectedTargets);
+    private async void OnFreeze(object? sender, EventArgs e) => await ClassActions.FreezeAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);
+    private async void OnSchedule(object? sender, EventArgs e)
+    {
+        if (!_vm.IsConnected) { await DisplayAlertAsync("Not connected", "Connect to the classroom server first.", "OK"); return; }
+        await Navigation.PushModalAsync(new SchedulePage(_vm));
+    }
+    private async void OnUsage(object? sender, EventArgs e) => await Navigation.PushModalAsync(new UsagePage(_vm));
     private async void OnMessageAll(object? sender, EventArgs e) => await ClassActions.MessageAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);
     private async void OnOpenSiteAll(object? sender, EventArgs e) => await ClassActions.OpenSiteAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);
     private async void OnPowerAll(object? sender, EventArgs e) =>

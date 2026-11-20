@@ -533,6 +533,10 @@ public sealed class AgentWorker : BackgroundService
                 break;
             case CommandKind.Unlock:
                 _ui?.Unlock();
+                _ui?.Unfreeze();
+                break;
+            case CommandKind.Freeze:
+                _ui?.Freeze(text);
                 break;
             case CommandKind.LaunchProgram when ClassroomLimits.CleanProgram(command.Text) is { } program:
                 if (!UserSession.LaunchProgram(program, _logger))
@@ -658,6 +662,7 @@ public sealed class AgentWorker : BackgroundService
     {
         _hub = null;
         _ui?.Unlock();
+        _ui?.Unfreeze();
         _ui?.ResetHand(showNotice: false);
         _ui?.ResetPoll();
         _ui?.ChatDisconnected();

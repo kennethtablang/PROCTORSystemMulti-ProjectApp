@@ -671,7 +671,8 @@ public sealed class ClassroomHub : Hub
 
         foreach (var student in targets)
         {
-            if (command.Kind == CommandKind.Lock && _room.LockStudent(student, teacher))
+            // A freeze is held and released exactly like a lock (Unlock, or the teacher leaving, ends it).
+            if (command.Kind is CommandKind.Lock or CommandKind.Freeze && _room.LockStudent(student, teacher))
                 await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentLockChanged, student, true);
             else if (command.Kind == CommandKind.Unlock && _room.UnlockStudent(student))
                 await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentLockChanged, student, false);
@@ -689,8 +690,8 @@ public sealed class ClassroomHub : Hub
     {
         if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can set limits.");
         var clean = ClassroomLimits.Clean(policy);
-        if (StrongControlsBlocked && (clean.BlockInternet || clean.BlockedApps.Count > 0 || clean.BlockUsbStorage))
-            throw new HubException("Turning off the internet, blocking programs and blocking flash drives need a teacher join code on this server (it runs in open mode).");
+        if (StrongControlsBlocked && (clean.BlockInternet || clean.BlockedApps.Count > 0 || clean.AllowOnlyApps || clean.BlockUsbStorage))
+            throw new HubException("Turning off the internet, blocking or allow-listing programs and blocking flash drives need a teacher join code on this server (it runs in open mode).");
         _room.Policy = clean;
         // Website limits outlast the lesson (saved to disk) - but not when the strong controls are
         // reserved for teachers with a code: then anyone opening a teacher app could leave the lab

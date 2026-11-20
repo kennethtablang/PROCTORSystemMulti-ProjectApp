@@ -816,6 +816,22 @@ this document and `README.md` in sync with reality.
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
 
+- **0.32 — 2026-11-20** (release 0.6.0)
+  - **Program allow-list ("only these programs").** `ClassPolicy.AllowOnlyApps` + `AllowedApps`
+    (friendly names such as "Word" map to the process). The agent closes any other program that owns
+    a visible top-level window (one EnumWindows pass per check); Windows' shell, sign-in, pickers,
+    accessibility tools and PROCTOR are always allowed (`ClassroomLimits.AlwaysAllowedApps`). In the
+    Limits page and as an exam option. Strong control. Closed programs feed the activity log and alerts.
+  - **Freeze keyboard and mouse** (`CommandKind.Freeze`): low-level keyboard and mouse hooks swallow
+    the student's own input but let injected input (the teacher's remote control) through; a bar says
+    why. Tracked by the server like a lock, so Unlock, the teacher leaving, a lost connection or the
+    2-hour limit always release it. Older agents ignore it.
+  - **Class schedule**: classes by weekday and time that turn on a saved set of limits or an exam and
+    restore what was on before at the end; overlap check, pause, "end it now", recovery when the app
+    was closed during a class. Runs in the teacher app (per classroom, on that device).
+  - **Usage report**: per student, online / active / idle time, minutes per program (new telemetry
+    `ForegroundApp`, the process in front) and per website, blocked attempts; CSV export.
+
 - **0.31 — 2026-11-20** (release 0.5.0)
   - **Teacher alerts.** A banner, a sound (Windows) or a buzz (phones) and a red outline/badge on the
     student's screen when a blocked site or blocked program is opened (new telemetry

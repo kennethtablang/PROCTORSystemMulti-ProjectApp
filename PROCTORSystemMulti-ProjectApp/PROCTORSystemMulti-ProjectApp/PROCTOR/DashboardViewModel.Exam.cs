@@ -26,6 +26,7 @@ public sealed partial class DashboardViewModel
         if (p.BlockUsbStorage) parts.Add("flash drives blocked");
         if (p.MuteSound) parts.Add("sound muted");
         if (p.BlockedApps.Count > 0) parts.Add($"{p.BlockedApps.Count} program(s) blocked");
+        if (p.AllowOnlyApps) parts.Add($"only {p.AllowedApps.Count} program(s)");
         return parts.Count == 0 ? "students see the exam bar" : string.Join(", ", parts);
     }
 
@@ -44,6 +45,7 @@ public sealed partial class DashboardViewModel
             MuteSound = before.MuteSound || exam.Mute,
             BlockedApps = before.BlockedApps.Concat(exam.BlockedApps).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
         };
+        if (exam.AllowedApps.Count > 0) p = p with { AllowOnlyApps = true, AllowedApps = exam.AllowedApps };
         p = exam.Web switch
         {
             ExamWeb.OnlyListed => p with { WebMode = WebLimitMode.AllowOnlyListed, WebHosts = exam.Sites, BlockInternet = false },
@@ -127,6 +129,7 @@ public sealed partial class DashboardViewModel
             if (_seenBlocked.Count > 20000) _seenBlocked.Clear();
             var site = b.Host.Length > 100 ? b.Host[..100] : b.Host;
             AddActivity(tile, "Blocked site", site);
+            CountBlockedAttempt(tile);
             RaiseAlert(tile, tile.MachineName, AlertKind.BlockedSite, site);
         }
 
@@ -135,7 +138,8 @@ public sealed partial class DashboardViewModel
             if (string.IsNullOrWhiteSpace(a.Name)) continue;
             if (!_seenBlocked.Add($"{tile.ConnectionId}|app:{a.Name}|{a.At.UtcTicks}")) continue;
             if (_seenBlocked.Count > 20000) _seenBlocked.Clear();
-            AddActivity(tile, "Blocked program", a.Name + " (closed)");
+            AddActivity(tile, "Blocked program", FriendlyApp(a.Name) + " (closed)");
+            CountBlockedAttempt(tile);
             RaiseAlert(tile, tile.MachineName, AlertKind.BlockedProgram, a.Name);
         }
     }
@@ -180,4 +184,6 @@ public sealed record ExamSettings
     public bool BlockUsb { get; init; } = true;
     public bool Mute { get; init; } = true;
     public IReadOnlyList<string> BlockedApps { get; init; } = [];
+    /// <summary>When not empty: only these programs may be used during the exam.</summary>
+    public IReadOnlyList<string> AllowedApps { get; init; } = [];
 }

@@ -241,7 +241,8 @@
             <!-- Shown whenever connected, so website lists and other limits can be set before students arrive. -->
             <FlexLayout Grid.Column="0" Wrap="Wrap" AlignItems="Center" AlignContent="Start">
                 <ci:IconButton Glyph="{x:Static ci:Icons.Lock}" ToolTip="Lock screens" Clicked="OnLockAll" Margin="0,0,4,4" />
-                <ci:IconButton Glyph="{x:Static ci:Icons.Unlock}" ToolTip="Unlock screens" Clicked="OnUnlockAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Unlock}" ToolTip="Unlock screens (also releases frozen keyboards and mice)" Clicked="OnUnlockAll" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Freeze}" ToolTip="Freeze keyboard and mouse (the screen stays visible)" Clicked="OnFreeze" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Message}" ToolTip="Send a message" Clicked="OnMessageAll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Globe}" ToolTip="Open a website" Clicked="OnOpenSiteAll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Programs}" ToolTip="Open a program, or close all programs" Clicked="OnPrograms" Margin="0,0,4,4" />
@@ -251,6 +252,7 @@
                 <ci:IconButton Glyph="{x:Static ci:Icons.Limits}" ToolTip="Limits: programs, internet, sound" Clicked="OnLimits" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Power}" ToolTip="Log off, restart or shut down" Clicked="OnPowerAll" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Exam}" ToolTip="Exam mode: start or end an exam" Clicked="OnExam" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Schedule}" ToolTip="Class schedule: turn limits or an exam on and off by day and time" Clicked="OnSchedule" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Groups}" ToolTip="Groups: select a saved group of students, or save the selection as one" Clicked="OnGroups" Margin="0,0,4,4" />
                 <BoxView WidthRequest="1" HeightRequest="20" Color="#3A3E47" Margin="4,0,8,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Send}" ToolTip="Send files" Clicked="OnSendFiles" Margin="0,0,4,4" />
@@ -262,6 +264,7 @@
                 <ci:IconButton Glyph="{x:Static ci:Icons.Activity}" ToolTip="Activity log: programs, websites, blocked sites, flash drives" Clicked="OnActivity" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Alert}" ToolTip="Alerts: blocked sites and programs, flash drives, watched words, idle students" Clicked="OnAlerts" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Replay}" ToolTip="Screen history: replay what each student's screen showed" Clicked="OnHistory" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Report}" ToolTip="Usage report: time in each program and website, idle time" Clicked="OnUsage" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Computer}" ToolTip="PC inventory: hardware, Windows, disk space, agent version" Clicked="OnInventory" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Key}" ToolTip="Teacher PIN" Clicked="OnPin" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.SignOut}" ToolTip="Lock this app now (needs a teacher PIN)" Clicked="OnLockApp" Margin="0,0,8,4" />
@@ -270,7 +273,9 @@
                 <Label Text="{Binding PollBadge}" FontSize="11" TextColor="#2E7D32" FontAttributes="Bold"
                        VerticalOptions="Center" Margin="0,0,10,4" />
                 <Label Text="{Binding RecordingText}" FontSize="11" TextColor="#EF5350" FontAttributes="Bold"
-                       VerticalOptions="Center" Margin="0,0,0,4" IsVisible="{Binding IsRecordingHistory}" />
+                       VerticalOptions="Center" Margin="0,0,10,4" IsVisible="{Binding IsRecordingHistory}" />
+                <Label Text="{Binding ScheduleText}" FontSize="11" TextColor="#66BB6A" FontAttributes="Bold"
+                       VerticalOptions="Center" Margin="0,0,0,4" IsVisible="{Binding HasActiveSchedule}" />
             </FlexLayout>
 
             <!-- View controls. Wide screens: one row beside the class actions (WideControls). Narrow

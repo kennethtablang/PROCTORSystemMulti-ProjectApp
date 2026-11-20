@@ -258,8 +258,9 @@ internal sealed class PolicyEnforcer : IDisposable
                     .Where(n => !string.IsNullOrWhiteSpace(n))
                     .Select(n => Path.GetFileNameWithoutExtension(n!.Trim()))
                     .ToArray();
-                // No version info at all (some small tools): nothing to compare, so the name is trusted.
-                ok = names.Length == 0 || names.Any(n => n.Equals(name, StringComparison.OrdinalIgnoreCase));
+                // Fail closed: outside the trusted folders a program needs a matching built-in name;
+                // one with no version info at all could be anything renamed.
+                ok = names.Length > 0 && names.Any(n => n.Equals(name, StringComparison.OrdinalIgnoreCase));
             }
         }
         catch

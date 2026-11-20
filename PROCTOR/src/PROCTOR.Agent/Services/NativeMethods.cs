@@ -240,6 +240,31 @@ internal static class NativeMethods
         return copied > 0 ? sb.ToString() : null;
     }
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder name, ref uint size);
+
+    /// <summary>Full path of a process's program file, or null if Windows won't say.</summary>
+    public static string? ProcessImagePath(int processId)
+    {
+        const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+        var h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)processId);
+        if (h == IntPtr.Zero) return null;
+        try
+        {
+            var sb = new StringBuilder(1024);
+            var size = (uint)sb.Capacity;
+            return QueryFullProcessImageName(h, 0, sb, ref size) && size > 0 ? sb.ToString(0, (int)size) : null;
+        }
+        finally
+        {
+            CloseHandle(h);
+        }
+    }
+
     /// <summary>Process name of the program in front (e.g. "winword"), or null.</summary>
     public static string? GetForegroundProcessName()
     {

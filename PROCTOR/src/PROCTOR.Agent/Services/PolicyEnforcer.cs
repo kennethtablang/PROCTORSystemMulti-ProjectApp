@@ -204,17 +204,15 @@ internal sealed class PolicyEnforcer : IDisposable
 
     /// <summary>
     /// True when the program's file is inside Windows, PROCTOR's own folder or the WebView2 runtime.
-    /// A program whose path can't be read is a protected Windows process (anything a student starts
-    /// can be read by the agent, which runs as SYSTEM).
+    /// Fails closed: a program whose path can't be read doesn't count as Windows' own.
     /// </summary>
-    private static bool IsGenuineSystemProgram(Process p)
+    private static bool IsGenuineSystemProgram(Process p) =>
+        FullPath(p) is { } path && SystemFolders.Any(dir => path.StartsWith(dir, StringComparison.OrdinalIgnoreCase));
+
+    private static string? FullPath(Process p)
     {
-        string? path;
-        try { path = p.MainModule?.FileName; }
-        catch { return true; }
-        if (string.IsNullOrEmpty(path)) return true;
-        try { path = Path.GetFullPath(path); } catch { return false; }
-        return SystemFolders.Any(dir => path.StartsWith(dir, StringComparison.OrdinalIgnoreCase));
+        try { return NativeMethods.ProcessImagePath(p.Id) is { Length: > 0 } path ? Path.GetFullPath(path) : null; }
+        catch { return null; }
     }
 
     // Folders a standard user (the student) can't write to: a program there wasn't planted by them.
@@ -227,7 +225,8 @@ internal sealed class PolicyEnforcer : IDisposable
     .Select(d => Path.TrimEndingDirectorySeparator(Path.GetFullPath(d)) + Path.DirectorySeparatorChar))
     .ToArray();
 
-    // Checks can overlap (a slow pass and the next timer tick), so the cache is concurrent.
+    // Checks can overlap (a slow pass and the next timer tick), so the cache is concurrent. Keyed by
+    // path + size + last write, so a file swapped for another at the same path is checked again.
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _genuineByPath = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -237,39 +236,39 @@ internal sealed class PolicyEnforcer : IDisposable
     /// </summary>
     private bool IsGenuinelyNamed(Process p, string name)
     {
-        string? path;
-        try { path = p.MainModule?.FileName; }
-        catch { return true; }   // unreadable: a protected Windows process, not something the student started
-        if (string.IsNullOrEmpty(path)) return true;
-        if (_genuineByPath.TryGetValue(path, out var known)) return known;
+        // Fails closed: anything a student starts can be read by the agent (it runs as SYSTEM).
+        if (FullPath(p) is not { } full) return false;
+        // Trusted folders can't be written by the student: no need to look further (or cache).
+        if (TrustedFolders.Any(dir => full.StartsWith(dir, StringComparison.OrdinalIgnoreCase))) return true;
+
+        string key;
+        try
+        {
+            var file = new FileInfo(full);
+            key = $"{full}|{file.Length}|{file.LastWriteTimeUtc.Ticks}";
+        }
+        catch { return false; }
+        if (_genuineByPath.TryGetValue(key, out var known)) return known;
 
         bool ok;
         try
         {
-            var full = Path.GetFullPath(path);
-            if (TrustedFolders.Any(dir => full.StartsWith(dir, StringComparison.OrdinalIgnoreCase)))
-            {
-                ok = true;
-            }
-            else
-            {
-                var info = FileVersionInfo.GetVersionInfo(full);
-                var names = new[] { info.OriginalFilename, info.InternalName }
-                    .Where(n => !string.IsNullOrWhiteSpace(n))
-                    .Select(n => Path.GetFileNameWithoutExtension(n!.Trim()))
-                    .ToArray();
-                // Fail closed: outside the trusted folders a program needs a matching built-in name;
-                // one with no version info at all could be anything renamed.
-                ok = names.Length > 0 && names.Any(n => n.Equals(name, StringComparison.OrdinalIgnoreCase));
-            }
+            var info = FileVersionInfo.GetVersionInfo(full);
+            var names = new[] { info.OriginalFilename, info.InternalName }
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Select(n => Path.GetFileNameWithoutExtension(n!.Trim()))
+                .ToArray();
+            // Fail closed: outside the trusted folders a program needs a matching built-in name;
+            // one with no version info at all could be anything renamed.
+            ok = names.Length > 0 && names.Any(n => n.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
         catch
         {
             ok = false;
         }
         if (_genuineByPath.Count > 500) _genuineByPath.Clear();
-        _genuineByPath[path] = ok;
-        if (!ok) _logger.LogInformation("{Path} is named like the allowed program {Name} but isn't it; closing it.", path, name);
+        _genuineByPath[key] = ok;
+        if (!ok) _logger.LogInformation("{Path} is named like the allowed program {Name} but isn't it; closing it.", full, name);
         return ok;
     }
 

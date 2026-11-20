@@ -11,7 +11,7 @@ namespace PROCTOR.Agent.Services;
 /// <summary>
 /// "Freeze keyboard and mouse": the student's own keyboard and mouse stop working but the screen
 /// stays visible (watching a demo or the teacher's shared screen). A small bar says why. Input the
-/// teacher sends through remote control still works (it carries <see cref="RemoteInput.Marker"/>),
+/// teacher sends through remote control still works (one-time tags, <see cref="RemoteInput.ConsumeTag"/>),
 /// input faked by any other program does not, and Ctrl+Alt+Del always reaches Windows. Released by Unlock, a lost connection, the teacher leaving, or after
 /// <see cref="Shared.Contracts.ClassroomLimits.MaxLockDuration"/> at the latest.
 /// </summary>
@@ -147,9 +147,9 @@ internal sealed partial class ClassroomUi
         w.Show();
     }
 
-    /// <summary>Injected (LLKHF_INJECTED 0x10 / LLMHF_INJECTED 0x01) and tagged by our remote control.</summary>
+    /// <summary>Injected (LLKHF_INJECTED 0x10 / LLMHF_INJECTED 0x01) with a fresh one-time tag from our remote control.</summary>
     private static bool FromTeacher(uint flags, uint injectedFlag, IntPtr extraInfo) =>
-        (flags & injectedFlag) != 0 && extraInfo == RemoteInput.Marker;
+        (flags & injectedFlag) != 0 && RemoteInput.ConsumeTag(extraInfo);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct KBDLLHOOKSTRUCT

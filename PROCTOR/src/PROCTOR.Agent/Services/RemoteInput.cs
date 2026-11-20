@@ -80,12 +80,28 @@ internal sealed class RemoteInput
         Send(inputs);
     }
 
-    /// <summary>
-    /// Tag on every event the teacher's remote control plays in (the hooks see it as dwExtraInfo).
-    /// Random per agent run and known only to this process, so "freeze keyboard and mouse" can let
-    /// the teacher's input through without trusting other programs that fake input.
-    /// </summary>
-    public static readonly IntPtr Marker = (IntPtr)Random.Shared.NextInt64(1, long.MaxValue);
+    // One-time tags on the events the teacher's remote control plays in (hooks see them as
+    // dwExtraInfo). "Freeze keyboard and mouse" lets an injected event through only when its tag is
+    // one we just issued, and uses it up: a program that watches the tags can't replay them, and
+    // input faked by other programs (no valid tag) stays blocked.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, long> Pending = new();
+    private static readonly long TagLifetime = TimeSpan.FromSeconds(2).Ticks;
+
+    private static IntPtr IssueTag()
+    {
+        var now = DateTime.UtcNow.Ticks;
+        if (Pending.Count > 2000)
+            foreach (var (tag, expires) in Pending)
+                if (expires < now) Pending.TryRemove(tag, out _);
+        IntPtr t;
+        do t = (IntPtr)Random.Shared.NextInt64(1, long.MaxValue);
+        while (!Pending.TryAdd(t, now + TagLifetime));
+        return t;
+    }
+
+    /// <summary>True (once) when <paramref name="tag"/> was issued for remote-control input in the last two seconds.</summary>
+    public static bool ConsumeTag(IntPtr tag) =>
+        tag != IntPtr.Zero && Pending.TryRemove(tag, out var expires) && expires >= DateTime.UtcNow.Ticks;
 
     private void Send(List<INPUT> inputs)
     {
@@ -93,8 +109,8 @@ internal sealed class RemoteInput
         var arr = inputs.ToArray();
         for (var i = 0; i < arr.Length; i++)
         {
-            if (arr[i].type == INPUT_MOUSE) arr[i].u.mi.dwExtraInfo = Marker;
-            else if (arr[i].type == INPUT_KEYBOARD) arr[i].u.ki.dwExtraInfo = Marker;
+            if (arr[i].type == INPUT_MOUSE) arr[i].u.mi.dwExtraInfo = IssueTag();
+            else if (arr[i].type == INPUT_KEYBOARD) arr[i].u.ki.dwExtraInfo = IssueTag();
         }
         var sent = SendInput((uint)arr.Length, arr, Marshal.SizeOf<INPUT>());
         if (sent != arr.Length)

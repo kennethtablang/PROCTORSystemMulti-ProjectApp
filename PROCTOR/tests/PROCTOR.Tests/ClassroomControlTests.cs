@@ -147,6 +147,42 @@ public class ClassroomLimitsTests
     public void Windows_and_PROCTOR_always_run_under_a_program_allow_list(string process) =>
         Assert.Contains(process, ClassroomLimits.AlwaysAllowedApps);
 
+    [Theory]
+    [InlineData("juan", "dela cruz", "m.", "Juan", "Dela Cruz", "M", "Dela Cruz, Juan M.")]
+    [InlineData("  Ma. Teresa ", "O'Brien", "", "Ma. Teresa", "O'Brien", null, "O'Brien, Ma. Teresa")]
+    [InlineData("José", "Peña-Reyes", "ab", "José", "Peña-Reyes", "AB", "Peña-Reyes, José AB.")]
+    [InlineData("ANNA", "SMITH", " c ", "ANNA", "SMITH", "C", "SMITH, ANNA C.")]
+    public void Attendance_names_are_cleaned(string first, string last, string mi, string f, string l, string? m, string display)
+    {
+        var name = AttendanceLimits.Clean(new AttendanceSubmission { FirstName = first, LastName = last, MiddleInitial = mi }, DateTimeOffset.UtcNow, out var error);
+        Assert.Null(error);
+        Assert.Equal(f, name!.FirstName);
+        Assert.Equal(l, name.LastName);
+        Assert.Equal(m, name.MiddleInitial);
+        Assert.Equal(display, name.Display);
+    }
+
+    [Theory]
+    [InlineData("", "Cruz", "")]
+    [InlineData("Juan", "  ", "")]
+    [InlineData("Juan<script>", "Cruz", "")]
+    [InlineData("Juan", "Cruz2", "")]
+    [InlineData("Juan", "Cruz", "abc")]
+    [InlineData("---", "Cruz", "")]
+    public void Bad_attendance_names_are_refused(string first, string last, string mi)
+    {
+        Assert.Null(AttendanceLimits.Clean(new AttendanceSubmission { FirstName = first, LastName = last, MiddleInitial = mi }, DateTimeOffset.UtcNow, out var error));
+        Assert.False(string.IsNullOrEmpty(error));
+    }
+
+    [Fact]
+    public void Attendance_names_are_capped()
+    {
+        Assert.Null(AttendanceLimits.CleanPart(new string('a', AttendanceLimits.MaxNameLength + 1)));
+        Assert.Equal(AttendanceLimits.MaxTitleLength, AttendanceLimits.CleanTitle(new string('x', 500))!.Length);
+        Assert.Null(AttendanceLimits.CleanTitle(" \r\n "));
+    }
+
     [Fact]
     public void Policy_cleaning_keeps_flash_drive_block_and_exam()
     {

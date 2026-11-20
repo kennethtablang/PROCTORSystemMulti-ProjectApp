@@ -121,8 +121,6 @@ public sealed class LockScreenPage : ContentPage
                     StrokeThickness = 1,
                     StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
                     Padding = new Thickness(20, 16),
-                    MaximumWidthRequest = 560,
-                    MaximumHeightRequest = 760,
                     HorizontalOptions = LayoutOptions.Center,
                     VerticalOptions = LayoutOptions.Center,
                     Margin = new Thickness(16),
@@ -130,6 +128,7 @@ public sealed class LockScreenPage : ContentPage
                 },
             },
         };
+        ModalUi.FitCard(this, 560);   // never wider or taller than the window
         UpdatePreview();
     }
 

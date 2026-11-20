@@ -12,7 +12,9 @@
              a tap on the screen opens the focus view (or, when rearranging the lab, picks the seat).
              Every tile and seat has the same height (TileHeight, set in code) so rows line up. -->
         <DataTemplate x:Key="TileTemplate" x:DataType="ci:StudentTile">
-            <Border Stroke="{Binding TileBorderColor}" StrokeThickness="2" Padding="8" HeightRequest="{DynamicResource TileHeight}">
+            <!-- Hovering a computer shows everything about it: the student's name, PC, network, hardware, what's open. -->
+            <Border Stroke="{Binding TileBorderColor}" StrokeThickness="2" Padding="8" HeightRequest="{DynamicResource TileHeight}"
+                    ToolTipProperties.Text="{Binding TooltipText}">
                 <Border.StrokeShape>
                     <RoundRectangle CornerRadius="8" />
                 </Border.StrokeShape>
@@ -260,7 +262,7 @@
                 <ci:IconButton Glyph="{x:Static ci:Icons.Timer}" ToolTip="Lesson timer" Clicked="OnTimer" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Shuffle}" ToolTip="Pick a random student" Clicked="OnPick" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Camera}" ToolTip="Save snapshots of all screens" Clicked="OnSnapshot" Margin="0,0,4,4" />
-                <ci:IconButton Glyph="{x:Static ci:Icons.Attendance}" ToolTip="Export attendance (CSV)" Clicked="OnAttendance" Margin="0,0,4,4" />
+                <ci:IconButton Glyph="{x:Static ci:Icons.Attendance}" ToolTip="Attendance: ask students for their names, start a new class, export the list" Clicked="OnAttendance" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Activity}" ToolTip="Activity log: programs, websites, blocked sites, flash drives" Clicked="OnActivity" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Alert}" ToolTip="Alerts: blocked sites and programs, flash drives, watched words, idle students" Clicked="OnAlerts" Margin="0,0,4,4" />
                 <ci:IconButton Glyph="{x:Static ci:Icons.Replay}" ToolTip="Screen history: replay what each student's screen showed" Clicked="OnHistory" Margin="0,0,4,4" />
@@ -326,6 +328,20 @@
                        VerticalOptions="Center" LineBreakMode="WordWrap" FlexLayout.Grow="1" FlexLayout.Shrink="1" Margin="0,2,8,2" />
                 <Button Text="End exam" Clicked="OnEndExam" Padding="16,2" FontSize="12" Margin="0,2,0,2"
                         BackgroundColor="#F2C230" TextColor="#1F1A00" />
+            </FlexLayout>
+        </Border>
+
+        <!-- Students are being asked for their names. -->
+        <Border IsVisible="{Binding IsTakingAttendance}" BackgroundColor="#1A2B3A" Stroke="#4FC3F7" Padding="12,4">
+            <Border.StrokeShape>
+                <RoundRectangle CornerRadius="8" />
+            </Border.StrokeShape>
+            <FlexLayout Wrap="Wrap" AlignItems="Center">
+                <Label Text="{Binding AttendanceText}" TextColor="#B3E5FC" FontAttributes="Bold" FontSize="13"
+                       VerticalOptions="Center" LineBreakMode="WordWrap" FlexLayout.Grow="1" FlexLayout.Shrink="1" Margin="0,2,8,2" />
+                <Button Text="Export list" Clicked="OnExportAttendance" Padding="12,2" FontSize="12" Margin="0,2,6,2" />
+                <Button Text="Stop asking" Clicked="OnStopAttendance" Padding="12,2" FontSize="12" Margin="0,2,0,2"
+                        BackgroundColor="#0277BD" TextColor="White" />
             </FlexLayout>
         </Border>
 

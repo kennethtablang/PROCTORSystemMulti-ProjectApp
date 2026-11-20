@@ -169,6 +169,7 @@ public sealed record ActivityEntry(DateTimeOffset At, string Computer, string Us
         "Website" => Color.FromArgb("#7E57C2"),
         "Joined" or "Left" => Color.FromArgb("#26A69A"),
         "Exam" => Color.FromArgb("#F2C230"),
+        "Attendance" or "Schedule" => Color.FromArgb("#4FC3F7"),
         _ => Color.FromArgb("#9AA0A6"),
     };
 }

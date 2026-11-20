@@ -109,7 +109,6 @@ public sealed class WebsitesPage : ContentPage
                     StrokeThickness = 1,
                     StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
                     Padding = new Thickness(20, 16),
-                    MaximumWidthRequest = 720,
                     HorizontalOptions = LayoutOptions.Center,
                     VerticalOptions = LayoutOptions.Center,
                     Margin = new Thickness(16),
@@ -117,6 +116,7 @@ public sealed class WebsitesPage : ContentPage
                 },
             },
         };
+        ModalUi.FitCard(this, 720);   // never wider or taller than the window
     }
 
     private async Task ApplyAsync()

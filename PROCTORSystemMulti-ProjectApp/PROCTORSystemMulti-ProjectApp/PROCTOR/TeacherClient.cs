@@ -55,6 +55,8 @@ public sealed class TeacherClient : IAsyncDisposable
     public event Action<string, bool>? StudentHandChanged;
     public event Action<ClassPolicy>? PolicyUpdated;
     public event Action<PollResults>? PollResultsUpdated;
+    public event Action<StudentNameUpdate>? StudentNameChanged;
+    public event Action<AttendanceStatus>? AttendanceStatusUpdated;
     public event Action<LessonTimer>? TimerUpdated;
     public event Action<ChatMessage>? ChatReceived;
     public event Action<FileOffer>? FileOffered;
@@ -229,6 +231,8 @@ public sealed class TeacherClient : IAsyncDisposable
         hub.On<string, bool>(Protocol.ClientMethods.StudentHandChanged, (id, raised) => StudentHandChanged?.Invoke(id, raised));
         hub.On<ClassPolicy>(Protocol.ClientMethods.PolicyUpdated, p => PolicyUpdated?.Invoke(p));
         hub.On<PollResults>(Protocol.ClientMethods.PollResultsUpdated, r => PollResultsUpdated?.Invoke(r));
+        hub.On<StudentNameUpdate>(Protocol.ClientMethods.StudentNameChanged, u => StudentNameChanged?.Invoke(u));
+        hub.On<AttendanceStatus>(Protocol.ClientMethods.AttendanceStatusUpdated, s => AttendanceStatusUpdated?.Invoke(s));
         hub.On<LessonTimer>(Protocol.ClientMethods.TimerUpdated, t => TimerUpdated?.Invoke(t));
         hub.On<ChatMessage>(Protocol.ClientMethods.ChatReceived, m => ChatReceived?.Invoke(m));
         hub.On<FileOffer>(Protocol.ClientMethods.FileOffered, o => FileOffered?.Invoke(o));
@@ -529,6 +533,27 @@ public sealed class TeacherClient : IAsyncDisposable
     {
         var hub = _hub ?? throw new InvalidOperationException("Not connected.");
         try { await hub.InvokeAsync(Protocol.ServerMethods.StopTimer); }
+        catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
+    }
+
+    public async Task StartAttendanceAsync(string? title)
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try { await hub.InvokeAsync<AttendanceRequest>(Protocol.ServerMethods.StartAttendance, new AttendanceRequest { Title = title }); }
+        catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
+    }
+
+    public async Task StopAttendanceAsync()
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try { await hub.InvokeAsync(Protocol.ServerMethods.StopAttendance); }
+        catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
+    }
+
+    public async Task ClearAttendanceAsync(bool askAgain)
+    {
+        var hub = _hub ?? throw new InvalidOperationException("Not connected.");
+        try { await hub.InvokeAsync(Protocol.ServerMethods.ClearAttendance, askAgain); }
         catch (HubException ex) { throw new InvalidOperationException(ServerMessage(ex), ex); }
     }
 

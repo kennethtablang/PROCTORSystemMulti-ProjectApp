@@ -81,40 +81,12 @@ public sealed class ActivityPage : ContentPage
             Children = { Gap(clear), Gap(export), Gap(close) },
         };
 
-        var layout = new Grid
-        {
-            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star), new RowDefinition(GridLength.Auto) },
-            RowSpacing = 8,
-        };
-        layout.Add(new Label { Text = "Activity log", FontSize = 18, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#B794F6") }, 0, 0);
-        layout.Add(new Label
-        {
-            Text = "Programs and websites students used, blocked sites, flash drives and who joined, newest first. Kept in this app for this session; export it to keep a copy.",
-            FontSize = 12, TextColor = Color.FromArgb("#D0D3D8"), LineBreakMode = LineBreakMode.WordWrap,
-        }, 0, 1);
-        layout.Add(header, 0, 2);
-        layout.Add(_list, 0, 3);
-        layout.Add(footer, 0, 4);
-
-        Content = new Grid
-        {
-            Children =
-            {
-                new Border
-                {
-                    BackgroundColor = Color.FromArgb("#1E2027"),
-                    Stroke = Color.FromArgb("#B794F6"),
-                    StrokeThickness = 1,
-                    StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
-                    Padding = new Thickness(20, 16),
-                    MaximumWidthRequest = 820,
-                    HorizontalOptions = LayoutOptions.Fill,
-                    VerticalOptions = LayoutOptions.Fill,
-                    Margin = new Thickness(16, 24),
-                    Content = layout,
-                },
-            },
-        };
+        Content = ModalUi.Page(this, "Activity log",
+            "Programs and websites students used, blocked sites, flash drives and who joined, newest first. Kept in this app for this session; export it to keep a copy.",
+            820,
+            (header, false),
+            (_list, true),
+            (footer, false));
 
         _vm.Activity.CollectionChanged += OnActivityChanged;
         Refresh();

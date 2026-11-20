@@ -78,6 +78,8 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         _client.StudentHandChanged += (id, raised) => OnUi(() => SetHand(id, raised));
         _client.PolicyUpdated += p => OnUi(() => Policy = p);
         _client.PollResultsUpdated += r => OnUi(() => PollResults = r);
+        _client.StudentNameChanged += u => OnUi(() => OnStudentName(u));
+        _client.AttendanceStatusUpdated += s => OnUi(() => AttendanceStatus = s);
         _client.TimerUpdated += t => OnUi(() => OnTimerUpdated(t));
         _client.ChatReceived += m => OnUi(() => OnChat(m));
         // File chunks are handled in order on the hub's thread (writes are small and sequential);
@@ -788,6 +790,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         {
             existing.State = snap.State;
             existing.OwnWebLimits = snap.OwnWebLimits;
+            existing.StudentName = snap.StudentName;
             return;
         }
         var tile = new StudentTile(snap);
@@ -837,6 +840,7 @@ public sealed partial class DashboardViewModel : INotifyPropertyChanged
         Raise(nameof(StudentCount));
         Raise(nameof(HasStudents));
         Raise(nameof(ShowConnectGuide));
+        RaiseAttendance();
         RefreshVisible();
         SyncLayout();
         RaiseSelection();

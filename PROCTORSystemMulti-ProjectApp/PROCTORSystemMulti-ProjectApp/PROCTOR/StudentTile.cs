@@ -28,6 +28,7 @@ public sealed class StudentTile : INotifyPropertyChanged
         _isLocked = snap.IsLocked;
         _handRaised = snap.HandRaised;
         _ownWebLimits = snap.OwnWebLimits;
+        _studentName = snap.StudentName;
         if (snap.LastTelemetry is { } t) Apply(t);
 
         // Flip HasVideo when the first frame lands / the stream is cleared. Updated fires per
@@ -204,7 +205,56 @@ public sealed class StudentTile : INotifyPropertyChanged
     /// <summary>Live upload+download rate, used for sorting by bandwidth (FR-TEACH-06).</summary>
     public double TotalRate => _down + _up;
 
-    public string Header => string.IsNullOrWhiteSpace(UserName) ? MachineName : $"{MachineName} · {UserName}";
+    /// <summary>"PC05 · Dela Cruz, Juan M." once the student gave their name; else the Windows user.</summary>
+    public string Header => _studentName is { } n ? $"{MachineName} · {n.Display}"
+        : string.IsNullOrWhiteSpace(UserName) ? MachineName : $"{MachineName} · {UserName}";
+
+    private StudentName? _studentName;
+    /// <summary>The name the student typed on the attendance form, or null.</summary>
+    public StudentName? StudentName
+    {
+        get => _studentName;
+        set
+        {
+            _studentName = value;
+            Raise(); Raise(nameof(Header)); Raise(nameof(HasStudentName)); Raise(nameof(TooltipText));
+        }
+    }
+    public bool HasStudentName => _studentName is not null;
+
+    /// <summary>Everything about this computer, shown when the mouse rests on its screen.</summary>
+    public string TooltipText
+    {
+        get
+        {
+            var lines = new List<string> { MachineName };
+            lines.Add(_studentName is { } n
+                ? $"Student: {n.FullName} (name given {n.SubmittedAt.ToLocalTime():HH:mm})"
+                : "Student: no name given yet");
+            if (!string.IsNullOrWhiteSpace(UserName)) lines.Add($"Windows user: {UserName}");
+            var net = string.Join("  ·  ", new[] { string.IsNullOrEmpty(IpAddress) ? null : "IP " + IpAddress,
+                MacAddresses.Count > 0 ? "MAC " + string.Join(", ", MacAddresses) : null }.Where(x => x is not null));
+            if (net.Length > 0) lines.Add(net);
+            if (_inventory is { } i)
+            {
+                var hw = string.Join(" · ", new[] { string.Join(" ", new[] { i.Manufacturer, i.Model }.Where(x => !string.IsNullOrWhiteSpace(x))),
+                    i.CpuName, i.MemoryTotalBytes > 0 ? Human(i.MemoryTotalBytes) + " RAM" : null }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                if (hw.Length > 0) lines.Add(hw);
+                var os = i.Windows ?? "";
+                if (i.DiskTotalBytes > 0) os += (os.Length > 0 ? " · " : "") + $"{Human(i.DiskFreeBytes)} free of {Human(i.DiskTotalBytes)}";
+                if (os.Length > 0) lines.Add(os);
+                if (i.AgentVersion is { } v) lines.Add($"PROCTOR agent {v}");
+            }
+            lines.Add($"{StateText} · CPU {_cpu:0}% · RAM {_mem:0}% · {BandwidthText}");
+            if (!string.IsNullOrWhiteSpace(_foreground)) lines.Add("Now: " + (_foreground!.Length > 80 ? _foreground[..80] + "…" : _foreground));
+            if (!string.IsNullOrWhiteSpace(_activeHost)) lines.Add("Website: " + _activeHost);
+            if (IsIdle) lines.Add(IdleText);
+            if (HasUsbDrive) lines.Add(UsbText);
+            if (_isLocked) lines.Add("Screen locked");
+            if (_handRaised) lines.Add("Needs help (hand raised)");
+            return string.Join(Environment.NewLine, lines);
+        }
+    }
 
     private StudentState _state;
     public StudentState State
@@ -330,6 +380,7 @@ public sealed class StudentTile : INotifyPropertyChanged
         Raise(nameof(HasActiveHost));
         Raise(nameof(TotalRate));
         Raise(nameof(Processes));
+        Raise(nameof(TooltipText));
     }
 
     public static string Human(double bytes)

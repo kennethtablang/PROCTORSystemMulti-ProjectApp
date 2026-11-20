@@ -58,7 +58,7 @@ public sealed class ExamPage : ContentPage
             HeightRequest = 70, AutoSize = EditorAutoSizeOption.Disabled,
         };
 
-        var start = new Button { Text = "Start exam", Padding = new Thickness(18, 4), BackgroundColor = Color.FromArgb("#F2C230"), TextColor = Color.FromArgb("#1F1A00") };
+        var start = new Button { Text = "Start exam", Padding = new Thickness(18, 4), BackgroundColor = Color.FromArgb("#7E57C2"), TextColor = Colors.White };
         start.Clicked += async (_, _) => await StartAsync();
         var cancel = new Button { Text = "Cancel", Padding = new Thickness(14, 4), BackgroundColor = Color.FromArgb("#2A2D34"), TextColor = Colors.White };
         cancel.Clicked += async (_, _) => await Navigation.PopModalAsync();
@@ -68,7 +68,7 @@ public sealed class ExamPage : ContentPage
             Spacing = 8,
             Children =
             {
-                new Label { Text = "Start an exam", FontSize = 18, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#F2C230") },
+                new Label { Text = "Start an exam", FontSize = 18, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#B794F6") },
                 new Label
                 {
                     Text = "Applies to the whole class. Students see an \"Exam in progress\" bar at the bottom of their screen. " +
@@ -99,12 +99,10 @@ public sealed class ExamPage : ContentPage
                 new Border
                 {
                     BackgroundColor = Color.FromArgb("#1E2027"),
-                    Stroke = Color.FromArgb("#F2C230"),
+                    Stroke = Color.FromArgb("#B794F6"),
                     StrokeThickness = 1,
                     StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
                     Padding = new Thickness(20, 16),
-                    MaximumWidthRequest = 560,
-                    MaximumHeightRequest = 760,
                     HorizontalOptions = LayoutOptions.Center,
                     VerticalOptions = LayoutOptions.Center,
                     Margin = new Thickness(16),
@@ -112,6 +110,7 @@ public sealed class ExamPage : ContentPage
                 },
             },
         };
+        ModalUi.FitCard(this, 560);   // never wider or taller than the window
     }
 
     private async Task StartAsync()

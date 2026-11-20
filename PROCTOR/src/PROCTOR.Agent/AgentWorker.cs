@@ -99,6 +99,7 @@ public sealed class AgentWorker : BackgroundService
             _ui = new ClassroomUi(loggerFactory.CreateLogger<ClassroomUi>());
             _ui.HandToggled += raised => _ = SendHandAsync(raised);
             _ui.PollAnswered += answer => _ = SendPollAnswerAsync(answer);
+            _ui.AttendanceSubmitted += SubmitAttendanceAsync;
             _ui.ChatSent += text => _ = SendChatAsync(text);
 
             // Remote control is opt-in, and only towards a server IT pinned by fingerprint: a
@@ -421,6 +422,8 @@ public sealed class AgentWorker : BackgroundService
         hub.On(Protocol.ClientMethods.HandLowered, () => _ui?.ResetHand(showNotice: true));
         hub.On<Poll>(Protocol.ClientMethods.PollStarted, poll => _ui?.ShowPoll(poll));
         hub.On<string>(Protocol.ClientMethods.PollClosed, id => _ui?.ClosePoll(id));
+        hub.On<AttendanceRequest>(Protocol.ClientMethods.AttendanceRequested, r => _ui?.ShowAttendance(r));
+        hub.On(Protocol.ClientMethods.AttendanceClosed, () => _ui?.CloseAttendance());
 
         hub.On<LessonTimer>(Protocol.ClientMethods.TimerUpdated, t => _ui?.ShowTimer(t));
 
@@ -572,6 +575,14 @@ public sealed class AgentWorker : BackgroundService
         _ui?.HideBroadcast();
     }
 
+    /// <summary>Send the name from the attendance form; returns the server's error, or null when recorded.</summary>
+    private async Task<string?> SubmitAttendanceAsync(AttendanceSubmission submission)
+    {
+        var hub = _hub;
+        if (hub is not { State: HubConnectionState.Connected }) return "Not connected to your teacher. Try again in a moment.";
+        return await hub.InvokeAsync<string?>(Protocol.ServerMethods.SubmitAttendance, submission);
+    }
+
     private async Task SendPollAnswerAsync(PollAnswer answer)
     {
         var hub = _hub;
@@ -665,6 +676,7 @@ public sealed class AgentWorker : BackgroundService
         _ui?.Unfreeze();
         _ui?.ResetHand(showNotice: false);
         _ui?.ResetPoll();
+        _ui?.CloseAttendance();
         _ui?.ChatDisconnected();
         _ui?.ResetHandIn();
         _remoteTeacher = null;

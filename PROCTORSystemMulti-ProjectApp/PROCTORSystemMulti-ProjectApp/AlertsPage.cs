@@ -96,7 +96,7 @@ public sealed class AlertsPage : ContentPage
         var close = ModalUi.Secondary("Close");
         close.Clicked += async (_, _) => await Navigation.PopModalAsync();
 
-        Content = ModalUi.Page("Alerts",
+        Content = ModalUi.Page(this, "Alerts",
             "Get a pop-up and a red outline on the student's screen when something needs your attention. " +
             "Watched words are checked in window titles and websites (separate them with commas).",
             860,

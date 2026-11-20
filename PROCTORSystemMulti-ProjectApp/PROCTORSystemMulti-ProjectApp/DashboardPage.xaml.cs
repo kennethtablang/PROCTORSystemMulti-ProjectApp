@@ -154,7 +154,48 @@ public partial class DashboardPage : ContentPage
     private async void OnTimer(object? sender, EventArgs e) => await StartTimer();
     private async void OnPick(object? sender, EventArgs e) => await PickStudent();
     private async void OnSnapshot(object? sender, EventArgs e) => await SnapshotAll();
-    private async void OnAttendance(object? sender, EventArgs e) => await ExportAttendance();
+    private async void OnAttendance(object? sender, EventArgs e) => await AttendanceMenuAsync();
+    private async void OnExportAttendance(object? sender, EventArgs e) => await ExportAttendance();
+    private async void OnStopAttendance(object? sender, EventArgs e)
+    {
+        if (await _vm.StopAttendanceAsync() is { } error) await DisplayAlertAsync("Attendance", error, "OK");
+    }
+
+    // ---- attendance: names ----
+    private async Task AttendanceMenuAsync()
+    {
+        if (!_vm.IsConnected) { await DisplayAlertAsync("Not connected", "Connect to the classroom server first.", "OK"); return; }
+        const string ask = "Ask students for their names", stop = "Stop asking",
+            next = "New class: clear the names and ask again", clear = "Clear the names (don't ask yet)", export = "Export attendance (CSV)";
+        var options = new List<string> { _vm.IsTakingAttendance ? stop : ask, next, clear, export };
+        var choice = await DisplayActionSheetAsync($"Attendance · {_vm.NamedCount} of {_vm.StudentCount} named", "Cancel", null, options.ToArray());
+        switch (choice)
+        {
+            case ask:
+                var title = await DisplayPromptAsync("Ask for names", "Class name shown on the students' form (optional):", "Ask now", "Cancel",
+                    "e.g. IT 101 - Section A", global::PROCTOR.Shared.Contracts.AttendanceLimits.MaxTitleLength);
+                if (title is null) return;
+                if (await _vm.StartAttendanceAsync(title) is { } e1) await DisplayAlertAsync("Couldn't ask for names", e1, "OK");
+                break;
+            case stop:
+                if (await _vm.StopAttendanceAsync() is { } e2) await DisplayAlertAsync("Attendance", e2, "OK");
+                break;
+            case next:
+            case clear:
+                if (_vm.NamedCount > 0)
+                {
+                    var save = await DisplayActionSheetAsync("Keep this class's attendance?", "Cancel", null, "Export the list first", "Don't export");
+                    if (save is null or "Cancel") return;
+                    if (save == "Export the list first") await ExportAttendance();
+                }
+                if (await _vm.NewClassAsync(askAgain: choice == next) is { } e3) await DisplayAlertAsync("Attendance", e3, "OK");
+                else _vm.ShowStatus(choice == next ? "New class: names cleared, students are asked for their names." : "Names cleared.");
+                break;
+            case export:
+                await ExportAttendance();
+                break;
+        }
+    }
     private async void OnPin(object? sender, EventArgs e) => await ManagePin();
     private async void OnSendFiles(object? sender, EventArgs e) => await ClassActions.SendFilesAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);
     private async void OnPrograms(object? sender, EventArgs e) => await ClassActions.ProgramsAsync(this, _vm, _vm.SelectedTargets, _vm.TargetsWho);

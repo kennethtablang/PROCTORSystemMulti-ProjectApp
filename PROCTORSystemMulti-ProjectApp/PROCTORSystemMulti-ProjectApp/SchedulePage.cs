@@ -86,13 +86,13 @@ public sealed class SchedulePage : ContentPage
         var close = ModalUi.Secondary("Close");
         close.Clicked += async (_, _) => await Navigation.PopModalAsync();
 
-        Content = ModalUi.Page("Class schedule",
+        Content = ModalUi.Page(this, "Class schedule",
             "At the start of each class its limits (websites, programs, internet, flash drives, sound) or an exam turn on by themselves, " +
             "and at the end what was on before comes back. Times use this PC's clock. Keep PROCTOR open on this PC: the schedule runs in this app.",
             860,
             (ModalUi.Row(false, _running, _endNow), false),
             (editor, false),
-            (new ScrollView { Content = _list }, true),
+            (_list, false),
             (ModalUi.Row(true, close), false));
 
         Edit(null);

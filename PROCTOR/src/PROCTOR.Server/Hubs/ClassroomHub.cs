@@ -135,6 +135,10 @@ public sealed class ClassroomHub : Hub
             await Clients.Client(broadcaster).SendAsync(Protocol.ClientMethods.BroadcastStudentJoined, Context.ConnectionId);
         }
 
+        // ...the attendance form, if the class is being asked and this PC hasn't answered...
+        if (_room.AttendanceOpen is { } attendance && entry.Name is null)
+            await Clients.Caller.SendAsync(Protocol.ClientMethods.AttendanceRequested, attendance);
+
         // ...and the open poll, if there is one.
         if (_polls.Open is { } poll)
         {
@@ -224,6 +228,7 @@ public sealed class ClassroomHub : Hub
         if (_polls.Results(_room.StudentCount) is { } results)
             await Clients.Caller.SendAsync(Protocol.ClientMethods.PollResultsUpdated, results);
         await Clients.Caller.SendAsync(Protocol.ClientMethods.TimerUpdated, _timer.Snapshot());
+        await Clients.Caller.SendAsync(Protocol.ClientMethods.AttendanceStatusUpdated, AttendanceStatus());
     }
 
     // ---- chat ------------------------------------------------------------------
@@ -620,6 +625,74 @@ public sealed class ClassroomHub : Hub
             await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.PollResultsUpdated, results);
     }
 
+    // ---- attendance ---------------------------------------------------------
+
+    /// <summary>Ask the class for their names. PCs that already gave one this class aren't asked again.</summary>
+    public async Task<AttendanceRequest> StartAttendance(AttendanceRequest request)
+    {
+        if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can take attendance.");
+        var open = _room.AttendanceOpen is { } current && current.Title == AttendanceLimits.CleanTitle(request?.Title)
+            ? current
+            : new AttendanceRequest { Id = Guid.NewGuid().ToString("N"), Title = AttendanceLimits.CleanTitle(request?.Title), StartedAt = DateTimeOffset.UtcNow };
+        _room.AttendanceOpen = open;
+        var ask = _room.UnnamedStudents;
+        if (ask.Count > 0) await Clients.Clients(ask).SendAsync(Protocol.ClientMethods.AttendanceRequested, open);
+        await PushAttendanceStatusAsync();
+        _logger.LogInformation("Teacher {Teacher} asked {Count} student(s) for their names.", Context.ConnectionId, ask.Count);
+        return open;
+    }
+
+    /// <summary>Stop asking: the forms close on the student PCs; the names given so far stay.</summary>
+    public async Task StopAttendance()
+    {
+        if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can take attendance.");
+        await CloseAttendanceAsync();
+    }
+
+    /// <summary>A new class: forget every name; with <paramref name="askAgain"/>, ask everyone again.</summary>
+    public async Task ClearAttendance(bool askAgain)
+    {
+        if (!_room.IsTeacher(Context.ConnectionId)) throw new HubException("Only teachers can take attendance.");
+        var title = _room.AttendanceOpen?.Title;
+        await CloseAttendanceAsync();
+        foreach (var s in _room.ClearNames())
+            await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentNameChanged,
+                new StudentNameUpdate { StudentConnectionId = s, Name = null });
+        _logger.LogInformation("Teacher {Teacher} cleared the attendance names{Again}.", Context.ConnectionId, askAgain ? " and asked again" : "");
+        if (askAgain) await StartAttendance(new AttendanceRequest { Title = title });
+        else await PushAttendanceStatusAsync();
+    }
+
+    /// <summary>A student submits their name. Returns an error for the form, or null when it was recorded.</summary>
+    public async Task<string?> SubmitAttendance(AttendanceSubmission submission)
+    {
+        if (!_room.TryGetStudent(Context.ConnectionId, out var student)) return "Not connected to the classroom.";
+        if (_room.AttendanceOpen is null) return "Your teacher isn't taking attendance right now.";
+        if (string.IsNullOrEmpty(student.Info.MachineId)) return "This PC has no id.";
+        var name = AttendanceLimits.Clean(submission, DateTimeOffset.UtcNow, out var error);
+        if (name is null) return error;
+
+        foreach (var s in _room.SetName(student.Info.MachineId, name))
+            await Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.StudentNameChanged,
+                new StudentNameUpdate { StudentConnectionId = s, Name = name });
+        await PushAttendanceStatusAsync();
+        _logger.LogInformation("Attendance: {Machine} is {Name}.", student.Info.MachineName, name.Display);
+        return null;
+    }
+
+    private async Task CloseAttendanceAsync()
+    {
+        if (_room.AttendanceOpen is null) return;
+        _room.AttendanceOpen = null;
+        await Clients.Clients(_room.StudentConnectionIds).SendAsync(Protocol.ClientMethods.AttendanceClosed);
+        await PushAttendanceStatusAsync();
+    }
+
+    private AttendanceStatus AttendanceStatus() => new() { Open = _room.AttendanceOpen, Named = _room.NamedCount };
+
+    private Task PushAttendanceStatusAsync() =>
+        Clients.Clients(_room.TeacherConnectionIds).SendAsync(Protocol.ClientMethods.AttendanceStatusUpdated, AttendanceStatus());
+
     // ---- classroom control (P5) -------------------------------------------
 
     /// <summary>
@@ -952,6 +1025,7 @@ public sealed class ClassroomHub : Hub
                 await Clients.Client(s).SendAsync(Protocol.ClientMethods.RemoteControlChanged,
                     new RemoteControlInfo { TeacherConnectionId = id, Active = false });
             if (_room.TeacherCount == 0) await ClosePollAsync();
+            if (_room.TeacherCount == 0) await CloseAttendanceAsync();
             if (_room.TeacherCount == 0 && _timer.Stop()) await PushTimerAsync();
             // Programs, internet and sound limits end with the lesson (a crashed teacher app must not
             // leave a lab without internet); website limits stay until a teacher changes them.

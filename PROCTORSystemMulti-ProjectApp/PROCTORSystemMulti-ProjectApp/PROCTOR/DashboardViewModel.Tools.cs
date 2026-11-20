@@ -88,9 +88,10 @@ public sealed partial class DashboardViewModel
         public required string Machine { get; init; }
         public string? User { get; set; }
         public string Ip { get; set; } = "";
-        public DateTimeOffset FirstSeen { get; init; }
+        public DateTimeOffset FirstSeen { get; set; }
         public DateTimeOffset LastSeen { get; set; }
         public bool Online { get; set; }
+        public StudentName? Name { get; set; }
     }
 
     // Keyed by machine id so reconnects don't create duplicate rows.
@@ -104,6 +105,7 @@ public sealed partial class DashboardViewModel
         if (!_attendance.TryGetValue(key, out var row))
             _attendance[key] = row = new AttendanceRow { Machine = s.MachineName, FirstSeen = now };
         row.User = s.UserName ?? row.User;
+        row.Name = s.StudentName ?? row.Name;
         row.Ip = s.IpAddress;
         row.LastSeen = now;
         row.Online = true;
@@ -177,13 +179,15 @@ public sealed partial class DashboardViewModel
     {
         var now = DateTimeOffset.Now;
         var sb = new StringBuilder();
-        sb.AppendLine("Computer,User,IP address,First seen,Last seen,Minutes online,Online now");
-        foreach (var r in _attendance.Values.OrderBy(r => r.Machine, StringComparer.OrdinalIgnoreCase))
+        sb.AppendLine("Computer,Last name,First name,M.I.,Name given,Windows user,IP address,First seen,Last seen,Minutes online,Online now");
+        foreach (var r in _attendance.Values.OrderBy(r => r.Machine, NaturalComparer.Instance))
         {
             var last = r.Online ? now : r.LastSeen;
             var minutes = Math.Max(0, (int)Math.Round((last - r.FirstSeen).TotalMinutes));
             sb.AppendLine(string.Join(",",
-                Csv(r.Machine), Csv(r.User ?? ""), Csv(r.Ip),
+                Csv(r.Machine), Csv(r.Name?.LastName ?? ""), Csv(r.Name?.FirstName ?? ""), Csv(r.Name?.MiddleInitial ?? ""),
+                r.Name is { } n ? Csv(n.SubmittedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)) : "",
+                Csv(r.User ?? ""), Csv(r.Ip),
                 Csv(r.FirstSeen.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)),
                 Csv(last.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)),
                 minutes.ToString(CultureInfo.InvariantCulture),

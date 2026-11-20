@@ -66,7 +66,7 @@ public sealed class UsagePage : ContentPage
         var close = ModalUi.Secondary("Close");
         close.Clicked += async (_, _) => await Navigation.PopModalAsync();
 
-        Content = ModalUi.Page("Usage report",
+        Content = ModalUi.Page(this, "Usage report",
             "How long each student spent in each program and website, and how long their PC sat idle (no keyboard or mouse for a minute or more). " +
             "Counted in this app while students are connected; export it at the end of the class to keep it.",
             900,

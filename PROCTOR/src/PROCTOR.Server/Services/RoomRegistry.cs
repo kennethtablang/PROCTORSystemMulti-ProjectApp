@@ -36,6 +36,9 @@ public sealed class RoomRegistry
 
         public bool HandRaised { get; set; }
 
+        /// <summary>The name given on the attendance form (kept per PC across reconnects).</summary>
+        public StudentName? Name { get; set; }
+
         public StudentSnapshot ToSnapshot() => new()
         {
             ConnectionId = ConnectionId,
@@ -52,6 +55,7 @@ public sealed class RoomRegistry
             LastTelemetry = LastTelemetry,
             IsLocked = IsLocked,
             HandRaised = HandRaised,
+            StudentName = Name,
         };
     }
 
@@ -66,10 +70,53 @@ public sealed class RoomRegistry
 
     public StudentEntry AddOrUpdateStudent(string connectionId, StudentInfo info)
     {
-        var entry = new StudentEntry { ConnectionId = connectionId, Info = info };
+        var entry = new StudentEntry { ConnectionId = connectionId, Info = info, Name = NameOf(info.MachineId) };
         _students[connectionId] = entry;
         return entry;
     }
+
+    // ---- attendance ------------------------------------------------------------
+
+    // Names by PC id, so a PC that reconnects (network blip, restart) keeps its student's name.
+    private readonly ConcurrentDictionary<string, StudentName> _names = new(StringComparer.Ordinal);
+
+    /// <summary>The open request for names, or null when students aren't being asked.</summary>
+    public AttendanceRequest? AttendanceOpen { get; set; }
+
+    public int NamedCount => _names.Count;
+
+    public StudentName? NameOf(string? machineId) =>
+        !string.IsNullOrEmpty(machineId) && _names.TryGetValue(machineId, out var n) ? n : null;
+
+    /// <summary>Record a student's name; returns the connections (that PC) to tell the teachers about.</summary>
+    public IReadOnlyList<string> SetName(string machineId, StudentName name)
+    {
+        _names[machineId] = name;
+        var updated = new List<string>();
+        foreach (var s in _students.Values.Where(s => s.Info.MachineId == machineId))
+        {
+            s.Name = name;
+            updated.Add(s.ConnectionId);
+        }
+        return updated;
+    }
+
+    /// <summary>Forget every name (a new class). Returns the connections whose name was cleared.</summary>
+    public IReadOnlyList<string> ClearNames()
+    {
+        _names.Clear();
+        var cleared = new List<string>();
+        foreach (var s in _students.Values)
+        {
+            if (s.Name is null) continue;
+            s.Name = null;
+            cleared.Add(s.ConnectionId);
+        }
+        return cleared;
+    }
+
+    /// <summary>Connected students that haven't given a name yet.</summary>
+    public IReadOnlyList<string> UnnamedStudents => _students.Values.Where(s => s.Name is null).Select(s => s.ConnectionId).ToArray();
 
     public bool TryGetStudent(string connectionId, out StudentEntry entry)
         => _students.TryGetValue(connectionId, out entry!);

@@ -132,6 +132,9 @@ public sealed record StudentSnapshot
     /// <summary>True while the student has their hand raised asking for help.</summary>
     public bool HandRaised { get; init; }
 
+    /// <summary>The name the student typed on the attendance form, or null.</summary>
+    public StudentName? StudentName { get; init; }
+
     /// <summary>This PC's own website limits, replacing the class's; null when it follows the class.</summary>
     public WebLimits? OwnWebLimits { get; init; }
 }

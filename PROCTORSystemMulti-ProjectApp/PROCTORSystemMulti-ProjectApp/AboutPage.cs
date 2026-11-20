@@ -61,7 +61,6 @@ public sealed class AboutPage : ContentPage
             StrokeThickness = 1,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
             Padding = new Thickness(22, 18),
-            MaximumWidthRequest = 560,
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions = LayoutOptions.Center,
             Margin = new Thickness(16),
@@ -85,6 +84,7 @@ public sealed class AboutPage : ContentPage
             },
         };
         Content = new Grid { Children = { card } };
+        ModalUi.FitCard(this, 560);   // never wider or taller than the window
     }
 
     private async Task CheckAsync()

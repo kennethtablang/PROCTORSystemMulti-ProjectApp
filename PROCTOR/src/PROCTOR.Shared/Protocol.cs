@@ -82,6 +82,12 @@ public static class Protocol
         public const string PollClosed = nameof(PollClosed);
         public const string PollResultsUpdated = nameof(PollResultsUpdated);
 
+        // Attendance: students get the name form (and its closing); teachers get each name and the status.
+        public const string AttendanceRequested = nameof(AttendanceRequested);
+        public const string AttendanceClosed = nameof(AttendanceClosed);
+        public const string StudentNameChanged = nameof(StudentNameChanged);
+        public const string AttendanceStatusUpdated = nameof(AttendanceStatusUpdated);
+
         // Screen broadcast (teacher → students). Separate from the student-view signalling above:
         // here the teacher is the media sender/offerer and the student answers.
         public const string BroadcastStarted = nameof(BroadcastStarted);
@@ -163,6 +169,18 @@ public static class Protocol
 
         /// <summary>Student → server: answer (or change the answer to) the open poll.</summary>
         public const string SubmitPollAnswer = nameof(SubmitPollAnswer);
+
+        /// <summary>Teacher → server: ask the class for their names (PCs that already gave one aren't asked).</summary>
+        public const string StartAttendance = nameof(StartAttendance);
+
+        /// <summary>Teacher → server: stop asking (the forms close; names stay).</summary>
+        public const string StopAttendance = nameof(StopAttendance);
+
+        /// <summary>Teacher → server: forget every name (a new class), optionally asking again.</summary>
+        public const string ClearAttendance = nameof(ClearAttendance);
+
+        /// <summary>Student → server: the name typed on the form. Returns an error to show, or null.</summary>
+        public const string SubmitAttendance = nameof(SubmitAttendance);
 
         /// <summary>Teacher → server: start showing my screen; returns the students to connect to.</summary>
         public const string StartBroadcast = nameof(StartBroadcast);

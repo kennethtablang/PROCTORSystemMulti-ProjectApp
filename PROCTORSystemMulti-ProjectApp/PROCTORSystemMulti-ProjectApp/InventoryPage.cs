@@ -59,7 +59,7 @@ public sealed class InventoryPage : ContentPage
         var close = ModalUi.Secondary("Close");
         close.Clicked += async (_, _) => await Navigation.PopModalAsync();
 
-        Content = ModalUi.Page("PC inventory",
+        Content = ModalUi.Page(this, "PC inventory",
             "Each student PC reports its hardware, Windows version, free disk space and agent version " +
             "(within 30 seconds of connecting). Low disk space and older agents are shown in amber.",
             900,

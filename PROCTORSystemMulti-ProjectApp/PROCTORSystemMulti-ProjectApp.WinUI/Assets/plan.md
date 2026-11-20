@@ -816,6 +816,21 @@ this document and `README.md` in sync with reality.
 Newest first. Each entry records what moved and why, so the status markers above stay
 traceable to real work.
 
+- **0.33 — 2026-11-20** (release 0.6.1)
+  - **Attendance by name.** The teacher asks the class (optional class name); every student PC shows
+    a form (first name, last name, middle initial) that stays on top until submitted. The server
+    validates names (`AttendanceLimits`: letters incl. accents, spaces, hyphens, apostrophes, periods;
+    M.I. 1–2 letters) and keeps them per PC id across reconnects; PCs that join while it's open are
+    asked, PCs that answered aren't asked again. Names show on the tiles (searchable), in the
+    attendance CSV (last, first, M.I., time) and the activity log. "New class" offers an export, then
+    clears names, the attendance list and the usage report, and can ask the next class at once.
+  - **Hover tooltip on each computer**: student name, PC, Windows user, IP/MAC, hardware, Windows and
+    disk space, agent version, state and load, what's open, idle time, flash drives, lock, hand.
+  - **Pop-up windows fixed**: every pop-up is sized from the window (never wider or taller than it);
+    the middle scrolls and the buttons stay visible. The exam window uses the app's purple theme.
+  - Agent hardening of the 0.6.0 features: program allow-list checks real program paths and built-in
+    names (fails closed); freeze accepts only one-time, per-key tags from PROCTOR's remote control.
+
 - **0.32 — 2026-11-20** (release 0.6.0)
   - **Program allow-list ("only these programs").** `ClassPolicy.AllowOnlyApps` + `AllowedApps`
     (friendly names such as "Word" map to the process). The agent closes any other program that owns

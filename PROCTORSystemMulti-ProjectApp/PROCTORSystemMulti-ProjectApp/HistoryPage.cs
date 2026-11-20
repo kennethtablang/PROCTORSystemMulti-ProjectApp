@@ -84,7 +84,7 @@ public sealed class HistoryPage : ContentPage
         player.Add(new HorizontalStackLayout { Spacing = 4, Children = { prev, _play, next } }, 0, 0);
         player.Add(_slider, 1, 0);
 
-        Content = ModalUi.Page("Screen history",
+        Content = ModalUi.Page(this, "Screen history",
             "A small picture of every student's screen is saved on this device every few seconds, only when the screen changed. " +
             "Pick a day and a computer, then drag the bar or press play. Old days are deleted automatically.",
             1100,

@@ -225,9 +225,8 @@ internal sealed class PolicyEnforcer : IDisposable
     .Select(d => Path.TrimEndingDirectorySeparator(Path.GetFullPath(d)) + Path.DirectorySeparatorChar))
     .ToArray();
 
-    // Checks can overlap (a slow pass and the next timer tick), so the cache is concurrent. Keyed by
-    // path + size + last write, so a file swapped for another at the same path is checked again.
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _genuineByPath = new(StringComparer.OrdinalIgnoreCase);
+    // Programs already reported as fakes (log each once). Concurrent: checks can overlap.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _loggedFakes = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// A program the teacher allowed by name really is that program, not something renamed to look
@@ -241,15 +240,7 @@ internal sealed class PolicyEnforcer : IDisposable
         // Trusted folders can't be written by the student: no need to look further (or cache).
         if (TrustedFolders.Any(dir => full.StartsWith(dir, StringComparison.OrdinalIgnoreCase))) return true;
 
-        string key;
-        try
-        {
-            var file = new FileInfo(full);
-            key = $"{full}|{file.Length}|{file.LastWriteTimeUtc.Ticks}";
-        }
-        catch { return false; }
-        if (_genuineByPath.TryGetValue(key, out var known)) return known;
-
+        // Outside them the file is checked every time (no cache a swapped file could reuse).
         bool ok;
         try
         {
@@ -266,9 +257,8 @@ internal sealed class PolicyEnforcer : IDisposable
         {
             ok = false;
         }
-        if (_genuineByPath.Count > 500) _genuineByPath.Clear();
-        _genuineByPath[key] = ok;
-        if (!ok) _logger.LogInformation("{Path} is named like the allowed program {Name} but isn't it; closing it.", full, name);
+        if (_loggedFakes.Count > 500) _loggedFakes.Clear();
+        if (!ok && _loggedFakes.TryAdd(full, 0)) _logger.LogInformation("{Path} is named like the allowed program {Name} but isn't it; closing it.", full, name);
         return ok;
     }
 

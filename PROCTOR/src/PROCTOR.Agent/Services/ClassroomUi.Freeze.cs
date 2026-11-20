@@ -80,7 +80,7 @@ internal sealed partial class ClassroomUi
             {
                 if (code < 0 || !IsFrozen) return CallNextHookEx(IntPtr.Zero, code, wParam, lParam);
                 var k = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
-                return FromTeacher(k.flags, 0x10, k.dwExtraInfo) ? CallNextHookEx(IntPtr.Zero, code, wParam, lParam) : (IntPtr)1;
+                return FromTeacher(k.flags, 0x10, k.dwExtraInfo, k.vkCode) ? CallNextHookEx(IntPtr.Zero, code, wParam, lParam) : (IntPtr)1;
             };
             _freezeKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, _freezeKeyboardProc, handle, 0);
         }
@@ -90,7 +90,7 @@ internal sealed partial class ClassroomUi
             {
                 if (code < 0 || !IsFrozen) return CallNextHookEx(IntPtr.Zero, code, wParam, lParam);
                 var m = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
-                return FromTeacher(m.flags, 0x01, m.dwExtraInfo) ? CallNextHookEx(IntPtr.Zero, code, wParam, lParam) : (IntPtr)1;
+                return FromTeacher(m.flags, 0x01, m.dwExtraInfo, null) ? CallNextHookEx(IntPtr.Zero, code, wParam, lParam) : (IntPtr)1;
             };
             _freezeMouseHook = SetWindowsHookEx(WH_MOUSE_LL, _freezeMouseProc, handle, 0);
         }
@@ -148,8 +148,8 @@ internal sealed partial class ClassroomUi
     }
 
     /// <summary>Injected (LLKHF_INJECTED 0x10 / LLMHF_INJECTED 0x01) with a fresh one-time tag from our remote control.</summary>
-    private static bool FromTeacher(uint flags, uint injectedFlag, IntPtr extraInfo) =>
-        (flags & injectedFlag) != 0 && RemoteInput.ConsumeTag(extraInfo);
+    private static bool FromTeacher(uint flags, uint injectedFlag, IntPtr extraInfo, uint? vk) =>
+        (flags & injectedFlag) != 0 && RemoteInput.ConsumeTag(extraInfo, vk);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct KBDLLHOOKSTRUCT

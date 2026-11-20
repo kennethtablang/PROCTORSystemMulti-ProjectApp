@@ -84,24 +84,28 @@ internal sealed class RemoteInput
     // dwExtraInfo). "Freeze keyboard and mouse" lets an injected event through only when its tag is
     // one we just issued, and uses it up: a program that watches the tags can't replay them, and
     // input faked by other programs (no valid tag) stays blocked.
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, long> Pending = new();
-    private static readonly long TagLifetime = TimeSpan.FromSeconds(2).Ticks;
+    // Each tag is bound to the event it was issued for (a key's virtual-key code, or "mouse"), so a
+    // stolen tag can only ever deliver that same event.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, (long Expires, int Event)> Pending = new();
+    private static readonly long TagLifetime = TimeSpan.FromMilliseconds(500).Ticks;
+    private const int MouseEvent = -1;
 
-    private static IntPtr IssueTag()
+    private static IntPtr IssueTag(int forEvent)
     {
         var now = DateTime.UtcNow.Ticks;
         if (Pending.Count > 2000)
-            foreach (var (tag, expires) in Pending)
-                if (expires < now) Pending.TryRemove(tag, out _);
+            foreach (var (tag, v) in Pending)
+                if (v.Expires < now) Pending.TryRemove(tag, out _);
         IntPtr t;
         do t = (IntPtr)Random.Shared.NextInt64(1, long.MaxValue);
-        while (!Pending.TryAdd(t, now + TagLifetime));
+        while (!Pending.TryAdd(t, (now + TagLifetime, forEvent)));
         return t;
     }
 
-    /// <summary>True (once) when <paramref name="tag"/> was issued for remote-control input in the last two seconds.</summary>
-    public static bool ConsumeTag(IntPtr tag) =>
-        tag != IntPtr.Zero && Pending.TryRemove(tag, out var expires) && expires >= DateTime.UtcNow.Ticks;
+    /// <summary>True (once) when <paramref name="tag"/> was just issued for this key (<paramref name="vk"/>) or, with null, a mouse event.</summary>
+    public static bool ConsumeTag(IntPtr tag, uint? vk) =>
+        tag != IntPtr.Zero && Pending.TryRemove(tag, out var v) && v.Expires >= DateTime.UtcNow.Ticks
+        && v.Event == (vk is { } k ? (int)k : MouseEvent);
 
     private void Send(List<INPUT> inputs)
     {
@@ -109,8 +113,8 @@ internal sealed class RemoteInput
         var arr = inputs.ToArray();
         for (var i = 0; i < arr.Length; i++)
         {
-            if (arr[i].type == INPUT_MOUSE) arr[i].u.mi.dwExtraInfo = IssueTag();
-            else if (arr[i].type == INPUT_KEYBOARD) arr[i].u.ki.dwExtraInfo = IssueTag();
+            if (arr[i].type == INPUT_MOUSE) arr[i].u.mi.dwExtraInfo = IssueTag(MouseEvent);
+            else if (arr[i].type == INPUT_KEYBOARD) arr[i].u.ki.dwExtraInfo = IssueTag(arr[i].u.ki.wVk);
         }
         var sent = SendInput((uint)arr.Length, arr, Marshal.SizeOf<INPUT>());
         if (sent != arr.Length)
